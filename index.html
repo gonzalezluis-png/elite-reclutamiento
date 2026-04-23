@@ -858,7 +858,13 @@ function toggleMoveMenu(event, leadId) {
     if (estaEnNewLead) siguienteEtapa = etapas.find(e => /^1er intento de contacto$/i.test(e));
     if (estaEn1er)    siguienteEtapa = etapas.find(e => /^2do intento de contacto$/i.test(e));
     if (estaEn2do)    siguienteEtapa = etapas.find(e => /^3er intento de contacto$/i.test(e));
-    if (estaEn3er)    siguienteEtapa = etapas.find(e => /^no contactado$/i.test(e));
+
+    const noContactadoBtn = estaEn3er ? `
+      <div class="move-option" onclick="moveNoContactado('${leadId}');closeAllMenus()">
+        <span class="move-option-dot" style="background:#676a82"></span>
+        <span>No contactado</span>
+      </div>
+      <div style="border-top:1px solid var(--border);margin:2px 0"></div>` : '';
 
     const siguienteBtn = siguienteEtapa ? `
       <div class="move-option" onclick="moveLead('${leadId}','${siguienteEtapa.replace(/'/g,"\\'")}');closeAllMenus()">
@@ -875,7 +881,7 @@ function toggleMoveMenu(event, leadId) {
       </div>` : '';
 
     document.getElementById('move-menu-options').innerHTML =
-      siguienteBtn +
+      noContactadoBtn + siguienteBtn +
       `<div class="move-option-special no-interesado" onclick="moveNoInteresado('${leadId}')">
         <span class="move-option-dot" style="background:#fdab3d"></span>
         <span>No interesado</span>
@@ -929,6 +935,15 @@ function closeAllMenus() {
   menu.classList.remove('open');
   menu.style.display = 'none';
   _openMenuLeadId = null;
+}
+
+function moveNoContactado(leadId) {
+  const lead = leads.find(l => l.id === leadId);
+  if (!lead) return;
+  lead.pipeline_id = 'no-contactados';
+  lead.etapa = 'Sin respuesta - 3er intento';
+  saveLeads(); renderKanban(); renderSidebar();
+  showToast('📵 Movido a No Contactados');
 }
 
 function moveNoInteresado(leadId) {
