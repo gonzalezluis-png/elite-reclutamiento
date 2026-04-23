@@ -612,6 +612,10 @@ const PIPELINES = [
     etapas:['ENTREVISTADOS','REAGENDADA','PENDING PAYMENT','CONTRATADO','NO INTERESADO - NO CALIFICA'] },
   { id:'eliminados', nombre:'ELIMINADOS', icon:'🗑️', visible:true,
     etapas:['APLICANTE - NO CONTACTADO','APLICANTE - NO INTERESADO - NO CALIFICA','WEBINAR - NO CONTACTADO','WEBINAR - NO INTERESADO','ENTREVISTA - NO CONTACTADO','ENTREVISTA - NO INTERESADO'] },
+  { id:'no-contactados', nombre:'NO CONTACTADOS', icon:'📵', visible:true,
+    etapas:['Sin respuesta - 1er intento','Sin respuesta - 2do intento','Sin respuesta - 3er intento','Número incorrecto','Fuera de servicio'] },
+  { id:'no-interesados-no-califica', nombre:'NO INTERESADOS / NO CALIFICA', icon:'🚫', visible:true,
+    etapas:['No interesado','No califica - Sin documentos','No califica - Menor de edad','No califica - No habla Español','No califica - Otros'] },
 ];
 
 // Stage color hints
@@ -719,7 +723,7 @@ function renderSidebar() {
     },
     {
       label: '🗑️ Otros',
-      ids: ['eliminados']
+      ids: ['no-contactados','no-interesados-no-califica','eliminados']
     }
   ];
 
