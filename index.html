@@ -44,6 +44,14 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); heig
 .sidebar-search input { width:100%;padding:7px 10px;background:var(--card2);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-size:12px;font-family:var(--font);outline:none; }
 .sidebar-search input:focus { border-color:var(--accent); }
 .sidebar-label { font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text2);padding:10px 14px 4px; }
+.sidebar-section-hdr { font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text2);padding:12px 14px 4px;display:flex;align-items:center;gap:6px; }
+.sidebar-section-hdr::after { content:'';flex:1;height:1px;background:var(--border); }
+.pipe-item-webinar { background:linear-gradient(135deg,rgba(120,75,209,.25),rgba(0,188,212,.15));border:1px solid rgba(120,75,209,.4);border-radius:8px;margin:4px 6px !important; }
+.pipe-item-webinar:hover { background:linear-gradient(135deg,rgba(120,75,209,.38),rgba(0,188,212,.25)) !important; }
+.pipe-item-webinar.active { background:linear-gradient(135deg,rgba(120,75,209,.5),rgba(0,188,212,.35)) !important;border-color:var(--purple) !important; }
+.pipe-item-webinar .pipe-name { color:#c4a8ff !important;font-weight:700; }
+.pipe-item-webinar.active .pipe-name { color:#fff !important; }
+.pipe-item-webinar .pipe-count { background:rgba(120,75,209,.4);color:#c4a8ff; }
 .sidebar-scroll { flex:1;overflow-y:auto;padding-bottom:6px; }
 .pipe-item { display:flex;align-items:center;gap:8px;padding:7px 10px 7px 12px;cursor:pointer;border-radius:6px;margin:1px 5px;position:relative;transition:background .12s; }
 .pipe-item:hover { background:rgba(255,255,255,.05); }
@@ -327,7 +335,6 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); heig
       <input id="pipe-search" placeholder="Buscar pipeline..." oninput="renderSidebar()" />
     </div>
     <div class="sidebar-scroll">
-      <div class="sidebar-label">Pipelines</div>
       <div id="pipe-list"></div>
     </div>
     <div class="sidebar-bottom">
@@ -695,17 +702,47 @@ function renderSidebar() {
   const q = (document.getElementById('pipe-search').value || '').toLowerCase();
   const isAdmin = currentUser?.role === 'Administrador';
   const el = document.getElementById('pipe-list');
-  el.innerHTML = PIPELINES
-    .filter(p => (p.visible || isAdmin) && p.nombre.toLowerCase().includes(q))
-    .map(p => {
+
+  const GROUPS = [
+    {
+      label: '📌 Postulados',
+      ids: ['postulados-meta','dallas-texas','austin-san-antonio','el-paso','florida','otro-lugares']
+    },
+    {
+      label: '🎥 Webinar',
+      ids: ['en-webinar'],
+      webinar: true
+    },
+    {
+      label: '🤝 Entrevistas',
+      ids: ['entrevistas-generales','caritza-rojas','maria-lugo','brayan-alexander']
+    },
+    {
+      label: '🗑️ Otros',
+      ids: ['eliminados']
+    }
+  ];
+
+  let html = '';
+  for (const group of GROUPS) {
+    const pipes = group.ids
+      .map(id => PIPELINES.find(p => p.id === id))
+      .filter(p => p && (p.visible || isAdmin) && p.nombre.toLowerCase().includes(q));
+    if (!pipes.length) continue;
+
+    html += `<div class="sidebar-section-hdr">${group.label}</div>`;
+    for (const p of pipes) {
       const count = leads.filter(l => l.pipeline_id === p.id).length;
       const active = activePipelineId === p.id ? 'active' : '';
-      return `<div class="pipe-item ${active}" onclick="selectPipeline('${p.id}')">
+      const webinarCls = group.webinar ? 'pipe-item-webinar' : '';
+      html += `<div class="pipe-item ${webinarCls} ${active}" onclick="selectPipeline('${p.id}')">
         <span class="pipe-icon">${p.icon}</span>
         <span class="pipe-name">${p.nombre}</span>
         <span class="pipe-count">${count}</span>
       </div>`;
-    }).join('');
+    }
+  }
+  el.innerHTML = html;
 }
 
 function selectPipeline(id) {
