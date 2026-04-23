@@ -1,0 +1,828 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Elite Reclutamiento — CRM</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:      #1b1e2e;
+    --sidebar: #111422;
+    --card:    #22253a;
+    --card2:   #191c2d;
+    --border:  #2a2e46;
+    --accent:  #0073ea;
+    --green:   #00c875;
+    --red:     #e2445c;
+    --yellow:  #fdab3d;
+    --purple:  #784bd1;
+    --gray:    #676a82;
+    --text:    #d0d3e8;
+    --text2:   #6b6f8c;
+    --font:    'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
+    --radius:  8px;
+    --shadow:  0 4px 20px rgba(0,0,0,.4);
+  }
+
+  body {
+    font-family: var(--font);
+    background: var(--bg);
+    color: var(--text);
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+  }
+
+  /* ── LOGIN ── */
+  #login-page {
+    position: fixed; inset: 0;
+    background: var(--bg);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 1000;
+  }
+  #login-page.hidden { display: none; }
+  .login-box {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 36px 40px;
+    width: 360px;
+    box-shadow: var(--shadow);
+  }
+  .login-logo { text-align: center; margin-bottom: 28px; }
+  .login-logo h1 { font-size: 18px; font-weight: 700; color: #fff; }
+  .login-logo p  { font-size: 12px; color: var(--text2); margin-top: 4px; }
+  .login-field { margin-bottom: 14px; }
+  .login-field label { display: block; font-size: 12px; color: var(--text2); margin-bottom: 5px; }
+  .login-field input {
+    width: 100%; padding: 9px 12px;
+    background: var(--card2); border: 1px solid var(--border);
+    border-radius: var(--radius); color: var(--text);
+    font-size: 13px; font-family: var(--font);
+    outline: none;
+  }
+  .login-field input:focus { border-color: var(--accent); }
+  .btn-login {
+    width: 100%; padding: 10px;
+    background: var(--accent); color: #fff;
+    border: none; border-radius: var(--radius);
+    font-size: 13px; font-weight: 600;
+    cursor: pointer; margin-top: 6px;
+    font-family: var(--font);
+  }
+  .btn-login:hover { background: #005fcc; }
+  #login-error { font-size: 12px; color: var(--red); margin-top: 10px; text-align: center; min-height: 18px; }
+
+  /* ── LAYOUT ── */
+  #app { display: flex; width: 100%; height: 100vh; }
+
+  /* ── SIDEBAR ── */
+  #sidebar {
+    width: 240px; min-width: 240px;
+    background: var(--sidebar);
+    border-right: 1px solid var(--border);
+    display: flex; flex-direction: column;
+    overflow: hidden;
+  }
+  .sidebar-logo {
+    padding: 16px 14px 14px;
+    border-bottom: 1px solid var(--border);
+  }
+  .sidebar-logo h1 { font-size: 13px; font-weight: 700; color: #fff; }
+  .sidebar-logo span { font-size: 10px; color: var(--text2); display: block; margin-top: 2px; }
+  .sidebar-label {
+    font-size: 10px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: .6px;
+    color: var(--text2); padding: 14px 14px 5px;
+  }
+  .sidebar-boards { flex: 1; overflow-y: auto; padding-bottom: 8px; }
+  .board-item {
+    display: flex; align-items: center; gap: 9px;
+    padding: 7px 12px; cursor: pointer;
+    border-radius: 6px; margin: 1px 6px;
+    position: relative;
+    transition: background .12s;
+  }
+  .board-item:hover { background: rgba(255,255,255,.05); }
+  .board-item.active { background: rgba(0,115,234,.15); }
+  .board-item.active::before {
+    content: ''; position: absolute; left: 0; top: 4px; bottom: 4px;
+    width: 3px; background: var(--accent); border-radius: 0 3px 3px 0;
+  }
+  .board-item .board-icon { font-size: 12px; opacity: .6; }
+  .board-item .board-name { flex: 1; font-size: 12.5px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .board-item.active .board-name { font-weight: 500; color: #fff; }
+  .board-count {
+    font-size: 10px; font-weight: 600;
+    background: var(--border); color: var(--text2);
+    padding: 1px 6px; border-radius: 10px; min-width: 20px; text-align: center;
+  }
+  .board-item.active .board-count { background: var(--accent); color: #fff; }
+
+  .sidebar-bottom {
+    border-top: 1px solid var(--border);
+    padding: 8px 6px;
+  }
+  .sidebar-item {
+    display: flex; align-items: center; gap: 9px;
+    padding: 7px 12px; border-radius: 6px;
+    cursor: pointer; font-size: 12.5px; color: var(--text2);
+    transition: background .12s;
+  }
+  .sidebar-item:hover { background: rgba(255,255,255,.05); color: var(--text); }
+  .sidebar-item.active { color: var(--accent); background: rgba(0,115,234,.1); }
+
+  /* ── MAIN ── */
+  #main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+  /* ── TOPBAR ── */
+  #topbar {
+    height: 52px; min-height: 52px;
+    background: var(--card);
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center;
+    padding: 0 20px; gap: 12px;
+  }
+  #board-title { font-size: 15px; font-weight: 700; color: #fff; flex: 1; }
+  .btn-primary {
+    padding: 7px 14px; background: var(--accent); color: #fff;
+    border: none; border-radius: var(--radius);
+    font-size: 12.5px; font-weight: 600; cursor: pointer;
+    font-family: var(--font);
+  }
+  .btn-primary:hover { background: #005fcc; }
+  .btn-secondary {
+    padding: 7px 14px; background: transparent;
+    border: 1px solid var(--border); color: var(--text2);
+    border-radius: var(--radius); font-size: 12.5px; cursor: pointer;
+    font-family: var(--font);
+  }
+  .btn-secondary:hover { background: var(--card2); color: var(--text); }
+  .topbar-user { display: flex; align-items: center; gap: 8px; }
+  .topbar-avatar {
+    width: 30px; height: 30px; border-radius: 50%;
+    background: var(--accent); display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 700; color: #fff;
+  }
+  .topbar-user-name { font-size: 12px; font-weight: 600; color: var(--text); }
+  .topbar-user-role { font-size: 10px; color: var(--text2); }
+
+  /* ── TOOLBAR ── */
+  #toolbar {
+    padding: 10px 16px;
+    background: var(--card2);
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 10px;
+  }
+  #search-input {
+    padding: 7px 12px; background: var(--card);
+    border: 1px solid var(--border); border-radius: var(--radius);
+    color: var(--text); font-size: 12.5px; font-family: var(--font);
+    outline: none; width: 220px;
+  }
+  #search-input:focus { border-color: var(--accent); }
+  .filter-select {
+    padding: 7px 10px; background: var(--card);
+    border: 1px solid var(--border); border-radius: var(--radius);
+    color: var(--text); font-size: 12px; font-family: var(--font);
+    outline: none; cursor: pointer;
+  }
+
+  /* ── TABLE ── */
+  #table-wrap { flex: 1; overflow: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  thead tr { background: var(--card2); position: sticky; top: 0; z-index: 2; }
+  th {
+    padding: 9px 12px; font-size: 11px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: .4px;
+    color: var(--text2); text-align: left;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  td { padding: 10px 12px; font-size: 12.5px; color: var(--text); border-bottom: 1px solid var(--border); }
+  tbody tr { background: var(--card); cursor: pointer; transition: background .1s; }
+  tbody tr:hover { background: rgba(0,115,234,.07); }
+
+  .badge {
+    display: inline-block; padding: 2px 9px;
+    border-radius: 20px; font-size: 11px; font-weight: 600;
+  }
+  .badge-nuevo    { background: rgba(0,115,234,.18); color: #4da6ff; }
+  .badge-contactado { background: rgba(253,171,61,.18); color: var(--yellow); }
+  .badge-entrevista { background: rgba(120,75,209,.18); color: #a57ff5; }
+  .badge-contratado { background: rgba(0,200,117,.18); color: var(--green); }
+  .badge-descartado { background: rgba(226,68,92,.18); color: var(--red); }
+
+  /* ── MODAL ── */
+  .modal-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,.6);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 500;
+  }
+  .modal-overlay.hidden { display: none; }
+  .modal-content {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    width: 520px; max-width: 95vw;
+    max-height: 90vh; overflow-y: auto;
+    box-shadow: var(--shadow);
+  }
+  .modal-header {
+    padding: 16px 20px;
+    background: var(--card2);
+    border-bottom: 1px solid var(--border);
+    border-radius: 14px 14px 0 0;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .modal-header h2 { font-size: 14px; font-weight: 700; color: #fff; }
+  .modal-close {
+    background: none; border: none; color: var(--text2);
+    font-size: 18px; cursor: pointer; padding: 2px 6px; border-radius: 4px;
+  }
+  .modal-close:hover { background: var(--border); color: var(--text); }
+  .modal-body { padding: 20px; }
+  .modal-footer {
+    padding: 14px 20px;
+    background: var(--card2);
+    border-top: 1px solid var(--border);
+    border-radius: 0 0 14px 14px;
+    display: flex; justify-content: flex-end; gap: 8px;
+  }
+  .field { margin-bottom: 14px; }
+  .field label { display: block; font-size: 12px; color: var(--text2); margin-bottom: 5px; }
+  .field input, .field select, .field textarea {
+    width: 100%; padding: 8px 11px;
+    background: var(--card2); border: 1px solid var(--border);
+    border-radius: var(--radius); color: var(--text);
+    font-size: 13px; font-family: var(--font); outline: none;
+  }
+  .field input:focus, .field select:focus, .field textarea:focus { border-color: var(--accent); }
+  .field textarea { resize: vertical; min-height: 70px; }
+  .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+  /* ── EMPTY STATE ── */
+  .empty-state {
+    display: flex; flex-direction: column; align-items: center;
+    justify-content: center; padding: 60px 20px;
+    color: var(--text2); gap: 10px;
+  }
+  .empty-state .empty-icon { font-size: 36px; opacity: .4; }
+  .empty-state p { font-size: 13px; }
+
+  /* ── SCROLLBAR ── */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: var(--card2); }
+  ::-webkit-scrollbar-thumb { background: #3a3f5c; border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: #4a4f6c; }
+
+  /* ── PAGES ── */
+  #leads-page   { display: flex; flex: 1; flex-direction: column; overflow: hidden; }
+  #leads-page.hidden { display: none; }
+  #settings-page { display: none; flex: 1; flex-direction: column; overflow: hidden; padding: 24px; }
+  #settings-page.visible { display: flex; }
+
+  .settings-section {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 12px; padding: 20px 24px; margin-bottom: 14px;
+    max-width: 600px;
+  }
+  .settings-section h3 { font-size: 14px; font-weight: 700; color: #fff; margin-bottom: 4px; }
+  .settings-section p  { font-size: 12px; color: var(--text2); margin-bottom: 14px; }
+
+  /* toast */
+  #toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 8px; padding: 10px 18px;
+    font-size: 12.5px; color: var(--text);
+    box-shadow: var(--shadow); z-index: 9999;
+    opacity: 0; pointer-events: none;
+    transition: opacity .2s;
+  }
+  #toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="login-page">
+  <div class="login-box">
+    <div class="login-logo">
+      <h1>🏢 Elite Reclutamiento</h1>
+      <p>CRM de Gestión de Leads</p>
+    </div>
+    <div class="login-field">
+      <label>Correo</label>
+      <input type="email" id="login-email" placeholder="correo@empresa.com" />
+    </div>
+    <div class="login-field">
+      <label>Contraseña</label>
+      <input type="password" id="login-pass" placeholder="••••••••" />
+    </div>
+    <button class="btn-login" onclick="doLogin()">Entrar</button>
+    <div id="login-error"></div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app" style="display:none;">
+
+  <!-- SIDEBAR -->
+  <div id="sidebar">
+    <div class="sidebar-logo">
+      <h1>🏢 Elite Reclutamiento</h1>
+      <span>CRM de Leads</span>
+    </div>
+
+    <div class="sidebar-boards">
+      <div class="sidebar-label">Tableros</div>
+      <div id="boards-list"></div>
+    </div>
+
+    <div class="sidebar-bottom">
+      <div class="sidebar-item" id="nav-settings" onclick="showPage('settings')">
+        ⚙️ &nbsp;Configuración
+      </div>
+      <div class="sidebar-item" onclick="doLogout()" style="color:var(--red);margin-top:2px;">
+        🚪 &nbsp;Cerrar sesión
+      </div>
+    </div>
+  </div>
+
+  <!-- MAIN -->
+  <div id="main">
+
+    <!-- TOPBAR -->
+    <div id="topbar">
+      <div id="board-title">Leads</div>
+      <button class="btn-primary" onclick="openModal()">+ Nuevo Lead</button>
+      <div class="topbar-user">
+        <div class="topbar-avatar" id="user-avatar">U</div>
+        <div>
+          <div class="topbar-user-name" id="user-name">Usuario</div>
+          <div class="topbar-user-role" id="user-role">Agente</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- LEADS PAGE -->
+    <div id="leads-page">
+      <div id="toolbar">
+        <input id="search-input" placeholder="🔍  Buscar lead..." oninput="renderTable()" />
+        <select class="filter-select" id="filter-status" onchange="renderTable()">
+          <option value="">Todos los estados</option>
+          <option value="Nuevo">Nuevo</option>
+          <option value="Contactado">Contactado</option>
+          <option value="Entrevista">Entrevista</option>
+          <option value="Contratado">Contratado</option>
+          <option value="Descartado">Descartado</option>
+        </select>
+        <select class="filter-select" id="filter-puesto" onchange="renderTable()">
+          <option value="">Todos los puestos</option>
+        </select>
+      </div>
+
+      <div id="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Nombre</th>
+              <th>Teléfono</th>
+              <th>Correo</th>
+              <th>Puesto</th>
+              <th>Estado</th>
+              <th>Fuente</th>
+              <th>Fecha</th>
+              <th>Notas</th>
+            </tr>
+          </thead>
+          <tbody id="leads-tbody"></tbody>
+        </table>
+        <div id="empty-state" class="empty-state hidden">
+          <div class="empty-icon">👥</div>
+          <p>No hay leads en este tablero</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- SETTINGS PAGE -->
+    <div id="settings-page">
+      <h2 style="font-size:16px;font-weight:700;color:#fff;margin-bottom:20px;">⚙️ Configuración</h2>
+      <div class="settings-section">
+        <h3>Supabase</h3>
+        <p>Conecta tu base de datos Supabase para sincronizar los leads.</p>
+        <div class="field">
+          <label>URL del proyecto</label>
+          <input type="text" id="cfg-url" placeholder="https://xxxxx.supabase.co" />
+        </div>
+        <div class="field">
+          <label>Anon Key</label>
+          <input type="text" id="cfg-key" placeholder="eyJ..." />
+        </div>
+        <button class="btn-primary" onclick="saveSupabaseConfig()">Guardar</button>
+      </div>
+
+      <div class="settings-section">
+        <h3>Puestos disponibles</h3>
+        <p>Lista de puestos separados por coma.</p>
+        <div class="field">
+          <textarea id="cfg-puestos" rows="3" placeholder="Vendedor, Asesor, Coordinador, Gerente"></textarea>
+        </div>
+        <button class="btn-primary" onclick="savePuestos()">Guardar puestos</button>
+      </div>
+    </div>
+
+  </div><!-- /main -->
+</div><!-- /app -->
+
+<!-- MODAL NUEVO / EDITAR LEAD -->
+<div class="modal-overlay hidden" id="lead-modal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h2 id="modal-title">Nuevo Lead</h2>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="lead-id" />
+      <div class="field-row">
+        <div class="field">
+          <label>Nombre *</label>
+          <input type="text" id="f-nombre" placeholder="Juan Pérez" />
+        </div>
+        <div class="field">
+          <label>Teléfono</label>
+          <input type="tel" id="f-telefono" placeholder="+52 55 0000 0000" />
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Correo</label>
+          <input type="email" id="f-correo" placeholder="juan@email.com" />
+        </div>
+        <div class="field">
+          <label>Puesto</label>
+          <select id="f-puesto"></select>
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Estado</label>
+          <select id="f-estado">
+            <option>Nuevo</option>
+            <option>Contactado</option>
+            <option>Entrevista</option>
+            <option>Contratado</option>
+            <option>Descartado</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Fuente</label>
+          <select id="f-fuente">
+            <option>Facebook</option>
+            <option>Instagram</option>
+            <option>WhatsApp</option>
+            <option>Referido</option>
+            <option>LinkedIn</option>
+            <option>OCC / Indeed</option>
+            <option>Otro</option>
+          </select>
+        </div>
+      </div>
+      <div class="field">
+        <label>Notas</label>
+        <textarea id="f-notas" placeholder="Comentarios sobre el lead..."></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal()">Cancelar</button>
+      <button class="btn-primary" onclick="saveLead()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<script>
+// ════════════════════════════════════════════
+//  SUPABASE
+// ════════════════════════════════════════════
+let SUPA_URL = localStorage.getItem('er_supa_url') || '';
+let SUPA_KEY = localStorage.getItem('er_supa_key') || '';
+let supa = null;
+
+function initSupabase() {
+  if (SUPA_URL && SUPA_KEY) {
+    supa = supabase.createClient(SUPA_URL, SUPA_KEY);
+  }
+}
+initSupabase();
+
+// ════════════════════════════════════════════
+//  ESTADO LOCAL
+// ════════════════════════════════════════════
+let currentUser = null;
+let leads = JSON.parse(localStorage.getItem('er_leads') || '[]');
+let puestos = JSON.parse(localStorage.getItem('er_puestos') || '["Vendedor","Asesor","Coordinador","Gerente"]');
+let boards = JSON.parse(localStorage.getItem('er_boards') || JSON.stringify([
+  { id: 'todos',       name: 'Todos los leads',  icon: '👥' },
+  { id: 'Nuevo',       name: 'Nuevos',            icon: '🆕' },
+  { id: 'Contactado',  name: 'Contactados',       icon: '📞' },
+  { id: 'Entrevista',  name: 'Entrevista',        icon: '🗓️' },
+  { id: 'Contratado',  name: 'Contratados',       icon: '✅' },
+  { id: 'Descartado',  name: 'Descartados',       icon: '❌' },
+]));
+let activeBoard = 'todos';
+
+// ════════════════════════════════════════════
+//  AUTH (simple local)
+// ════════════════════════════════════════════
+const USERS = JSON.parse(localStorage.getItem('er_users') || JSON.stringify([
+  { email: 'admin@elitereclutamiento.com', password: 'admin123', name: 'Administrador', role: 'Admin' }
+]));
+
+async function doLogin() {
+  const email = document.getElementById('login-email').value.trim();
+  const pass  = document.getElementById('login-pass').value;
+  const errEl = document.getElementById('login-error');
+  errEl.textContent = '';
+
+  // Intentar con Supabase si está configurado
+  if (supa) {
+    const { data, error } = await supa.auth.signInWithPassword({ email, password: pass });
+    if (!error && data.user) {
+      currentUser = { email: data.user.email, name: data.user.email.split('@')[0], role: 'Agente' };
+      afterLogin();
+      return;
+    }
+  }
+
+  // Fallback local
+  const user = USERS.find(u => u.email === email && u.password === pass);
+  if (user) {
+    currentUser = user;
+    afterLogin();
+  } else {
+    errEl.textContent = 'Correo o contraseña incorrectos.';
+  }
+}
+
+function afterLogin() {
+  document.getElementById('login-page').classList.add('hidden');
+  document.getElementById('app').style.display = 'flex';
+  document.getElementById('user-name').textContent = currentUser.name;
+  document.getElementById('user-role').textContent = currentUser.role;
+  document.getElementById('user-avatar').textContent = currentUser.name[0].toUpperCase();
+  renderBoards();
+  selectBoard('todos');
+  loadLeadsFromSupabase();
+}
+
+function doLogout() {
+  currentUser = null;
+  document.getElementById('login-page').classList.remove('hidden');
+  document.getElementById('app').style.display = 'none';
+}
+
+// Enter en login
+document.getElementById('login-pass').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+document.getElementById('login-email').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+
+// ════════════════════════════════════════════
+//  SUPABASE LEADS
+// ════════════════════════════════════════════
+async function loadLeadsFromSupabase() {
+  if (!supa) return;
+  const { data, error } = await supa.from('leads').select('*').order('created_at', { ascending: false });
+  if (!error && data) {
+    leads = data;
+    localStorage.setItem('er_leads', JSON.stringify(leads));
+    renderTable();
+    renderBoards();
+  }
+}
+
+async function upsertLeadSupabase(lead) {
+  if (!supa) return;
+  await supa.from('leads').upsert(lead, { onConflict: 'id' });
+}
+
+// ════════════════════════════════════════════
+//  SIDEBAR / BOARDS
+// ════════════════════════════════════════════
+function renderBoards() {
+  const el = document.getElementById('boards-list');
+  el.innerHTML = boards.map(b => {
+    const count = b.id === 'todos'
+      ? leads.length
+      : leads.filter(l => l.estado === b.id).length;
+    return `<div class="board-item ${activeBoard === b.id ? 'active' : ''}" onclick="selectBoard('${b.id}')">
+      <span class="board-icon">${b.icon}</span>
+      <span class="board-name">${b.name}</span>
+      <span class="board-count">${count}</span>
+    </div>`;
+  }).join('');
+}
+
+function selectBoard(id) {
+  activeBoard = id;
+  const b = boards.find(x => x.id === id);
+  document.getElementById('board-title').textContent = b ? b.name : id;
+  document.getElementById('filter-status').value = id === 'todos' ? '' : id;
+  // show leads page, hide others
+  document.getElementById('leads-page').classList.remove('hidden');
+  document.getElementById('settings-page').classList.remove('visible');
+  document.getElementById('nav-settings').classList.remove('active');
+  renderBoards();
+  renderTable();
+}
+
+function showPage(page) {
+  document.getElementById('leads-page').classList.add('hidden');
+  document.getElementById('settings-page').classList.remove('visible');
+  document.getElementById('nav-settings').classList.remove('active');
+  if (page === 'settings') {
+    document.getElementById('settings-page').classList.add('visible');
+    document.getElementById('nav-settings').classList.add('active');
+    document.getElementById('board-title').textContent = 'Configuración';
+    loadSettingsForm();
+  }
+}
+
+// ════════════════════════════════════════════
+//  TABLE
+// ════════════════════════════════════════════
+const STATUS_BADGE = {
+  'Nuevo':       'badge-nuevo',
+  'Contactado':  'badge-contactado',
+  'Entrevista':  'badge-entrevista',
+  'Contratado':  'badge-contratado',
+  'Descartado':  'badge-descartado',
+};
+
+function renderTable() {
+  const q       = document.getElementById('search-input').value.toLowerCase();
+  const fStatus = document.getElementById('filter-status').value;
+  const fPuesto = document.getElementById('filter-puesto').value;
+
+  let rows = leads.filter(l => {
+    const matchQ = !q || [l.nombre,l.telefono,l.correo,l.puesto,l.fuente,l.notas]
+      .join(' ').toLowerCase().includes(q);
+    const matchS = !fStatus || l.estado === fStatus;
+    const matchP = !fPuesto || l.puesto === fPuesto;
+    return matchQ && matchS && matchP;
+  });
+
+  const tbody = document.getElementById('leads-tbody');
+  const empty = document.getElementById('empty-state');
+
+  if (!rows.length) {
+    tbody.innerHTML = '';
+    empty.classList.remove('hidden');
+    return;
+  }
+  empty.classList.add('hidden');
+
+  tbody.innerHTML = rows.map(l => `
+    <tr onclick="editLead('${l.id}')">
+      <td style="font-weight:600;">${esc(l.nombre)}</td>
+      <td>${esc(l.telefono||'—')}</td>
+      <td>${esc(l.correo||'—')}</td>
+      <td>${esc(l.puesto||'—')}</td>
+      <td><span class="badge ${STATUS_BADGE[l.estado]||''}">${esc(l.estado)}</span></td>
+      <td>${esc(l.fuente||'—')}</td>
+      <td>${fmtDate(l.created_at||l.fecha)}</td>
+      <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text2);">${esc(l.notas||'')}</td>
+    </tr>`).join('');
+
+  // update puesto filter options
+  const puestoSel = document.getElementById('filter-puesto');
+  const cur = puestoSel.value;
+  const unique = [...new Set(leads.map(l=>l.puesto).filter(Boolean))];
+  puestoSel.innerHTML = '<option value="">Todos los puestos</option>' +
+    unique.map(p => `<option value="${esc(p)}" ${cur===p?'selected':''}>${esc(p)}</option>`).join('');
+}
+
+// ════════════════════════════════════════════
+//  MODAL CRUD
+// ════════════════════════════════════════════
+function openModal(lead) {
+  document.getElementById('modal-title').textContent = lead ? 'Editar Lead' : 'Nuevo Lead';
+  document.getElementById('lead-id').value   = lead?.id || '';
+  document.getElementById('f-nombre').value  = lead?.nombre || '';
+  document.getElementById('f-telefono').value= lead?.telefono || '';
+  document.getElementById('f-correo').value  = lead?.correo || '';
+  document.getElementById('f-notas').value   = lead?.notas || '';
+
+  // populate puestos select
+  const ps = document.getElementById('f-puesto');
+  ps.innerHTML = puestos.map(p => `<option ${lead?.puesto===p?'selected':''}>${esc(p)}</option>`).join('');
+
+  const estados = ['Nuevo','Contactado','Entrevista','Contratado','Descartado'];
+  const es = document.getElementById('f-estado');
+  es.innerHTML = estados.map(e => `<option ${lead?.estado===e?'selected':''}>${e}</option>`).join('');
+
+  const fuentes = ['Facebook','Instagram','WhatsApp','Referido','LinkedIn','OCC / Indeed','Otro'];
+  const fs = document.getElementById('f-fuente');
+  fs.innerHTML = fuentes.map(f => `<option ${lead?.fuente===f?'selected':''}>${f}</option>`).join('');
+
+  document.getElementById('lead-modal').classList.remove('hidden');
+  setTimeout(() => document.getElementById('f-nombre').focus(), 50);
+}
+
+function closeModal() {
+  document.getElementById('lead-modal').classList.add('hidden');
+}
+
+function editLead(id) {
+  const lead = leads.find(l => String(l.id) === String(id));
+  if (lead) openModal(lead);
+}
+
+async function saveLead() {
+  const nombre = document.getElementById('f-nombre').value.trim();
+  if (!nombre) { showToast('El nombre es obligatorio'); return; }
+
+  const id  = document.getElementById('lead-id').value;
+  const lead = {
+    id:        id || crypto.randomUUID(),
+    nombre,
+    telefono:  document.getElementById('f-telefono').value.trim(),
+    correo:    document.getElementById('f-correo').value.trim(),
+    puesto:    document.getElementById('f-puesto').value,
+    estado:    document.getElementById('f-estado').value,
+    fuente:    document.getElementById('f-fuente').value,
+    notas:     document.getElementById('f-notas').value.trim(),
+    created_at: id ? (leads.find(l=>l.id===id)?.created_at || new Date().toISOString()) : new Date().toISOString(),
+  };
+
+  if (id) {
+    const idx = leads.findIndex(l => l.id === id);
+    if (idx >= 0) leads[idx] = lead; else leads.unshift(lead);
+  } else {
+    leads.unshift(lead);
+  }
+
+  localStorage.setItem('er_leads', JSON.stringify(leads));
+  upsertLeadSupabase(lead);
+  closeModal();
+  renderTable();
+  renderBoards();
+  showToast(id ? 'Lead actualizado' : 'Lead creado');
+}
+
+// ════════════════════════════════════════════
+//  SETTINGS
+// ════════════════════════════════════════════
+function loadSettingsForm() {
+  document.getElementById('cfg-url').value    = SUPA_URL;
+  document.getElementById('cfg-key').value    = SUPA_KEY;
+  document.getElementById('cfg-puestos').value = puestos.join(', ');
+}
+
+function saveSupabaseConfig() {
+  SUPA_URL = document.getElementById('cfg-url').value.trim();
+  SUPA_KEY = document.getElementById('cfg-key').value.trim();
+  localStorage.setItem('er_supa_url', SUPA_URL);
+  localStorage.setItem('er_supa_key', SUPA_KEY);
+  initSupabase();
+  showToast('Configuración guardada');
+}
+
+function savePuestos() {
+  const raw = document.getElementById('cfg-puestos').value;
+  puestos = raw.split(',').map(s=>s.trim()).filter(Boolean);
+  localStorage.setItem('er_puestos', JSON.stringify(puestos));
+  showToast('Puestos guardados');
+}
+
+// ════════════════════════════════════════════
+//  UTILS
+// ════════════════════════════════════════════
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function fmtDate(d) {
+  if (!d) return '—';
+  const dt = new Date(d);
+  return isNaN(dt) ? d : dt.toLocaleDateString('es-MX', { day:'2-digit', month:'short', year:'numeric' });
+}
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// Close modal on overlay click
+document.getElementById('lead-modal').addEventListener('click', e => {
+  if (e.target === document.getElementById('lead-modal')) closeModal();
+});
+</script>
+</body>
+</html>
