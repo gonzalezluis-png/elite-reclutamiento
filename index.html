@@ -344,7 +344,7 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); heig
         <span id="online-dot" style="width:7px;height:7px;border-radius:50%;background:#00c875;display:inline-block;"></span>
         <span id="online-text">En línea</span>
       </div>
-      <button class="btn-primary" onclick="openNewLead()">+ Nuevo Aplicante</button>
+      <button class="btn-primary" onclick="openNewLead()">+ Nuevo Postulado</button>
       <div class="topbar-user">
         <div class="topbar-avatar" id="user-avatar">A</div>
         <div>
@@ -359,13 +359,13 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); heig
   </div>
 </div>
 
-<!-- ══════════ MODAL: DETALLE APLICANTE ══════════ -->
+<!-- ══════════ MODAL: DETALLE POSTULADO ══════════ -->
 <div class="modal-overlay hidden" id="lead-modal">
   <div class="modal-lead">
     <!-- header -->
     <div class="mlh">
       <div class="mlh-left">
-        <input class="mlh-name-inp" id="ml-nombre" placeholder="Nombre del aplicante" />
+        <input class="mlh-name-inp" id="ml-nombre" placeholder="Nombre del postulado" />
         <div class="mlh-meta">
           <select class="mlh-sel" id="ml-pipeline" onchange="updateEtapasSelect()">
           </select>
@@ -383,8 +383,6 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); heig
         <div class="ml-tab" onclick="showTab('cita')" id="tab-btn-cita"><span class="ml-tab-icon">📅</span>Cita</div>
         <div class="ml-tab" onclick="showTab('tareas')" id="tab-btn-tareas"><span class="ml-tab-icon">✅</span>Tareas</div>
         <div class="ml-tab" onclick="showTab('notas')" id="tab-btn-notas"><span class="ml-tab-icon">📝</span>Notas</div>
-        <div class="ml-tab" onclick="showTab('pagos')" id="tab-btn-pagos"><span class="ml-tab-icon">💳</span>Pagos</div>
-        <div class="ml-tab" onclick="showTab('miembros')" id="tab-btn-miembros"><span class="ml-tab-icon">👥</span>Miembros</div>
       </div>
 
       <!-- Content -->
@@ -393,9 +391,9 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); heig
         <!-- INFO TAB -->
         <div id="tab-info" class="tab-pane active">
           <div class="form-section">
-            <div class="form-section-title">👤 Contacto Detalles</div>
+            <div class="form-section-title">👤 Postulado</div>
             <div class="field-row">
-              <div class="field"><label>Nombre del contacto <span class="req">*</span></label><input id="ml-contacto" placeholder="Juan Pérez" /></div>
+              <div class="field"><label>Nombre del postulado <span class="req">*</span></label><input id="ml-contacto" placeholder="Juan Pérez" /></div>
               <div class="field"><label>Correo electrónico</label><input type="email" id="ml-correo" placeholder="juan@email.com" /></div>
             </div>
             <div class="field"><label>Teléfono principal</label>
@@ -403,14 +401,6 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); heig
                 <div class="phone-row"><input id="ml-telefono" placeholder="+52 55 0000 0000" /></div>
               </div>
               <button class="add-phone-btn" onclick="addPhone()">+ Agregar teléfono</button>
-            </div>
-          </div>
-
-          <div class="form-section">
-            <div class="form-section-title">📋 Aplicante Detalles</div>
-            <div class="field-row">
-              <div class="field"><label>Nombre del cliente potencial <span class="req">*</span></label><input id="ml-nombre-lead" placeholder="Ej: Vendedor Meta" /></div>
-              <div class="field"><label>Valor del cliente potencial</label><input type="number" id="ml-valor" placeholder="0.00" step="0.01" /></div>
             </div>
             <div class="field-row">
               <div class="field"><label>Propietario</label>
@@ -423,7 +413,7 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); heig
                   <option>Alexander</option>
                 </select>
               </div>
-              <div class="field"><label>Fuente del cliente potencial</label>
+              <div class="field"><label>Fuente</label>
                 <select id="ml-fuente">
                   <option>Meta / Facebook</option>
                   <option>Instagram</option>
@@ -435,15 +425,7 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); heig
                 </select>
               </div>
             </div>
-            <div class="field-row">
-              <div class="field"><label>Nombre del negocio</label><input id="ml-negocio" placeholder="Grupo Elite Work" /></div>
-              <div class="field"><label>Source of Lead <span style="font-size:10px;color:var(--text2);">(campo personalizado)</span></label><input id="ml-source" placeholder="Ej: Campaña Verano 2026" /></div>
-            </div>
-            <div class="field"><label>Etiquetas</label>
-              <div class="tags-wrap" id="tags-wrap" onclick="document.getElementById('tags-input').focus()">
-                <input id="tags-input" class="tags-inp" placeholder="Agregar etiqueta..." onkeydown="handleTagKey(event)" />
-              </div>
-            </div>
+            <div class="field"><label>Source of Lead <span style="font-size:10px;color:var(--text2);">(campo personalizado)</span></label><input id="ml-source" placeholder="Ej: Campaña Verano 2026" /></div>
             <div class="field"><label>Seguidores</label><input id="ml-seguidores" placeholder="Nombres separados por coma" /></div>
           </div>
         </div>
@@ -497,28 +479,6 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); heig
           </div>
         </div>
 
-        <!-- PAGOS TAB -->
-        <div id="tab-pagos" class="tab-pane">
-          <div class="form-section">
-            <div class="form-section-title">💳 Pagos</div>
-            <div class="field-row" style="margin-bottom:10px;">
-              <div class="field"><label>Monto</label><input type="number" id="pago-monto" placeholder="0.00" step="0.01" /></div>
-              <div class="field"><label>Concepto</label><input id="pago-concepto" placeholder="Ej: Inscripción" /></div>
-            </div>
-            <div style="display:flex;justify-content:flex-end;margin-bottom:16px;">
-              <button class="btn-primary" onclick="addPago()">Registrar pago</button>
-            </div>
-            <div id="pagos-list"></div>
-          </div>
-        </div>
-
-        <!-- MIEMBROS TAB -->
-        <div id="tab-miembros" class="tab-pane">
-          <div class="empty-tab">
-            <div class="et-icon">👥</div>
-            <p>No hay objetos de miembros asociados</p>
-          </div>
-        </div>
 
       </div><!-- /ml-content -->
     </div><!-- /ml-body -->
@@ -536,7 +496,7 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); heig
 <div class="modal-overlay hidden" id="new-modal">
   <div class="qmodal">
     <div class="qm-header">
-      <h2>+ Nuevo Aplicante</h2>
+      <h2>+ Nuevo Postulado</h2>
       <button class="mlh-close" onclick="closeNewLead()">✕</button>
     </div>
     <div class="qm-body">
@@ -557,20 +517,18 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); heig
         <div class="field"><label>Pipeline</label><select id="nml-pipeline" onchange="updateNmlEtapas()"></select></div>
         <div class="field"><label>Etapa</label><select id="nml-etapa"></select></div>
       </div>
-      <div class="field-row">
-        <div class="field"><label>Propietario</label>
-          <select id="nml-propietario">
-            <option value="">Sin asignar</option>
-            <option>Luis González</option><option>Maria Lugo</option>
-            <option>Caritza Rojas</option><option>Bryan Palacios</option><option>Alexander</option>
-          </select>
-        </div>
-        <div class="field"><label>Valor</label><input type="number" id="nml-valor" placeholder="0.00" step="0.01" /></div>
+      <div class="field">
+        <label>Propietario</label>
+        <select id="nml-propietario">
+          <option value="">Sin asignar</option>
+          <option>Luis González</option><option>Maria Lugo</option>
+          <option>Caritza Rojas</option><option>Bryan Palacios</option><option>Alexander</option>
+        </select>
       </div>
     </div>
     <div class="qm-footer">
       <button class="btn-secondary" onclick="closeNewLead()">Cancelar</button>
-      <button class="btn-primary" onclick="saveNewLead()">Crear aplicante</button>
+      <button class="btn-primary" onclick="saveNewLead()">Crear postulado</button>
     </div>
   </div>
 </div>
@@ -1114,7 +1072,6 @@ function openLead(id, tabName) {
   const lead = leads.find(l => l.id === id);
   if (!lead) return;
   currentLeadId = id;
-  currentTags = [...(lead.etiquetas || [])];
 
   // populate header
   document.getElementById('ml-nombre').value = lead.nombre || '';
@@ -1128,11 +1085,8 @@ function openLead(id, tabName) {
   document.getElementById('ml-contacto').value = lead.contacto || lead.nombre || '';
   document.getElementById('ml-correo').value = lead.correo || '';
   document.getElementById('ml-telefono').value = lead.telefono || '';
-  document.getElementById('ml-nombre-lead').value = lead.nombre_lead || '';
-  document.getElementById('ml-valor').value = lead.valor || 0;
   document.getElementById('ml-propietario').value = lead.propietario || '';
   document.getElementById('ml-fuente').value = lead.fuente || 'Meta / Facebook';
-  document.getElementById('ml-negocio').value = lead.negocio || '';
   document.getElementById('ml-source').value = lead.source_of_lead || '';
   document.getElementById('ml-seguidores').value = (lead.seguidores||[]).join(', ');
 
@@ -1155,7 +1109,6 @@ function openLead(id, tabName) {
   // tareas, notas, pagos
   renderTareas(lead.tareas || []);
   renderNotas(lead.notas || []);
-  renderPagos(lead.pagos || []);
 
   showTab(tabName || 'info');
   document.getElementById('lead-modal').classList.remove('hidden');
@@ -1182,14 +1135,10 @@ function saveLead() {
   lead.contacto    = document.getElementById('ml-contacto').value.trim();
   lead.correo      = document.getElementById('ml-correo').value.trim();
   lead.telefono    = document.getElementById('ml-telefono').value.trim();
-  lead.nombre_lead = document.getElementById('ml-nombre-lead').value.trim();
-  lead.valor       = parseFloat(document.getElementById('ml-valor').value) || 0;
   lead.propietario = document.getElementById('ml-propietario').value;
   lead.fuente      = document.getElementById('ml-fuente').value;
-  lead.negocio     = document.getElementById('ml-negocio').value.trim();
   lead.source_of_lead = document.getElementById('ml-source').value.trim();
   lead.seguidores  = document.getElementById('ml-seguidores').value.split(',').map(s=>s.trim()).filter(Boolean);
-  lead.etiquetas   = [...currentTags];
 
   saveLeads();
   closeLead();
@@ -1233,7 +1182,6 @@ function openNewLead() {
   document.getElementById('nml-nombre').value = '';
   document.getElementById('nml-tel').value = '';
   document.getElementById('nml-correo').value = '';
-  document.getElementById('nml-valor').value = '';
   document.getElementById('new-modal').classList.remove('hidden');
   setTimeout(() => document.getElementById('nml-nombre').focus(), 50);
 }
@@ -1262,9 +1210,8 @@ function saveNewLead() {
     pipeline_id: document.getElementById('nml-pipeline').value,
     etapa:       document.getElementById('nml-etapa').value,
     propietario: document.getElementById('nml-propietario').value,
-    valor:       parseFloat(document.getElementById('nml-valor').value) || 0,
-    estado: 'abierto', nombre_lead: nombre,
-    etiquetas:[], notas:[], tareas:[], pagos:[],
+    estado: 'abierto',
+    notas:[], tareas:[],
     created_at: new Date().toISOString(),
   };
   leads.unshift(lead);
@@ -1290,7 +1237,7 @@ function updateEtapasSelect(currentEtapa) {
 //  TABS
 // ════════════════════════════════════════════
 function showTab(name) {
-  ['info','cita','tareas','notas','pagos','miembros'].forEach(t => {
+  ['info','cita','tareas','notas'].forEach(t => {
     document.getElementById('tab-'+t)?.classList.toggle('active', t===name);
     document.getElementById('tab-btn-'+t)?.classList.toggle('active', t===name);
   });
