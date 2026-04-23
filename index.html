@@ -791,6 +791,18 @@ function closeAllMenus(exceptId) {
 function moveLead(leadId, newEtapa) {
   const lead = leads.find(l => l.id === leadId);
   if (!lead || lead.etapa === newEtapa) return;
+
+  // Si la etapa destino es "En Webinar" → mover al board EN WEBINAR, etapa "Inscrito en Webinar"
+  if (newEtapa.toLowerCase().includes('webinar') && newEtapa.toLowerCase() !== 'inscrito en webinar') {
+    lead.pipeline_id = 'en-webinar';
+    lead.etapa = 'Inscrito en Webinar';
+    saveLeads();
+    renderKanban();
+    renderSidebar();
+    showToast('✅ Movido a EN WEBINAR → Inscrito en Webinar');
+    return;
+  }
+
   lead.etapa = newEtapa;
   saveLeads();
   renderKanban();
