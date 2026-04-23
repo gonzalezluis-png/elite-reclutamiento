@@ -228,6 +228,35 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); heig
 /* cita */
 .cita-box { background:var(--card2);border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:12px; }
 .cita-box p { font-size:12px;color:var(--text2);margin-bottom:10px; }
+
+/* ── CALENDARIO DE ENTREVISTAS ── */
+.pipe-item-cal { background:linear-gradient(135deg,rgba(0,188,212,.15),rgba(0,115,234,.1));border:1px solid rgba(0,188,212,.3);border-radius:8px;margin:4px 6px !important; }
+.pipe-item-cal:hover { background:linear-gradient(135deg,rgba(0,188,212,.25),rgba(0,115,234,.18)) !important; }
+.pipe-item-cal.active { background:linear-gradient(135deg,rgba(0,188,212,.35),rgba(0,115,234,.28)) !important;border-color:var(--teal) !important; }
+.pipe-item-cal .pipe-name { color:#5dd8e8 !important;font-weight:700; }
+.pipe-item-cal.active .pipe-name { color:#fff !important; }
+
+#calendar-view { display:none;flex:1;flex-direction:column;overflow:hidden; }
+#calendar-view.active { display:flex; }
+.cal-topbar { display:flex;align-items:center;gap:12px;padding:14px 20px;border-bottom:1px solid var(--border);background:var(--card2); }
+.cal-topbar h2 { font-size:15px;font-weight:700;color:#fff;flex:1; }
+.cal-nav-btn { background:var(--card);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:5px 12px;font-family:var(--font);font-size:13px;cursor:pointer;transition:background .1s; }
+.cal-nav-btn:hover { background:rgba(255,255,255,.08); }
+.cal-month-label { font-size:14px;font-weight:700;color:#fff;min-width:160px;text-align:center; }
+.cal-grid-wrap { flex:1;overflow-y:auto;padding:16px 20px; }
+.cal-grid { display:grid;grid-template-columns:repeat(7,1fr);gap:6px; }
+.cal-day-name { text-align:center;font-size:10px;font-weight:700;text-transform:uppercase;color:var(--text2);padding:4px 0 8px; }
+.cal-day { background:var(--card);border:1px solid var(--border);border-radius:8px;min-height:90px;padding:6px;display:flex;flex-direction:column;gap:3px; }
+.cal-day.today { border-color:var(--accent);box-shadow:0 0 0 1px var(--accent); }
+.cal-day.other-month { opacity:.35; }
+.cal-day-num { font-size:11px;font-weight:700;color:var(--text2);margin-bottom:2px; }
+.cal-day.today .cal-day-num { color:var(--accent); }
+.cal-event { background:linear-gradient(135deg,rgba(120,75,209,.3),rgba(0,115,234,.2));border:1px solid rgba(120,75,209,.4);border-radius:5px;padding:3px 6px;font-size:10.5px;color:#d0d3e8;cursor:pointer;transition:background .1s;line-height:1.3; }
+.cal-event:hover { background:linear-gradient(135deg,rgba(120,75,209,.5),rgba(0,115,234,.35)); }
+.cal-event-name { font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
+.cal-event-time { color:var(--text2);font-size:9.5px; }
+.cal-empty { display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px;color:var(--text2);gap:8px;text-align:center; }
+.cal-empty .et-icon { font-size:40px;opacity:.3; }
 .empty-tab { display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 20px;color:var(--text2);gap:8px;text-align:center; }
 .empty-tab .et-icon { font-size:32px;opacity:.35; }
 .empty-tab p { font-size:12.5px; }
@@ -363,6 +392,20 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); heig
 
     <!-- KANBAN -->
     <div id="kanban-wrap"></div>
+
+    <!-- CALENDARIO DE ENTREVISTAS -->
+    <div id="calendar-view">
+      <div class="cal-topbar">
+        <button class="cal-nav-btn" onclick="calNavMonth(-1)">‹</button>
+        <div class="cal-month-label" id="cal-month-label"></div>
+        <button class="cal-nav-btn" onclick="calNavMonth(1)">›</button>
+        <h2 style="flex:1"></h2>
+        <button class="cal-nav-btn" onclick="calGoToday()">Hoy</button>
+      </div>
+      <div class="cal-grid-wrap">
+        <div class="cal-grid" id="cal-grid"></div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -638,10 +681,13 @@ function stageColor(etapa) {
 // ════════════════════════════════════════════
 let currentUser = { name:'Luis González', role:'Administrador' };
 let activePipelineId = 'postulados-meta';
+let activeView = 'kanban'; // 'kanban' | 'calendario'
 let leads = JSON.parse(localStorage.getItem('er_leads') || '[]');
 let currentLeadId = null;
 let currentTags = [];
 let dragLeadId = null;
+let calYear = new Date().getFullYear();
+let calMonth = new Date().getMonth(); // 0-indexed
 
 const USERS = JSON.parse(localStorage.getItem('er_users') || JSON.stringify([
   { email:'admin@elitereclutamiento.com', password:'admin123', name:'Admin', role:'Administrador' },
@@ -714,7 +760,11 @@ function renderSidebar() {
     {
       label: '🎥 Webinar',
       ids: ['en-webinar'],
-      webinar: true
+      webinar: true,
+      extra: `<div class="pipe-item pipe-item-cal ${activeView==='calendario'?'active':''}" onclick="selectCalendario()">
+        <span class="pipe-icon">📅</span>
+        <span class="pipe-name">Calendario Entrevistas</span>
+      </div>`
     },
     {
       label: '🤝 Entrevistas',
@@ -736,7 +786,7 @@ function renderSidebar() {
     html += `<div class="sidebar-section-hdr">${group.label}</div>`;
     for (const p of pipes) {
       const count = leads.filter(l => l.pipeline_id === p.id).length;
-      const active = activePipelineId === p.id ? 'active' : '';
+      const active = activePipelineId === p.id && activeView === 'kanban' ? 'active' : '';
       const webinarCls = group.webinar ? 'pipe-item-webinar' : '';
       html += `<div class="pipe-item ${webinarCls} ${active}" onclick="selectPipeline('${p.id}')">
         <span class="pipe-icon">${p.icon}</span>
@@ -744,16 +794,81 @@ function renderSidebar() {
         <span class="pipe-count">${count}</span>
       </div>`;
     }
+    if (group.extra) html += group.extra;
   }
   el.innerHTML = html;
 }
 
 function selectPipeline(id) {
   activePipelineId = id;
+  activeView = 'kanban';
   const pipe = PIPELINES.find(p => p.id === id);
   document.getElementById('board-title').textContent = pipe?.nombre || id;
+  document.getElementById('kanban-wrap').style.display = '';
+  document.getElementById('calendar-view').classList.remove('active');
   renderSidebar();
   renderKanban();
+}
+
+function selectCalendario() {
+  activeView = 'calendario';
+  document.getElementById('board-title').textContent = 'Calendario de Entrevistas';
+  document.getElementById('kanban-wrap').style.display = 'none';
+  document.getElementById('calendar-view').classList.add('active');
+  renderSidebar();
+  renderCalendario();
+}
+
+function calNavMonth(dir) { calMonth += dir; if (calMonth > 11) { calMonth=0; calYear++; } if (calMonth < 0) { calMonth=11; calYear--; } renderCalendario(); }
+function calGoToday() { calYear = new Date().getFullYear(); calMonth = new Date().getMonth(); renderCalendario(); }
+
+function renderCalendario() {
+  const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  const DIAS  = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+  document.getElementById('cal-month-label').textContent = `${MESES[calMonth]} ${calYear}`;
+
+  const hoy = new Date();
+  const firstDay = new Date(calYear, calMonth, 1).getDay();
+  const daysInMonth = new Date(calYear, calMonth+1, 0).getDate();
+  const daysInPrev  = new Date(calYear, calMonth, 0).getDate();
+
+  // Leads con cita en este mes
+  const citaLeads = leads.filter(l => {
+    if (!l.cita?.fecha) return false;
+    const d = new Date(l.cita.fecha + 'T00:00:00');
+    return d.getFullYear() === calYear && d.getMonth() === calMonth;
+  });
+
+  let html = DIAS.map(d => `<div class="cal-day-name">${d}</div>`).join('');
+
+  // Días del mes anterior
+  for (let i = firstDay - 1; i >= 0; i--) {
+    html += `<div class="cal-day other-month"><div class="cal-day-num">${daysInPrev - i}</div></div>`;
+  }
+
+  // Días del mes actual
+  for (let d = 1; d <= daysInMonth; d++) {
+    const isToday = d === hoy.getDate() && calMonth === hoy.getMonth() && calYear === hoy.getFullYear();
+    const dayLeads = citaLeads.filter(l => new Date(l.cita.fecha + 'T00:00:00').getDate() === d);
+    const events = dayLeads.map(l => `
+      <div class="cal-event" onclick="openLead('${l.id}','cita')" title="${esc(l.nombre)} — ${l.cita.tipo||''}">
+        <div class="cal-event-name">${esc(l.nombre)}</div>
+        <div class="cal-event-time">${l.cita.hora||''} · ${esc(l.cita.tipo||'')}</div>
+      </div>`).join('');
+    html += `<div class="cal-day${isToday?' today':''}">
+      <div class="cal-day-num">${d}</div>
+      ${events}
+    </div>`;
+  }
+
+  // Días del mes siguiente para completar la grilla
+  const total = firstDay + daysInMonth;
+  const remaining = total % 7 === 0 ? 0 : 7 - (total % 7);
+  for (let i = 1; i <= remaining; i++) {
+    html += `<div class="cal-day other-month"><div class="cal-day-num">${i}</div></div>`;
+  }
+
+  document.getElementById('cal-grid').innerHTML = html;
 }
 
 // ════════════════════════════════════════════
