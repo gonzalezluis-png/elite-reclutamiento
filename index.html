@@ -792,14 +792,28 @@ function moveLead(leadId, newEtapa) {
   const lead = leads.find(l => l.id === leadId);
   if (!lead || lead.etapa === newEtapa) return;
 
-  // Si la etapa destino es "En Webinar" → mover al board EN WEBINAR, etapa "Inscrito en Webinar"
-  if (newEtapa.toLowerCase().includes('webinar') && newEtapa.toLowerCase() !== 'inscrito en webinar') {
-    lead.pipeline_id = 'en-webinar';
-    lead.etapa = 'Inscrito en Webinar';
+  // ── TRANSICIONES AUTOMÁTICAS DE BOARD ──
+  const AUTO_TRANSITIONS = [
+    // Webinar
+    { match: e => /^en webinar$/i.test(e),                         pipeline:'en-webinar',             etapa:'Inscrito en Webinar',    msg:'EN WEBINAR → Inscrito en Webinar' },
+    // Para entrevista general
+    { match: e => /para entrevista.*enviar/i.test(e),              pipeline:'entrevistas-generales',   etapa:'EN ENTREVISTA',           msg:'ENTREVISTAS GENERALES → En Entrevista' },
+    // Enviar a entrevistador específico
+    { match: e => /enviar a caritza/i.test(e),                     pipeline:'caritza-rojas',           etapa:'ENTREVISTADOS',           msg:'ENTREVISTA: CARITZA ROJAS → Entrevistados' },
+    { match: e => /enviar a maria/i.test(e),                       pipeline:'maria-lugo',              etapa:'ENTREVISTADO',            msg:'ENTREVISTA: MARIA LUGO → Entrevistado' },
+    { match: e => /enviar a br(y|a)an/i.test(e),                   pipeline:'brayan-alexander',        etapa:'ENTREVISTADO',            msg:'ENTREVISTA: BRAYAN & ALEXANDER → Entrevistado' },
+    // No contactado / No interesado → Eliminados
+    { match: e => /no contactado.*enviar|no interesado.*enviar|no contactado.*enviar/i.test(e), pipeline:'eliminados', etapa:'APLICANTE - NO CONTACTADO', msg:'ELIMINADOS → No contactado' },
+  ];
+
+  const transition = AUTO_TRANSITIONS.find(t => t.match(newEtapa));
+  if (transition) {
+    lead.pipeline_id = transition.pipeline;
+    lead.etapa       = transition.etapa;
     saveLeads();
     renderKanban();
     renderSidebar();
-    showToast('✅ Movido a EN WEBINAR → Inscrito en Webinar');
+    showToast('✅ Movido a ' + transition.msg);
     return;
   }
 
