@@ -786,7 +786,6 @@ function renderKanban() {
       <div class="kanban-col-body">
         ${stageleads.map(l => renderCard(l)).join('')}
       </div>
-      <div class="kanban-add" onclick="openNewLeadInStage('${esc(etapa)}')">＋ Agregar aplicante</div>
     </div>`;
   }).join('');
 }
