@@ -305,13 +305,6 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); heig
     <div id="topbar">
       <div id="board-title">POSTULADOS POR META</div>
       <input id="search-input" placeholder="🔍 Buscar aplicante..." style="padding:6px 11px;background:var(--card2);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-size:12px;font-family:var(--font);outline:none;width:190px;" oninput="renderKanban()" />
-      <select class="fsel" id="filter-estado" onchange="renderKanban()">
-        <option value="">Todos los estados</option>
-        <option value="abierto">Abierto</option>
-        <option value="ganado">Ganado</option>
-        <option value="perdido">Perdido</option>
-        <option value="abandonado">Abandonado</option>
-      </select>
       <button class="btn-primary" onclick="openNewLead()">+ Nuevo Aplicante</button>
       <div class="topbar-user">
         <div class="topbar-avatar" id="user-avatar">A</div>
@@ -335,16 +328,9 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); heig
       <div class="mlh-left">
         <input class="mlh-name-inp" id="ml-nombre" placeholder="Nombre del aplicante" />
         <div class="mlh-meta">
-          <select class="mlh-sel" id="ml-estado" onchange="updateEstadoBadge()">
-            <option value="abierto">⚪ Abierto</option>
-            <option value="ganado">🟢 Ganado</option>
-            <option value="perdido">🔴 Perdido</option>
-            <option value="abandonado">⚫ Abandonado</option>
-          </select>
           <select class="mlh-sel" id="ml-pipeline" onchange="updateEtapasSelect()">
           </select>
           <select class="mlh-sel" id="ml-etapa"></select>
-          <span id="ml-estado-badge" class="estado-badge eb-abierto">Abierto</span>
         </div>
       </div>
       <button class="mlh-close" onclick="closeLead()">✕</button>
@@ -708,14 +694,12 @@ function renderKanban() {
   const pipe = PIPELINES.find(p => p.id === activePipelineId);
   if (!pipe) return;
   const q = (document.getElementById('search-input').value || '').toLowerCase();
-  const fEstado = document.getElementById('filter-estado').value;
 
   const wrap = document.getElementById('kanban-wrap');
   wrap.innerHTML = pipe.etapas.map(etapa => {
     const stageleads = leads.filter(l =>
       l.pipeline_id === activePipelineId &&
       l.etapa === etapa &&
-      (!fEstado || l.estado === fEstado) &&
       (!q || [l.nombre, l.correo, l.telefono, l.fuente, l.nombre_lead].join(' ').toLowerCase().includes(q))
     );
     const color = stageColor(etapa);
@@ -901,8 +885,6 @@ function openLead(id, tabName) {
 
   // populate header
   document.getElementById('ml-nombre').value = lead.nombre || '';
-  document.getElementById('ml-estado').value = lead.estado || 'abierto';
-  updateEstadoBadge();
 
   // populate pipeline/etapa selects
   const pSel = document.getElementById('ml-pipeline');
@@ -962,7 +944,6 @@ function saveLead() {
   const oldEtapa = lead.etapa;
 
   lead.nombre      = document.getElementById('ml-nombre').value.trim();
-  lead.estado      = document.getElementById('ml-estado').value;
   lead.pipeline_id = document.getElementById('ml-pipeline').value;
   lead.etapa       = document.getElementById('ml-etapa').value;
   lead.contacto    = document.getElementById('ml-contacto').value.trim();
@@ -1071,14 +1052,6 @@ function updateEtapasSelect(currentEtapa) {
   sel.innerHTML = (pipe?.etapas || []).map(e => `<option value="${esc(e)}" ${e===(currentEtapa||'')? 'selected':''}>${esc(e)}</option>`).join('');
 }
 
-function updateEstadoBadge() {
-  const val = document.getElementById('ml-estado').value;
-  const badge = document.getElementById('ml-estado-badge');
-  const map = { abierto:'Abierto', ganado:'Ganado', perdido:'Perdido', abandonado:'Abandonado' };
-  const cls = { abierto:'eb-abierto', ganado:'eb-ganado', perdido:'eb-perdido', abandonado:'eb-abandonado' };
-  badge.textContent = map[val] || val;
-  badge.className = 'estado-badge ' + (cls[val] || 'eb-abierto');
-}
 
 // ════════════════════════════════════════════
 //  TABS
