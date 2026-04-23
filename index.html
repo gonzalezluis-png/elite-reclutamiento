@@ -1090,9 +1090,6 @@ function openLead(id, tabName) {
   document.getElementById('ml-source').value = lead.source_of_lead || '';
   document.getElementById('ml-seguidores').value = (lead.seguidores||[]).join(', ');
 
-  // tags
-  renderTagsWrap();
-
   // extra phones
   const phonesList = document.getElementById('phones-list');
   const extras = lead.telefonos_extra || [];
