@@ -889,6 +889,7 @@ function toggleMoveMenu(event, leadId) {
   } else {
     document.getElementById('move-menu-options').innerHTML = etapas
       .filter(e => {
+        if (/^new lead$/i.test(e)) return false;
         if (/^no contactado$/i.test(e) && !estaEn3er) return false;
         return true;
       })
