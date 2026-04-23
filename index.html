@@ -236,16 +236,20 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); heig
 .qm-body { padding:18px; }
 .qm-footer { padding:12px 18px;background:var(--card2);border-top:1px solid var(--border);border-radius:0 0 14px 14px;display:flex;justify-content:flex-end;gap:8px; }
 
-/* ── MOVE MENU ── */
-.move-menu { position:absolute;bottom:calc(100% + 4px);left:0;right:0;background:var(--card);border:1px solid var(--border);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.5);z-index:200;overflow:hidden;min-width:220px; }
-.move-menu-title { font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text2);padding:8px 12px 5px;border-bottom:1px solid var(--border); }
-.move-option { display:flex;align-items:center;gap:8px;padding:7px 12px;font-size:12px;color:var(--text);cursor:pointer;transition:background .1s; }
+/* ── MOVE MENU (flotante global) ── */
+#global-move-menu { position:fixed;background:var(--card);border:1px solid var(--border);border-radius:10px;box-shadow:0 12px 32px rgba(0,0,0,.6);z-index:9000;overflow:hidden;min-width:240px;max-width:300px;display:none; }
+#global-move-menu.open { display:block; }
+.move-menu-title { font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text2);padding:9px 13px 7px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between; }
+.move-menu-close { background:none;border:none;color:var(--text2);cursor:pointer;font-size:14px;line-height:1;padding:0; }
+.move-menu-close:hover { color:var(--text); }
+.move-options-scroll { max-height:280px;overflow-y:auto; }
+.move-option { display:flex;align-items:center;gap:9px;padding:8px 13px;font-size:12.5px;color:var(--text);cursor:pointer;transition:background .1s; }
 .move-option:hover { background:rgba(0,115,234,.12);color:#fff; }
-.move-option.current { color:var(--text2);cursor:default; }
-.move-option.current:hover { background:none; }
-.move-option-dot { width:7px;height:7px;border-radius:50%;flex-shrink:0; }
-.move-option-check { margin-left:auto;font-size:11px;color:var(--accent); }
-.kca-btn-move { background:rgba(0,115,234,.15);border:1px solid rgba(0,115,234,.3);border-radius:4px;color:#4da6ff;font-size:11px;cursor:pointer;padding:2px 6px;font-family:var(--font);font-weight:600;white-space:nowrap;transition:background .1s; }
+.move-option.current { color:var(--text2);cursor:default;background:rgba(255,255,255,.03); }
+.move-option.current:hover { background:rgba(255,255,255,.03);color:var(--text2); }
+.move-option-dot { width:8px;height:8px;border-radius:50%;flex-shrink:0; }
+.move-option-check { margin-left:auto;font-size:11px;color:var(--accent);font-weight:700; }
+.kca-btn-move { background:rgba(0,115,234,.15);border:1px solid rgba(0,115,234,.3);border-radius:4px;color:#4da6ff;font-size:11px;cursor:pointer;padding:2px 7px;font-family:var(--font);font-weight:600;white-space:nowrap;transition:background .1s; }
 .kca-btn-move:hover { background:rgba(0,115,234,.28); }
 
 /* ── TOAST ── */
@@ -548,6 +552,15 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); heig
 
 <div id="toast"></div>
 
+<!-- MENÚ FLOTANTE GLOBAL DE ETAPAS -->
+<div id="global-move-menu">
+  <div class="move-menu-title">
+    <span>Mover a etapa</span>
+    <button class="move-menu-close" onclick="closeAllMenus()">✕</button>
+  </div>
+  <div class="move-options-scroll" id="move-menu-options"></div>
+</div>
+
 <script>
 // ════════════════════════════════════════════
 //  PIPELINES
@@ -732,20 +745,8 @@ function renderCard(l) {
   const tagsHtml = (l.etiquetas||[]).slice(0,2).map(t=>`<span class="kc-tag">${esc(t)}</span>`).join('');
   const dateStr = l.created_at ? new Date(l.created_at).toLocaleDateString('es-MX',{day:'2-digit',month:'short'}) : '';
 
-  const pipe = PIPELINES.find(p => p.id === l.pipeline_id);
-  const etapas = pipe?.etapas || [];
-  const menuOptions = etapas.map(e => {
-    const isCurrent = e === l.etapa;
-    const color = stageColor(e);
-    return `<div class="move-option ${isCurrent?'current':''}" onclick="event.stopPropagation();${isCurrent?'':'moveLead(\''+l.id+'\',\''+e.replace(/'/g,"\\'")+'\')'};closeAllMenus()">
-      <span class="move-option-dot" style="background:${color}"></span>
-      <span>${esc(e)}</span>
-      ${isCurrent ? '<span class="move-option-check">✓ actual</span>' : ''}
-    </div>`;
-  }).join('');
-
   return `
-  <div class="kcard" draggable="true" id="kcard-${l.id}" style="position:relative;"
+  <div class="kcard" draggable="true" id="kcard-${l.id}"
        ondragstart="handleDragStart(event,'${l.id}')"
        ondragend="this.classList.remove('dragging')"
        onclick="openLead('${l.id}')">
@@ -766,26 +767,62 @@ function renderCard(l) {
         <button class="kca-btn" title="Notas" onclick="event.stopPropagation();openLead('${l.id}','notas')">📝</button>
         <button class="kca-btn" title="Tareas" onclick="event.stopPropagation();openLead('${l.id}','tareas')">✅</button>
         <button class="kca-btn" title="Agendar cita" onclick="event.stopPropagation();openLead('${l.id}','cita')">📅</button>
-        <button class="kca-btn-move" title="Mover etapa" onclick="event.stopPropagation();toggleMoveMenu('${l.id}')">Mover ↕</button>
+        <button class="kca-btn-move" title="Mover etapa" onclick="event.stopPropagation();toggleMoveMenu(event,'${l.id}')">Mover ↕</button>
       </div>
-    </div>
-    <div class="move-menu" id="mmenu-${l.id}" style="display:none;" onclick="event.stopPropagation()">
-      <div class="move-menu-title">Mover a etapa</div>
-      ${menuOptions}
     </div>
   </div>`;
 }
 
-function toggleMoveMenu(leadId) {
-  closeAllMenus(leadId);
-  const menu = document.getElementById('mmenu-' + leadId);
-  if (menu) menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+let _openMenuLeadId = null;
+
+function toggleMoveMenu(event, leadId) {
+  const menu = document.getElementById('global-move-menu');
+  // Si ya está abierto para este lead, ciérralo
+  if (_openMenuLeadId === leadId && menu.classList.contains('open')) {
+    closeAllMenus(); return;
+  }
+  _openMenuLeadId = leadId;
+
+  // Poblar opciones
+  const lead = leads.find(l => l.id === leadId);
+  const pipe = PIPELINES.find(p => p.id === lead?.pipeline_id);
+  const etapas = pipe?.etapas || [];
+  document.getElementById('move-menu-options').innerHTML = etapas.map(e => {
+    const isCurrent = e === lead?.etapa;
+    const color = stageColor(e);
+    return `<div class="move-option ${isCurrent?'current':''}"
+      onclick="${isCurrent ? '' : `moveLead('${leadId}','${e.replace(/'/g,"\\'")}');closeAllMenus()`}">
+      <span class="move-option-dot" style="background:${color}"></span>
+      <span>${esc(e)}</span>
+      ${isCurrent ? '<span class="move-option-check">✓ actual</span>' : ''}
+    </div>`;
+  }).join('');
+
+  // Posicionar el menú cerca del botón, evitando salirse de pantalla
+  const btn  = event.currentTarget;
+  const rect = btn.getBoundingClientRect();
+  menu.style.display = 'block'; // temporal para medir
+  menu.classList.add('open');
+  const mw = menu.offsetWidth;
+  const mh = menu.offsetHeight;
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+
+  let top  = rect.bottom + 6;
+  let left = rect.left;
+  if (left + mw > vw - 8) left = vw - mw - 8;
+  if (top  + mh > vh - 8) top  = rect.top - mh - 6;
+  if (top < 8) top = 8;
+
+  menu.style.top  = top  + 'px';
+  menu.style.left = left + 'px';
 }
 
-function closeAllMenus(exceptId) {
-  document.querySelectorAll('.move-menu').forEach(m => {
-    if (!exceptId || m.id !== 'mmenu-' + exceptId) m.style.display = 'none';
-  });
+function closeAllMenus() {
+  const menu = document.getElementById('global-move-menu');
+  menu.classList.remove('open');
+  menu.style.display = 'none';
+  _openMenuLeadId = null;
 }
 
 function moveLead(leadId, newEtapa) {
@@ -824,8 +861,11 @@ function moveLead(leadId, newEtapa) {
   showToast('Movido a: ' + newEtapa);
 }
 
-// Close menus when clicking outside
-document.addEventListener('click', () => closeAllMenus());
+// Cerrar menú al hacer click fuera
+document.addEventListener('click', e => {
+  const menu = document.getElementById('global-move-menu');
+  if (menu && !menu.contains(e.target)) closeAllMenus();
+});
 
 // ════════════════════════════════════════════
 //  DRAG & DROP
