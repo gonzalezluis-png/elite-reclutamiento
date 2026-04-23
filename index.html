@@ -251,6 +251,18 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); heig
 .move-option-check { margin-left:auto;font-size:11px;color:var(--accent);font-weight:700; }
 .kca-btn-move { background:rgba(0,115,234,.15);border:1px solid rgba(0,115,234,.3);border-radius:4px;color:#4da6ff;font-size:11px;cursor:pointer;padding:2px 7px;font-family:var(--font);font-weight:600;white-space:nowrap;transition:background .1s; }
 .kca-btn-move:hover { background:rgba(0,115,234,.28); }
+.move-menu-webinar { padding:8px 13px;border-top:1px solid var(--border); }
+.move-menu-webinar-btn { width:100%;background:linear-gradient(135deg,#16a34a,#15803d);border:none;border-radius:7px;color:#fff;font-size:12.5px;font-weight:700;font-family:var(--font);padding:8px 12px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px;transition:opacity .15s; }
+.move-menu-webinar-btn:hover { opacity:.85; }
+
+/* Animación celebración webinar */
+#webinar-celebrate { position:fixed;inset:0;pointer-events:none;z-index:99999;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .2s; }
+#webinar-celebrate.show { opacity:1; }
+#webinar-celebrate-msg { background:linear-gradient(135deg,#16a34a,#15803d);color:#fff;border-radius:16px;padding:18px 32px;font-size:22px;font-weight:800;font-family:var(--font);text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.6);transform:scale(.7);transition:transform .25s cubic-bezier(.34,1.56,.64,1); }
+#webinar-celebrate.show #webinar-celebrate-msg { transform:scale(1); }
+.celebrate-emoji { font-size:32px;display:block;margin-bottom:4px; }
+.celebrate-confetti { position:absolute;width:8px;height:8px;border-radius:2px;animation:confettiFall 1.2s ease-in forwards; }
+@keyframes confettiFall { 0%{transform:translateY(0) rotate(0deg);opacity:1} 100%{transform:translateY(300px) rotate(720deg);opacity:0} }
 
 /* ── TOAST ── */
 #toast { position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--card);border:1px solid var(--border);border-radius:8px;padding:9px 18px;font-size:12.5px;color:var(--text);box-shadow:var(--shadow);z-index:9999;opacity:0;pointer-events:none;transition:opacity .2s;white-space:nowrap; }
@@ -305,6 +317,10 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); heig
     <div id="topbar">
       <div id="board-title">POSTULADOS POR META</div>
       <input id="search-input" placeholder="🔍 Buscar aplicante..." style="padding:6px 11px;background:var(--card2);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-size:12px;font-family:var(--font);outline:none;width:190px;" oninput="renderKanban()" />
+      <div id="online-indicator" style="display:flex;align-items:center;gap:5px;padding:5px 11px;border-radius:20px;font-size:11.5px;font-weight:600;background:rgba(0,200,117,.12);color:#00c875;border:1px solid rgba(0,200,117,.25);">
+        <span id="online-dot" style="width:7px;height:7px;border-radius:50%;background:#00c875;display:inline-block;"></span>
+        <span id="online-text">En línea</span>
+      </div>
       <button class="btn-primary" onclick="openNewLead()">+ Nuevo Aplicante</button>
       <div class="topbar-user">
         <div class="topbar-avatar" id="user-avatar">A</div>
@@ -538,6 +554,14 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); heig
 
 <div id="toast"></div>
 
+<!-- CELEBRACIÓN WEBINAR -->
+<div id="webinar-celebrate">
+  <div id="webinar-celebrate-msg">
+    <span class="celebrate-emoji">🎉</span>
+    ¡Enviado a Webinar!
+  </div>
+</div>
+
 <!-- MENÚ FLOTANTE GLOBAL DE ETAPAS -->
 <div id="global-move-menu">
   <div class="move-menu-title">
@@ -545,6 +569,11 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); heig
     <button class="move-menu-close" onclick="closeAllMenus()">✕</button>
   </div>
   <div class="move-options-scroll" id="move-menu-options"></div>
+  <div class="move-menu-webinar" id="move-menu-webinar-section">
+    <button class="move-menu-webinar-btn" onclick="sendToWebinar()">
+      🎥 <span>Enviar a En Webinar</span>
+    </button>
+  </div>
 </div>
 
 <script>
@@ -771,16 +800,26 @@ function toggleMoveMenu(event, leadId) {
   const lead = leads.find(l => l.id === leadId);
   const pipe = PIPELINES.find(p => p.id === lead?.pipeline_id);
   const etapas = pipe?.etapas || [];
-  document.getElementById('move-menu-options').innerHTML = etapas.map(e => {
-    const isCurrent = e === lead?.etapa;
-    const color = stageColor(e);
-    return `<div class="move-option ${isCurrent?'current':''}"
-      onclick="${isCurrent ? '' : `moveLead('${leadId}','${e.replace(/'/g,"\\'")}');closeAllMenus()`}">
-      <span class="move-option-dot" style="background:${color}"></span>
-      <span>${esc(e)}</span>
-      ${isCurrent ? '<span class="move-option-check">✓ actual</span>' : ''}
-    </div>`;
-  }).join('');
+  const estaEn3erIntento = /3er intento de contacto/i.test(lead?.etapa || '');
+  // Ocultar botón "En Webinar" si el lead ya está en ese board
+  const webinarSection = document.getElementById('move-menu-webinar-section');
+  if (webinarSection) webinarSection.style.display = lead?.pipeline_id === 'en-webinar' ? 'none' : '';
+  document.getElementById('move-menu-options').innerHTML = etapas
+    .filter(e => {
+      // "No contactado" solo visible desde el 3er intento de contacto
+      if (/^no contactado$/i.test(e) && !estaEn3erIntento) return false;
+      return true;
+    })
+    .map(e => {
+      const isCurrent = e === lead?.etapa;
+      const color = stageColor(e);
+      return `<div class="move-option ${isCurrent?'current':''}"
+        onclick="${isCurrent ? '' : `moveLead('${leadId}','${e.replace(/'/g,"\\'")}');closeAllMenus()`}">
+        <span class="move-option-dot" style="background:${color}"></span>
+        <span>${esc(e)}</span>
+        ${isCurrent ? '<span class="move-option-check">✓ actual</span>' : ''}
+      </div>`;
+    }).join('');
 
   // Posicionar el menú cerca del botón, evitando salirse de pantalla
   const btn  = event.currentTarget;
@@ -807,6 +846,31 @@ function closeAllMenus() {
   menu.classList.remove('open');
   menu.style.display = 'none';
   _openMenuLeadId = null;
+}
+
+function sendToWebinar() {
+  if (!_openMenuLeadId) return;
+  closeAllMenus();
+  moveLead(_openMenuLeadId, 'En Webinar');
+  celebrateWebinar();
+}
+
+function celebrateWebinar() {
+  const el = document.getElementById('webinar-celebrate');
+  const msg = document.getElementById('webinar-celebrate-msg');
+  // Lanzar confeti
+  const colors = ['#16a34a','#4ade80','#fbbf24','#f472b6','#60a5fa','#fff'];
+  for (let i = 0; i < 28; i++) {
+    const c = document.createElement('div');
+    c.className = 'celebrate-confetti';
+    c.style.cssText = `left:${20+Math.random()*60}%;top:${30+Math.random()*20}%;background:${colors[Math.floor(Math.random()*colors.length)]};animation-delay:${Math.random()*.4}s;animation-duration:${.9+Math.random()*.5}s;`;
+    el.appendChild(c);
+  }
+  el.classList.add('show');
+  setTimeout(() => {
+    el.classList.remove('show');
+    setTimeout(() => { el.querySelectorAll('.celebrate-confetti').forEach(c=>c.remove()); }, 250);
+  }, 1600);
 }
 
 function moveLead(leadId, newEtapa) {
@@ -844,6 +908,30 @@ function moveLead(leadId, newEtapa) {
   renderSidebar();
   showToast('Movido a: ' + newEtapa);
 }
+
+// ── INDICADOR ONLINE/OFFLINE ──
+function updateOnlineStatus() {
+  const ind  = document.getElementById('online-indicator');
+  const dot  = document.getElementById('online-dot');
+  const text = document.getElementById('online-text');
+  if (!ind) return;
+  if (navigator.onLine) {
+    ind.style.background = 'rgba(0,200,117,.12)';
+    ind.style.color      = '#00c875';
+    ind.style.borderColor= 'rgba(0,200,117,.25)';
+    dot.style.background = '#00c875';
+    text.textContent     = 'En línea';
+  } else {
+    ind.style.background = 'rgba(226,68,92,.12)';
+    ind.style.color      = '#e2445c';
+    ind.style.borderColor= 'rgba(226,68,92,.25)';
+    dot.style.background = '#e2445c';
+    text.textContent     = 'Sin conexión';
+  }
+}
+window.addEventListener('online',  updateOnlineStatus);
+window.addEventListener('offline', updateOnlineStatus);
+updateOnlineStatus();
 
 // Cerrar menú al hacer click fuera
 document.addEventListener('click', e => {
