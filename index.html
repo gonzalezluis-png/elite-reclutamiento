@@ -842,42 +842,58 @@ function toggleMoveMenu(event, leadId) {
   const lead = leads.find(l => l.id === leadId);
   const pipe = PIPELINES.find(p => p.id === lead?.pipeline_id);
   const etapas = pipe?.etapas || [];
-  const estaEnNewLead = /^new lead$/i.test(lead?.etapa || '');
-  const estaEn3erIntento = /3er intento de contacto/i.test(lead?.etapa || '');
-  // Ocultar botón "En Webinar" si el lead ya está en ese board
-  const webinarSection = document.getElementById('move-menu-webinar-section');
-  if (webinarSection) webinarSection.style.display = (lead?.pipeline_id === 'en-webinar' || estaEnNewLead) ? 'none' : '';
+  const etapaActual = lead?.etapa || '';
+  const estaEnNewLead   = /^new lead$/i.test(etapaActual);
+  const estaEn1er       = /^1er intento de contacto$/i.test(etapaActual);
+  const estaEn2do       = /^2do intento de contacto$/i.test(etapaActual);
+  const estaEn3er       = /^3er intento de contacto$/i.test(etapaActual);
+  const esModoSimplificado = estaEnNewLead || estaEn1er || estaEn2do || estaEn3er;
 
-  if (estaEnNewLead) {
-    // New Lead: solo mostrar 1er intento de contacto + opciones especiales
-    const primerIntento = etapas.find(e => /^1er intento de contacto$/i.test(e)) || '1er intento de contacto';
-    document.getElementById('move-menu-options').innerHTML =
-      `<div class="move-option" onclick="moveLead('${leadId}','${primerIntento}');closeAllMenus()">
+  // Ocultar botón global "En Webinar" en modo simplificado (se pone dentro del menú)
+  const webinarSection = document.getElementById('move-menu-webinar-section');
+  if (webinarSection) webinarSection.style.display = (lead?.pipeline_id === 'en-webinar' || esModoSimplificado) ? 'none' : '';
+
+  if (esModoSimplificado) {
+    // Determinar la siguiente etapa principal
+    let siguienteEtapa = null;
+    if (estaEnNewLead) siguienteEtapa = etapas.find(e => /^1er intento de contacto$/i.test(e));
+    if (estaEn1er)    siguienteEtapa = etapas.find(e => /^2do intento de contacto$/i.test(e));
+    if (estaEn2do)    siguienteEtapa = etapas.find(e => /^3er intento de contacto$/i.test(e));
+    if (estaEn3er)    siguienteEtapa = etapas.find(e => /^no contactado$/i.test(e));
+
+    const siguienteBtn = siguienteEtapa ? `
+      <div class="move-option" onclick="moveLead('${leadId}','${siguienteEtapa.replace(/'/g,"\\'")}');closeAllMenus()">
         <span class="move-option-dot" style="background:#fdab3d"></span>
-        <span>${esc(primerIntento)}</span>
+        <span>${esc(siguienteEtapa)}</span>
       </div>
-      <div style="border-top:1px solid var(--border);margin:2px 0"></div>
-      <div class="move-option-special no-interesado" onclick="moveNoInteresado('${leadId}')">
+      <div style="border-top:1px solid var(--border);margin:2px 0"></div>` : '';
+
+    const webinarBtn = lead?.pipeline_id !== 'en-webinar' ? `
+      <div style="padding:8px 13px;border-top:1px solid var(--border);">
+        <button class="move-menu-webinar-btn" onclick="sendToWebinar()">
+          🎥 <span>Enviar a En Webinar</span>
+        </button>
+      </div>` : '';
+
+    document.getElementById('move-menu-options').innerHTML =
+      siguienteBtn +
+      `<div class="move-option-special no-interesado" onclick="moveNoInteresado('${leadId}')">
         <span class="move-option-dot" style="background:#fdab3d"></span>
         <span>No interesado</span>
       </div>
       <div class="move-option-special no-califica" onclick="openNoCalifica('${leadId}')">
         <span class="move-option-dot" style="background:#e2445c"></span>
         <span>No califica</span>
-      </div>
-      <div style="padding:8px 13px;border-top:1px solid var(--border);">
-        <button class="move-menu-webinar-btn" onclick="sendToWebinar()">
-          🎥 <span>Enviar a En Webinar</span>
-        </button>
-      </div>`;
+      </div>` +
+      webinarBtn;
   } else {
     document.getElementById('move-menu-options').innerHTML = etapas
       .filter(e => {
-        if (/^no contactado$/i.test(e) && !estaEn3erIntento) return false;
+        if (/^no contactado$/i.test(e) && !estaEn3er) return false;
         return true;
       })
       .map(e => {
-        const isCurrent = e === lead?.etapa;
+        const isCurrent = e === etapaActual;
         const color = stageColor(e);
         return `<div class="move-option ${isCurrent?'current':''}"
           onclick="${isCurrent ? '' : `moveLead('${leadId}','${e.replace(/'/g,"\\'")}');closeAllMenus()`}">
