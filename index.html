@@ -432,7 +432,6 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); heig
                 </select>
               </div>
             </div>
-            <div class="field"><label>Source of Lead <span style="font-size:10px;color:var(--text2);">(campo personalizado)</span></label><input id="ml-source" placeholder="Ej: Campaña Verano 2026" /></div>
             <div class="field"><label>Seguidores</label><input id="ml-seguidores" placeholder="Nombres separados por coma" /></div>
           </div>
         </div>
@@ -1153,7 +1152,6 @@ function openLead(id, tabName) {
   document.getElementById('ml-telefono').value = lead.telefono || '';
   document.getElementById('ml-propietario').value = lead.propietario || '';
   document.getElementById('ml-fuente').value = lead.fuente || 'Meta / Facebook';
-  document.getElementById('ml-source').value = lead.source_of_lead || '';
   document.getElementById('ml-seguidores').value = (lead.seguidores||[]).join(', ');
 
   // extra phones
@@ -1200,7 +1198,6 @@ function saveLead() {
   lead.telefono    = document.getElementById('ml-telefono').value.trim();
   lead.propietario = document.getElementById('ml-propietario').value;
   lead.fuente      = document.getElementById('ml-fuente').value;
-  lead.source_of_lead = document.getElementById('ml-source').value.trim();
   lead.seguidores  = document.getElementById('ml-seguidores').value.split(',').map(s=>s.trim()).filter(Boolean);
 
   saveLeads();
