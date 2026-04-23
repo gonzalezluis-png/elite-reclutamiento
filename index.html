@@ -934,9 +934,11 @@ function closeAllMenus() {
 function moveNoInteresado(leadId) {
   closeAllMenus();
   const lead = leads.find(l => l.id === leadId);
-  const pipe = PIPELINES.find(p => p.id === lead?.pipeline_id);
-  const etapa = pipe?.etapas.find(e => /no interesado|no califica/i.test(e)) || 'No INTERESADO - no califica';
-  moveLead(leadId, etapa);
+  if (!lead) return;
+  lead.pipeline_id = 'no-interesados-no-califica';
+  lead.etapa = 'No interesado';
+  saveLeads(); renderKanban(); renderSidebar();
+  showToast('📵 Movido a No Interesados');
 }
 
 let _ncLeadId = null;
@@ -975,17 +977,25 @@ function confirmNoCalifica() {
     if (!txt) { alert('Explica el motivo'); return; }
     motivo = 'Otros: ' + txt;
   }
-  // Guardar motivo en notas del lead
   const lead = leads.find(l => l.id === _ncLeadId);
   if (lead) {
     const nota = `[No califica] ${motivo}`;
-    lead.notas = lead.notas ? lead.notas + '\n' + nota : nota;
+    lead.notas = Array.isArray(lead.notas) ? lead.notas : (lead.notas ? [lead.notas] : []);
+    // Mapear motivo a etapa del board
+    const etapaMap = {
+      'No posee documentos':     'No califica - Sin documentos',
+      'Aún no es mayor de edad': 'No califica - Menor de edad',
+      'No habla Español':        'No califica - No habla Español',
+    };
+    const etapaDestino = motivo.startsWith('Otros:')
+      ? 'No califica - Otros'
+      : (etapaMap[motivo] || 'No califica - Otros');
+    lead.pipeline_id = 'no-interesados-no-califica';
+    lead.etapa = etapaDestino;
   }
-  // Mover a la etapa correspondiente
-  const pipe = PIPELINES.find(p => p.id === lead?.pipeline_id);
-  const etapa = pipe?.etapas.find(e => /no interesado|no califica/i.test(e)) || 'No INTERESADO - no califica';
   closeNoCalifica();
-  moveLead(_ncLeadId, etapa);
+  saveLeads(); renderKanban(); renderSidebar();
+  showToast('🚫 Movido a No Califica');
 }
 
 function sendToWebinar() {
@@ -1027,8 +1037,9 @@ function moveLead(leadId, newEtapa) {
     { match: e => /enviar a caritza/i.test(e),                     pipeline:'caritza-rojas',           etapa:'ENTREVISTADOS',           msg:'ENTREVISTA: CARITZA ROJAS → Entrevistados' },
     { match: e => /enviar a maria/i.test(e),                       pipeline:'maria-lugo',              etapa:'ENTREVISTADO',            msg:'ENTREVISTA: MARIA LUGO → Entrevistado' },
     { match: e => /enviar a br(y|a)an/i.test(e),                   pipeline:'brayan-alexander',        etapa:'ENTREVISTADO',            msg:'ENTREVISTA: BRAYAN & ALEXANDER → Entrevistado' },
-    // No contactado / No interesado → Eliminados
-    { match: e => /no contactado.*enviar|no interesado.*enviar|no contactado.*enviar/i.test(e), pipeline:'eliminados', etapa:'APLICANTE - NO CONTACTADO', msg:'ELIMINADOS → No contactado' },
+    // No contactado → board No Contactados
+    { match: e => /^no contactado$/i.test(e), pipeline:'no-contactados', etapa:'Sin respuesta - 3er intento', msg:'NO CONTACTADOS → Sin respuesta 3er intento' },
+    { match: e => /no contactado.*enviar|no interesado.*enviar/i.test(e), pipeline:'eliminados', etapa:'APLICANTE - NO CONTACTADO', msg:'ELIMINADOS → No contactado' },
   ];
 
   const transition = AUTO_TRANSITIONS.find(t => t.match(newEtapa));
