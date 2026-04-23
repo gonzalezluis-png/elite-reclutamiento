@@ -586,7 +586,7 @@ function stageColor(etapa) {
 // ════════════════════════════════════════════
 //  STATE
 // ════════════════════════════════════════════
-let currentUser = null;
+let currentUser = { name:'Luis González', role:'Administrador' };
 let activePipelineId = 'postulados-meta';
 let leads = JSON.parse(localStorage.getItem('er_leads') || '[]');
 let currentLeadId = null;
@@ -1143,6 +1143,16 @@ function showToast(msg) {
   t.textContent = msg; t.classList.add('show');
   setTimeout(() => t.classList.remove('show'), 2500);
 }
+
+// ── AUTO INIT (sin login) ──
+document.getElementById('login-page').classList.add('hidden');
+document.getElementById('app').style.display = 'flex';
+document.getElementById('user-name').textContent = currentUser.name;
+document.getElementById('user-role').textContent = currentUser.role;
+document.getElementById('user-avatar').textContent = currentUser.name[0];
+populatePipelineSelects();
+renderSidebar();
+selectPipeline('postulados-meta');
 
 // Close modals on overlay click
 document.getElementById('lead-modal').addEventListener('click', e => { if(e.target===document.getElementById('lead-modal')) closeLead(); });
