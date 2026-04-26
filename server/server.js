@@ -109,6 +109,10 @@ app.post('/registrar-webinar', async (req, res) => {
 
     await page.waitForTimeout(500);
 
+    // Captura ANTES de enviar (para verificación)
+    const screenshotBefore = (await page.screenshot({ type: 'jpeg', quality: 80, fullPage: false })).toString('base64');
+    console.log('  → Captura tomada antes de enviar');
+
     // Enviar formulario
     const submitResult = await page.evaluate(() => {
       const candidates = [
@@ -133,8 +137,17 @@ app.post('/registrar-webinar', async (req, res) => {
       page.waitForSelector('[class*="success"],[class*="confirm"],[class*="thank"],[class*="gracias"]', { timeout: 12000 }),
     ]).catch(() => console.warn('  → Timeout confirmación (asumiendo éxito)'));
 
+    // Captura DESPUÉS de enviar (confirmación)
+    const screenshotAfter = (await page.screenshot({ type: 'jpeg', quality: 80, fullPage: false })).toString('base64');
     console.log(`  → URL final: ${page.url()}`);
-    res.json({ ok: true, message: 'Registrado exitosamente', finalUrl: page.url() });
+
+    res.json({
+      ok: true,
+      message: 'Registrado exitosamente',
+      finalUrl: page.url(),
+      screenshotBefore,
+      screenshotAfter,
+    });
 
   } catch (err) {
     console.error(`  ERROR: ${err.message}`);

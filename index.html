@@ -108,6 +108,15 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); heig
 .leads-table tr:last-child td { border-bottom:none; }
 .col-resizer { position:absolute;right:0;top:0;height:100%;width:5px;cursor:col-resize;user-select:none;z-index:3; }
 .col-resizer:hover, .col-resizer.dragging { background:var(--accent);opacity:.7; }
+/* ── WEBINAR SCREENSHOT MODAL ── */
+.wss-modal { background:var(--card2);border:1px solid var(--border);border-radius:12px;width:680px;max-width:95vw;max-height:90vh;display:flex;flex-direction:column;overflow:hidden; }
+.wss-header { display:flex;align-items:flex-start;justify-content:space-between;padding:18px 20px 14px;border-bottom:1px solid var(--border); }
+.wss-title { font-size:15px;font-weight:700;color:var(--text); }
+.wss-sub { font-size:12px;color:var(--text2);margin-top:3px; }
+.wss-tabs { display:flex;gap:4px;padding:12px 20px 0;border-bottom:1px solid var(--border); }
+.wss-tab { background:none;border:none;border-bottom:2px solid transparent;padding:7px 14px;font-size:12.5px;font-weight:600;color:var(--text2);cursor:pointer;font-family:var(--font);transition:color .15s;margin-bottom:-1px; }
+.wss-tab.active { color:var(--accent);border-bottom-color:var(--accent); }
+.wss-body { padding:16px 20px 20px;overflow-y:auto; }
 /* ── WEBINAR BOT STATUS ── */
 .wbot-badge { display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:20px;font-size:11px;font-weight:600; }
 .wbot-badge.pending  { background:rgba(253,171,61,.15);color:#fdab3d; }
@@ -787,6 +796,25 @@ tr.lead-resuelto td:last-child { pointer-events:none;opacity:.4; }
   </div>
 </div>
 
+<!-- MODAL CAPTURAS WEBINAR -->
+<div id="wss-overlay" class="modal-overlay hidden" onclick="if(event.target===this)closeWebinarScreenshots()">
+  <div class="wss-modal">
+    <div class="wss-header">
+      <div>
+        <div class="wss-title">📸 Verificación de registro</div>
+        <div class="wss-sub" id="wss-lead-name"></div>
+      </div>
+      <button class="mlh-close" onclick="closeWebinarScreenshots()">✕</button>
+    </div>
+    <div class="wss-tabs">
+      <button class="wss-tab active" id="wss-tab-before" onclick="showSsTab('before')">Formulario llenado</button>
+      <button class="wss-tab" id="wss-tab-after" onclick="showSsTab('after')">Confirmación recibida</button>
+    </div>
+    <div class="wss-body">
+      <img id="wss-img" src="" alt="Captura" style="width:100%;border-radius:6px;display:block;" />
+    </div>
+  </div>
+</div>
 
 <!-- MENÚ FLOTANTE GLOBAL DE ETAPAS -->
 <div id="global-move-menu">
@@ -1979,6 +2007,27 @@ function sendToWebinar() {
   renderSidebar();
 }
 
+let _wssScreenshots = {};
+
+function showWebinarScreenshots(leadNombre, before, after) {
+  _wssScreenshots = { before, after };
+  document.getElementById('wss-lead-name').textContent = leadNombre || '';
+  document.getElementById('wss-overlay').classList.remove('hidden');
+  showSsTab('before');
+}
+
+function showSsTab(tab) {
+  const img = document.getElementById('wss-img');
+  const src = _wssScreenshots[tab];
+  img.src = src ? `data:image/jpeg;base64,${src}` : '';
+  document.getElementById('wss-tab-before').classList.toggle('active', tab === 'before');
+  document.getElementById('wss-tab-after').classList.toggle('active', tab === 'after');
+}
+
+function closeWebinarScreenshots() {
+  document.getElementById('wss-overlay').classList.add('hidden');
+}
+
 async function registrarEnWebinar(lead) {
   if (!backendUrl) {
     showToast('⚠️ Configura la URL del servidor en Configuraciones', false);
@@ -2004,7 +2053,8 @@ async function registrarEnWebinar(lead) {
     if (data.ok) {
       addHistorial(lead.id, 'Registrado en webinar automáticamente ✅', '🤖');
       saveLeads(lead.id);
-      showToast('✅ Registrado en webinar exitosamente', false);
+      showToast('✅ Registrado en webinar — ver capturas', false);
+      showWebinarScreenshots(lead.nombre, data.screenshotBefore, data.screenshotAfter);
     } else {
       showToast(`❌ Error del servidor: ${data.error}`, false);
     }
