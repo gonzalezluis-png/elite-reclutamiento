@@ -117,17 +117,18 @@ app.post('/registrar-webinar', async (req, res) => {
 
     // Enviar formulario
     const submitResult = await page.evaluate(() => {
+      const all = [...document.querySelectorAll('button, input[type="submit"], [role="button"], a')];
       const candidates = [
         ...document.querySelectorAll('button[type="submit"]'),
         ...document.querySelectorAll('input[type="submit"]'),
-        ...[...document.querySelectorAll('button, [role="button"]')].filter(el =>
-          /registr|inscri|enviar|submit|sign.?up|apunt/i.test(el.innerText || el.value || '')
-        ),
+        ...all.filter(el => /registr|inscri|enviar|submit|sign.?up|apunt|register|join|attend/i.test(el.innerText || el.value || el.textContent || '')),
         ...document.querySelectorAll('form button'),
+        ...all.filter(el => el.tagName === 'BUTTON'),
       ];
-      if (!candidates.length) return null;
-      candidates[0].click();
-      return candidates[0].innerText || candidates[0].value || 'button';
+      const unique = [...new Map(candidates.map(el => [el, el])).values()];
+      if (!unique.length) return null;
+      unique[0].click();
+      return unique[0].innerText || unique[0].value || unique[0].textContent || 'button';
     });
 
     if (!submitResult) throw new Error('No se encontró el botón de envío en la página');
