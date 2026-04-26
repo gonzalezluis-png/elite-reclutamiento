@@ -115,32 +115,37 @@ app.post('/registrar-webinar', async (req, res) => {
     const screenshotBefore = (await page.screenshot({ type: 'jpeg', quality: 80, fullPage: false })).toString('base64');
     console.log('  → Captura tomada antes de enviar');
 
-    // Enviar formulario
-    const submitResult = await page.evaluate(() => {
-      const isClose = el => {
-        const t = (el.innerText || el.value || el.textContent || '').trim();
-        return t.length <= 2 || /^(x|×|✕|✖|close|cerrar)$/i.test(t);
-      };
-      const all = [...document.querySelectorAll('button, input[type="submit"], [role="button"]')];
-      const pools = [
-        document.querySelectorAll('button[type="submit"]'),
-        document.querySelectorAll('input[type="submit"]'),
-        all.filter(el => /registr|inscri|enviar|submit|sign.?up|apunt|register|join|attend|continuar|siguiente|next/i.test(el.innerText || el.value || el.textContent || '')),
-        document.querySelectorAll('form button'),
-        all.filter(el => el.tagName === 'BUTTON'),
-      ];
-      for (const pool of pools) {
-        const visible = [...pool].filter(el => !isClose(el) && el.offsetParent !== null);
-        if (visible.length) {
-          visible[0].click();
-          return visible[0].innerText || visible[0].value || visible[0].textContent || 'button';
-        }
-      }
-      return null;
-    });
+    // Listar todos los botones visibles para debug
+    const allButtons = await page.evaluate(() =>
+      [...document.querySelectorAll('button, input[type="submit"], [role="button"]')]
+        .map(el => ({ tag: el.tagName, type: el.type||'', text: (el.innerText||el.value||el.textContent||'').trim().slice(0,60) }))
+    );
+    console.log('  → Botones en página:', JSON.stringify(allButtons));
 
-    if (!submitResult) throw new Error('No se encontró el botón de envío en la página');
-    console.log(`  → Enviado con: "${submitResult}"`);
+    // Enviar formulario con Playwright locators
+    const submitLocators = [
+      page.locator('button[type="submit"]').first(),
+      page.locator('input[type="submit"]').first(),
+      page.locator('button, [role="button"]').filter({ hasText: /registr|inscri|enviar|submit|sign.?up|apunt|register|join|attend|continuar|siguiente|next/i }).first(),
+      page.locator('form button').last(),
+      page.locator('button').last(),
+    ];
+
+    let submitText = null;
+    for (const loc of submitLocators) {
+      try {
+        const count = await loc.count();
+        if (!count) continue;
+        const text = (await loc.textContent() || '').trim();
+        if (text.length <= 2 && !/submit/i.test(await loc.getAttribute('type') || '')) continue;
+        await loc.click({ timeout: 5000 });
+        submitText = text || 'button';
+        break;
+      } catch {}
+    }
+
+    if (!submitText) throw new Error('No se encontró el botón de envío en la página');
+    console.log(`  → Enviado con: "${submitText}"`);
 
     // Esperar confirmación
     await Promise.race([
