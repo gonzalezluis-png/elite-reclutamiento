@@ -437,8 +437,11 @@ tr.lead-resuelto td:last-child { pointer-events:none;opacity:.4; }
 @keyframes confettiFall { 0%{transform:translateY(0) rotate(0deg);opacity:1} 100%{transform:translateY(300px) rotate(720deg);opacity:0} }
 
 /* ── TOAST ── */
-#toast { position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--card);border:1px solid var(--border);border-radius:8px;padding:9px 18px;font-size:12.5px;color:var(--text);box-shadow:var(--shadow);z-index:9999;opacity:0;pointer-events:none;transition:opacity .2s;white-space:nowrap; }
-#toast.show { opacity:1; }
+#toast { position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(0);background:#1a1b2e;border:1px solid rgba(99,102,241,.35);border-radius:10px;padding:10px 14px;font-size:12.5px;color:var(--text);box-shadow:0 6px 24px rgba(0,0,0,.5);z-index:9999;opacity:0;pointer-events:none;transition:opacity .22s,transform .22s;display:flex;align-items:center;gap:14px;min-width:220px;max-width:440px; }
+#toast.show { opacity:1;pointer-events:all; }
+#toast .toast-msg { flex:1; }
+.toast-undo-btn { background:var(--accent);color:#fff;border:none;border-radius:6px;padding:4px 11px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;flex-shrink:0;font-family:var(--font);transition:opacity .15s; }
+.toast-undo-btn:hover { opacity:.82; }
 
 /* scrollbar */
 ::-webkit-scrollbar { width:5px;height:5px; }
@@ -1651,39 +1654,43 @@ function closeAllMenus() {
 function moveNoContactado(leadId) {
   const lead = leads.find(l => l.id === leadId);
   if (!lead) return;
+  pushUndo('lead_change', JSON.parse(JSON.stringify(lead)));
   const prev = lead.etapa;
   lead.pipeline_id = 'no-contactados';
   lead.etapa = 'Sin respuesta - 3er intento';
   addHistorial(leadId, `No contactado después de 3 intentos (desde ${prev})`, '📵');
   saveLeads(leadId); renderKanban(); renderSidebar();
-  showToast('📵 Movido a No Contactados');
+  showToast('📵 Movido a No Contactados', true);
 }
 
 function moveWebinarNoContactado(leadId) {
   const lead = leads.find(l => l.id === leadId);
   if (!lead) return;
+  pushUndo('lead_change', JSON.parse(JSON.stringify(lead)));
   const prefix = lead.etapa.startsWith('AS - ') ? 'AS - ' : 'NA - ';
   const prev = lead.etapa;
   lead.etapa = prefix + 'No contactado';
   addHistorial(leadId, `Sin contacto en 3er intento (desde ${prev})`, '📵');
   saveLeads(leadId); renderKanban(); renderSidebar();
-  showToast('📵 Sin contacto — 3er intento agotado');
+  showToast('📵 Sin contacto — 3er intento agotado', true);
 }
 
 function moveParaEntrevista(leadId) {
   const lead = leads.find(l => l.id === leadId);
   if (!lead) return;
+  pushUndo('lead_change', JSON.parse(JSON.stringify(lead)));
   const prev = lead.etapa;
   lead.pipeline_id = 'entrevistas-generales';
   lead.etapa = 'EN ENTREVISTA';
   addHistorial(leadId, `Enviado a Entrevistas Generales (desde ${prev})`, '🤝');
   saveLeads(leadId); renderKanban(); renderSidebar();
-  showToast('🤝 Movido a Entrevistas Generales');
+  showToast('🤝 Movido a Entrevistas Generales', true);
 }
 
 function moveReinscritoWebinar(leadId) {
   const lead = leads.find(l => l.id === leadId);
   if (!lead) return;
+  pushUndo('lead_change', JSON.parse(JSON.stringify(lead)));
   const prev = lead.etapa;
   lead.etapa = 'Inscrito en Webinar';
   lead.reinscrito_from_na = true;
@@ -1693,7 +1700,7 @@ function moveReinscritoWebinar(leadId) {
   saveLeads(leadId);
   setPipeTab('en-webinar', 'inscrito');
   renderKanban(); renderSidebar();
-  showToast('🔄 Reinscrito en Webinar');
+  showToast('🔄 Reinscrito en Webinar', true);
 }
 
 let _niLeadId = null;
@@ -1734,6 +1741,7 @@ function confirmNoInteresado() {
   }
   const lead = leads.find(l => l.id === _niLeadId);
   if (lead) {
+    pushUndo('lead_change', JSON.parse(JSON.stringify(lead)));
     lead.notas = Array.isArray(lead.notas) ? lead.notas : [];
     lead.notas.push({ texto: '[No interesado] ' + motivo, fecha: new Date().toISOString(), autor: currentUser?.name || '' });
     if (_niContext === 'webinar-na') {
@@ -1748,7 +1756,7 @@ function confirmNoInteresado() {
   if (lead) addHistorial(_niLeadId, `No interesado: ${motivo}`, '⚠️');
   closeNoInteresado();
   saveLeads(_niLeadId); renderKanban(); renderSidebar();
-  showToast('⚠️ Movido a No Interesados');
+  showToast('⚠️ Movido a No Interesados', true);
 }
 
 let _ncLeadId = null;
@@ -1791,6 +1799,7 @@ function confirmNoCalifica() {
   }
   const lead = leads.find(l => l.id === _ncLeadId);
   if (lead) {
+    pushUndo('lead_change', JSON.parse(JSON.stringify(lead)));
     lead.notas = Array.isArray(lead.notas) ? lead.notas : (lead.notas ? [lead.notas] : []);
     lead.notas.push({ texto: `[No califica] ${motivo}`, fecha: new Date().toISOString(), autor: currentUser?.name || '' });
     if (_ncContext === 'webinar-na') {
@@ -1813,7 +1822,7 @@ function confirmNoCalifica() {
   if (lead) addHistorial(_ncLeadId, `No califica: ${motivo}`, '🚫');
   closeNoCalifica();
   saveLeads(_ncLeadId); renderKanban(); renderSidebar();
-  showToast('🚫 Movido a No Califica');
+  showToast('🚫 Movido a No Califica', true);
 }
 
 function sendToWebinar() {
@@ -1823,6 +1832,7 @@ function sendToWebinar() {
   closeLead();
   const lead = leads.find(l => l.id === leadId);
   if (lead) {
+    pushUndo('lead_change', JSON.parse(JSON.stringify(lead)));
     const prev = lead.etapa;
     lead.pipeline_id = 'en-webinar';
     lead.etapa       = 'Inscrito en Webinar';
@@ -1833,6 +1843,7 @@ function sendToWebinar() {
   celebrateWebinar();
   renderKanban();
   renderSidebar();
+  showToast('🎥 Enviado a Webinar', true);
 }
 
 function celebrateWebinar() {
@@ -1857,29 +1868,27 @@ function moveLead(leadId, newEtapa) {
   const lead = leads.find(l => l.id === leadId);
   if (!lead || lead.etapa === newEtapa) return;
 
+  pushUndo('lead_change', JSON.parse(JSON.stringify(lead)));
+
   // ── TRANSICIONES AUTOMÁTICAS DE BOARD ──
   const AUTO_TRANSITIONS = [
-    // Webinar
     { match: e => /^en webinar$/i.test(e),                         pipeline:'en-webinar',             etapa:'Inscrito en Webinar',    msg:'EN WEBINAR → Inscrito en Webinar' },
-    // Para entrevista general
     { match: e => /para entrevista.*enviar/i.test(e),              pipeline:'entrevistas-generales',   etapa:'EN ENTREVISTA',           msg:'ENTREVISTAS GENERALES → En Entrevista' },
-    // Enviar a entrevistador específico
     { match: e => /enviar a caritza/i.test(e),                     pipeline:'caritza-rojas',           etapa:'ENTREVISTADOS',           msg:'ENTREVISTA: CARITZA ROJAS → Entrevistados' },
     { match: e => /enviar a maria/i.test(e),                       pipeline:'maria-lugo',              etapa:'ENTREVISTADO',            msg:'ENTREVISTA: MARIA LUGO → Entrevistado' },
     { match: e => /enviar a br(y|a)an/i.test(e),                   pipeline:'brayan-alexander',        etapa:'ENTREVISTADO',            msg:'ENTREVISTA: BRAYAN & ALEXANDER → Entrevistado' },
-    // No contactado → board No Contactados
     { match: e => /^no contactado$/i.test(e), pipeline:'no-contactados', etapa:'Sin respuesta - 3er intento', msg:'NO CONTACTADOS → Sin respuesta 3er intento' },
     { match: e => /no contactado.*enviar|no interesado.*enviar/i.test(e), pipeline:'eliminados', etapa:'APLICANTE - NO CONTACTADO', msg:'ELIMINADOS → No contactado' },
   ];
 
   const transition = AUTO_TRANSITIONS.find(t => t.match(newEtapa));
   if (transition) {
-    const prevPipe = lead.pipeline_id; const prevEtapa = lead.etapa;
+    const prevEtapa = lead.etapa;
     lead.pipeline_id = transition.pipeline;
     lead.etapa       = transition.etapa;
     addHistorial(leadId, `Movido de ${prevEtapa} → ${transition.etapa} (${PIPELINES.find(p=>p.id===transition.pipeline)?.nombre||transition.pipeline})`, '↕️');
     saveLeads(leadId); renderKanban(); renderSidebar();
-    showToast('✅ Movido a ' + transition.msg);
+    showToast('✅ Movido a ' + transition.msg, true);
     return;
   }
 
@@ -1887,7 +1896,7 @@ function moveLead(leadId, newEtapa) {
   lead.etapa = newEtapa;
   addHistorial(leadId, `Etapa cambiada: ${prevEtapa} → ${newEtapa}`, '↕️');
   saveLeads(leadId); renderKanban(); renderSidebar();
-  showToast('Movido a: ' + newEtapa);
+  showToast('↕️ Movido a: ' + newEtapa, true);
 }
 
 // ── INDICADOR ONLINE/OFFLINE ──
@@ -1938,11 +1947,13 @@ function handleDrop(event, etapa) {
   if (!dragLeadId) return;
   const lead = leads.find(l => l.id === dragLeadId);
   if (lead && lead.etapa !== etapa) {
+    pushUndo('lead_change', JSON.parse(JSON.stringify(lead)));
     lead.etapa = etapa;
-    saveLeads();
+    addHistorial(lead.id, `Etapa cambiada (arrastre) → ${etapa}`, '↕️');
+    saveLeads(lead.id);
     renderKanban();
     renderSidebar();
-    showToast(`Movido a: ${etapa}`);
+    showToast(`↕️ Movido a: ${etapa}`, true);
   }
   dragLeadId = null;
 }
@@ -2008,6 +2019,7 @@ function saveLead() {
   const lead = leads.find(l => l.id === currentLeadId);
   if (!lead) return;
 
+  pushUndo('lead_change', JSON.parse(JSON.stringify(lead)));
   const oldPipeline = lead.pipeline_id;
   const oldEtapa = lead.etapa;
 
@@ -2034,18 +2046,20 @@ function saveLead() {
   closeLead();
   renderKanban();
   renderSidebar();
-  showToast('Aplicante guardado');
+  showToast('✏️ Aplicante guardado', true);
 }
 
 function deleteLead() {
   if (!currentLeadId) return;
   if (!confirm('¿Eliminar este aplicante?')) return;
+  const lead = leads.find(l => l.id === currentLeadId);
+  if (lead) pushUndo('lead_delete', JSON.parse(JSON.stringify(lead)));
   leads = leads.filter(l => l.id !== currentLeadId);
   saveLeads();
   closeLead();
   renderKanban();
   renderSidebar();
-  showToast('Aplicante eliminado');
+  showToast('🗑️ Aplicante eliminado', true);
 }
 
 // ════════════════════════════════════════════
@@ -2109,11 +2123,12 @@ function saveNewLead() {
   const pipeName = PIPELINES.find(p => p.id === lead.pipeline_id)?.nombre || lead.pipeline_id;
   addHistorial(lead.id, `Lead creado en ${pipeName} → ${lead.etapa}`, '🌟');
   leads.unshift(lead);
+  pushUndo('lead_create', lead.id);
   saveLeads();
   closeNewLead();
   renderKanban();
   renderSidebar();
-  showToast('Aplicante creado');
+  showToast('🌟 Aplicante creado', true);
 }
 
 // ════════════════════════════════════════════
@@ -2492,10 +2507,53 @@ function fmtDate(d) {
   const dt = new Date(d);
   return isNaN(dt) ? d : dt.toLocaleDateString('es-MX',{day:'2-digit',month:'short',year:'numeric'});
 }
-function showToast(msg) {
+// ════════════════════════════════════════════
+//  UNDO SYSTEM
+// ════════════════════════════════════════════
+let _undoAction = null;
+let _undoTimer  = null;
+
+function pushUndo(type, data) {
+  _undoAction = { type, data };
+}
+
+function undoLastAction() {
+  if (!_undoAction) return;
+  const { type, data } = _undoAction;
+  _undoAction = null;
+  if (_undoTimer) { clearTimeout(_undoTimer); _undoTimer = null; }
+  document.getElementById('toast').classList.remove('show');
+
+  if (type === 'lead_change') {
+    const idx = leads.findIndex(l => l.id === data.id);
+    if (idx >= 0) leads[idx] = JSON.parse(JSON.stringify(data));
+    else leads.unshift(JSON.parse(JSON.stringify(data)));
+    saveLeads(data.id);
+  } else if (type === 'lead_delete') {
+    leads.unshift(JSON.parse(JSON.stringify(data)));
+    saveLeads();
+  } else if (type === 'lead_create') {
+    leads = leads.filter(l => l.id !== data);
+    saveLeads();
+  }
+  renderKanban(); renderSidebar();
+  showToast('↩️ Acción deshecha');
+}
+
+function showToast(msg, undoable = false) {
   const t = document.getElementById('toast');
-  t.textContent = msg; t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), 2500);
+  if (_undoTimer) { clearTimeout(_undoTimer); _undoTimer = null; }
+  if (undoable) {
+    t.innerHTML = `<span class="toast-msg">${msg}</span><button class="toast-undo-btn" onclick="undoLastAction()">Deshacer</button>`;
+  } else {
+    t.innerHTML = `<span class="toast-msg">${msg}</span>`;
+  }
+  t.classList.add('show');
+  _undoTimer = setTimeout(() => {
+    t.classList.remove('show');
+    _undoTimer = null;
+    if (!undoable) _undoAction = null;
+  }, 4000);
 }
 
 // ── AUTO INIT (sin login) ──
