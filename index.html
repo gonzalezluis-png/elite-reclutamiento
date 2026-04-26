@@ -98,6 +98,26 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); heig
 .ts { display:flex;align-items:center;gap:4px; }
 .ts-dot { width:7px;height:7px;border-radius:50%; }
 
+/* ── TABLE VIEW (Inscrito en Webinar) ── */
+#table-view-wrap { flex:1;overflow:auto;padding:14px;background:var(--bg);display:none; }
+#table-view-wrap.active { display:block; }
+.leads-table { width:100%;border-collapse:collapse;font-size:12px; }
+.leads-table th { background:var(--card2);color:var(--text2);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;padding:9px 12px;border-bottom:2px solid var(--border);text-align:left;white-space:nowrap;position:sticky;top:0;z-index:2; }
+.leads-table td { padding:8px 12px;border-bottom:1px solid var(--border);color:var(--text);vertical-align:middle;background:var(--card2); }
+.leads-table tr:hover td { background:var(--card);cursor:pointer; }
+.leads-table tr:last-child td { border-bottom:none; }
+.lt-badge { display:inline-block;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:600; }
+.lt-badge.meta { background:rgba(0,115,234,.18);color:#4da6ff; }
+.lt-badge.ig   { background:rgba(253,171,61,.18);color:var(--yellow); }
+.lt-badge.wa   { background:rgba(37,211,102,.18);color:#25d366; }
+.lt-badge.ref  { background:rgba(0,200,117,.18);color:var(--green); }
+.lt-badge.otro { background:rgba(103,106,130,.18);color:var(--gray); }
+.lt-tag { display:inline-block;padding:1px 6px;border-radius:10px;font-size:10px;background:rgba(255,255,255,.07);color:var(--text2);margin-right:3px; }
+.lt-avatar { width:26px;height:26px;border-radius:50%;background:var(--accent);display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff; }
+.lt-actions { display:flex;gap:4px; }
+.lt-btn { background:transparent;border:1px solid var(--border);border-radius:5px;padding:3px 7px;font-size:11px;cursor:pointer;color:var(--text2); }
+.lt-btn:hover { background:var(--card);color:var(--text); }
+
 /* ── PIPELINE TABS ── */
 #pipeline-tabs { display:none;padding:0 14px;background:var(--card2);border-bottom:1px solid var(--border);flex-shrink:0; }
 #pipeline-tabs.visible { display:flex;align-items:center;gap:2px; }
@@ -404,6 +424,9 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); heig
 
     <!-- PIPELINE TABS (webinar) -->
     <div id="pipeline-tabs"></div>
+
+    <!-- TABLE VIEW (Inscrito en Webinar) -->
+    <div id="table-view-wrap"></div>
 
     <!-- KANBAN -->
     <div id="kanban-wrap"></div>
@@ -863,6 +886,7 @@ function selectPipeline(id) {
   const pipe = PIPELINES.find(p => p.id === id);
   document.getElementById('board-title').textContent = pipe?.nombre || id;
   document.getElementById('kanban-wrap').style.display = '';
+  document.getElementById('table-view-wrap').classList.remove('active');
   document.getElementById('calendar-view').classList.remove('active');
   renderSidebar();
   renderKanban();
@@ -965,8 +989,69 @@ function renderKanban() {
     }).join('');
     const activeTab = pipe.tabs.find(t => t.id === activeWebinarTab);
     const stageDefs = activeTab ? activeTab.etapas : [];
-    const wrap = document.getElementById('kanban-wrap');
-    wrap.innerHTML = stageDefs.map(({v, l: label}) => {
+    const tableWrap = document.getElementById('table-view-wrap');
+    const kanbanWrap = document.getElementById('kanban-wrap');
+
+    // Inscrito en Webinar → vista tabla
+    if (activeWebinarTab === 'inscrito') {
+      kanbanWrap.style.display = 'none';
+      tableWrap.classList.add('active');
+      const rows = leads.filter(ld =>
+        ld.pipeline_id === activePipelineId &&
+        ld.etapa === 'Inscrito en Webinar' &&
+        (!q || [ld.nombre, ld.correo, ld.telefono, ld.fuente, ld.nombre_lead].join(' ').toLowerCase().includes(q))
+      );
+      const srcClass = s => ({'Meta / Facebook':'meta','Instagram':'ig','WhatsApp':'wa','Referido':'ref'}[s]||'otro');
+      tableWrap.innerHTML = `
+        <table class="leads-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Nombre</th>
+              <th>Puesto</th>
+              <th>Correo</th>
+              <th>Teléfono</th>
+              <th>Fuente</th>
+              <th>Propietario</th>
+              <th>Etiquetas</th>
+              <th>Fecha</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows.length ? rows.map((ld, i) => {
+              const initials = ld.propietario ? ld.propietario.split(' ').map(w=>w[0]).join('').slice(0,2) : '?';
+              const date = ld.created_at ? new Date(ld.created_at).toLocaleDateString('es-MX',{day:'2-digit',month:'short',year:'numeric'}) : '';
+              const tags = (ld.etiquetas||[]).map(t=>`<span class="lt-tag">${esc(t)}</span>`).join('');
+              return `<tr onclick="openLead('${ld.id}')">
+                <td style="color:var(--text2)">${i+1}</td>
+                <td style="font-weight:600;color:#fff">${esc(ld.nombre)}</td>
+                <td>${esc(ld.nombre_lead||'')}</td>
+                <td style="color:var(--text2)">${esc(ld.correo||'')}</td>
+                <td>${esc(ld.telefono||'')}</td>
+                <td><span class="lt-badge ${srcClass(ld.fuente)}">${esc(ld.fuente||'')}</span></td>
+                <td><span class="lt-avatar" title="${esc(ld.propietario||'')}">${esc(initials)}</span> <span style="font-size:11px;color:var(--text2);margin-left:5px">${esc(ld.propietario||'')}</span></td>
+                <td>${tags||'<span style="color:var(--text2);font-size:10px">—</span>'}</td>
+                <td style="color:var(--text2);white-space:nowrap">${date}</td>
+                <td onclick="event.stopPropagation()">
+                  <div class="lt-actions">
+                    <button class="lt-btn" title="Llamar" onclick="quickAction('call','${ld.id}')">📞</button>
+                    <button class="lt-btn" title="Mensaje" onclick="quickAction('msg','${ld.id}')">💬</button>
+                    <button class="lt-btn" title="Notas" onclick="openLead('${ld.id}','notas')">📝</button>
+                    <button class="lt-btn" title="Tareas" onclick="openLead('${ld.id}','tareas')">✅</button>
+                  </div>
+                </td>
+              </tr>`;
+            }).join('') : `<tr><td colspan="10" style="text-align:center;padding:40px;color:var(--text2)">Sin leads inscritos</td></tr>`}
+          </tbody>
+        </table>`;
+      return;
+    }
+
+    // Otras pestañas → vista kanban
+    tableWrap.classList.remove('active');
+    kanbanWrap.style.display = '';
+    kanbanWrap.innerHTML = stageDefs.map(({v, l: label}) => {
       const stageleads = leads.filter(ld =>
         ld.pipeline_id === activePipelineId &&
         ld.etapa === v &&
