@@ -792,21 +792,23 @@ const PIPELINES = [
           {v:'NA - No Califica',             l:'No Califica'},
           {v:'NA - Para Entrevista',         l:'Para Entrevista'},
         ],
-        subTabs: true },
+        subTabs: true,
+        subTabVisible: ['NA - No Asistente','NA - 1er intento de contacto','NA - 2do intento de contacto','NA - 3er intento de contacto','NA - Reinscrito en Webinar'] },
       { id:'asistente', nombre:'Asistente', sidebar:true,
         etapas:[
           {v:'AS - Asistente',               l:'Asistente'},
           {v:'AS - 1er intento de contacto', l:'1er intento de contacto'},
           {v:'AS - 2do intento de contacto', l:'2do intento de contacto'},
           {v:'AS - 3er intento de contacto', l:'3er intento de contacto'},
-          {v:'AS - Reinscrito en Webinar',   l:'Reinscrito en Webinar'},
           {v:'AS - No contactado',           l:'No contactado'},
           {v:'AS - No interesado',           l:'No interesado'},
           {v:'AS - No Califica',             l:'No Califica'},
           {v:'AS - Para Entrevista',         l:'Para Entrevista'},
-        ]},
+        ],
+        subTabs: true,
+        subTabVisible: ['AS - Asistente','AS - 1er intento de contacto','AS - 2do intento de contacto','AS - 3er intento de contacto'] },
     ],
-    etapas:['Inscrito en Webinar','NA - No Asistente','NA - 1er intento de contacto','NA - 2do intento de contacto','NA - 3er intento de contacto','NA - Reinscrito en Webinar','NA - No contactado','NA - No interesado','NA - No Califica','NA - Para Entrevista','AS - Asistente','AS - 1er intento de contacto','AS - 2do intento de contacto','AS - 3er intento de contacto','AS - Reinscrito en Webinar','AS - No contactado','AS - No interesado','AS - No Califica','AS - Para Entrevista'] },
+    etapas:['Inscrito en Webinar','NA - No Asistente','NA - 1er intento de contacto','NA - 2do intento de contacto','NA - 3er intento de contacto','NA - Reinscrito en Webinar','NA - No contactado','NA - No interesado','NA - No Califica','NA - Para Entrevista','AS - Asistente','AS - 1er intento de contacto','AS - 2do intento de contacto','AS - 3er intento de contacto','AS - No contactado','AS - No interesado','AS - No Califica','AS - Para Entrevista'] },
   { id:'entrevistas-generales', nombre:'ENTREVISTAS GENERALES', icon:'🤝', visible:true,
     etapas:['EN ENTREVISTA','NO SHOW','ENVIAR a Caritza Rojas','ENVIAR a Maria Lugo','ENVIAR a Bryan Palacios','Contratados Personales'] },
   { id:'maria-lugo', nombre:'ENTREVISTA: MARIA LUGO', icon:'👤', visible:false,
@@ -871,6 +873,17 @@ let subTabState = {};
 function getSubTab(pipeId, tabId) { return subTabState[`${pipeId}:${tabId}`] || 'all'; }
 function setSubTab(pipeId, tabId, subId) { subTabState[`${pipeId}:${tabId}`] = subId; }
 function selectSubTab(pipeId, tabId, subId) { setSubTab(pipeId, tabId, subId); renderKanban(); }
+
+const WEBINAR_PROGRESSIONS = {
+  'NA - No Asistente':            'NA - 1er intento de contacto',
+  'NA - 1er intento de contacto': 'NA - 2do intento de contacto',
+  'NA - 2do intento de contacto': 'NA - 3er intento de contacto',
+  'NA - 3er intento de contacto': null,
+  'AS - Asistente':               'AS - 1er intento de contacto',
+  'AS - 1er intento de contacto': 'AS - 2do intento de contacto',
+  'AS - 2do intento de contacto': 'AS - 3er intento de contacto',
+  'AS - 3er intento de contacto': null,
+};
 
 const USERS = JSON.parse(localStorage.getItem('er_users') || JSON.stringify([
   { email:'admin@elitereclutamiento.com', password:'admin123', name:'Admin', role:'Administrador' },
@@ -1173,8 +1186,11 @@ function renderKanban() {
   const subTabsEl = document.getElementById('pipeline-subtabs');
   if (curTab.subTabs) {
     const curSubId = getSubTab(activePipelineId, curTab.id);
+    const visibleEtapas = curTab.subTabVisible
+      ? curTab.etapas.filter(e => curTab.subTabVisible.includes(e.v))
+      : curTab.etapas;
     const allSubs = [{id:'all', nombre:'Todos', etapas: curTab.etapas}]
-      .concat(curTab.etapas.map(e => ({id: e.v, nombre: e.l, etapas:[e]})));
+      .concat(visibleEtapas.map(e => ({id: e.v, nombre: e.l, etapas:[e]})));
     subTabsEl.className = 'visible';
     subTabsEl.innerHTML = allSubs.map(s => {
       const cnt = leads.filter(l => l.pipeline_id === activePipelineId && s.etapas.some(e => e.v === l.etapa)).length;
@@ -1303,12 +1319,49 @@ function toggleMoveMenu(event, leadId) {
   const estaEn2do       = /^2do intento de contacto$/i.test(etapaActual);
   const estaEn3er       = /^3er intento de contacto$/i.test(etapaActual);
   const esModoSimplificado = esPostulados && (estaEnNewLead || estaEn1er || estaEn2do || estaEn3er);
+  const esWebinarIntento = lead?.pipeline_id === 'en-webinar' && Object.prototype.hasOwnProperty.call(WEBINAR_PROGRESSIONS, etapaActual);
 
   // Ocultar botón global "En Webinar" en modo simplificado (se pone dentro del menú)
   const webinarSection = document.getElementById('move-menu-webinar-section');
-  if (webinarSection) webinarSection.style.display = (lead?.pipeline_id === 'en-webinar' || esModoSimplificado) ? 'none' : '';
+  if (webinarSection) webinarSection.style.display = (lead?.pipeline_id === 'en-webinar' || esModoSimplificado || esWebinarIntento) ? 'none' : '';
 
-  if (esModoSimplificado) {
+  if (esWebinarIntento) {
+    const siguienteEtapa = WEBINAR_PROGRESSIONS[etapaActual];
+    const esNA = etapaActual.startsWith('NA - ');
+    const noRespondioBtn = siguienteEtapa
+      ? `<div class="move-option" onclick="moveLead('${leadId}','${siguienteEtapa.replace(/'/g,"\\'")}');closeAllMenus()">
+          <span class="move-option-dot" style="background:#fdab3d"></span>
+          <span>No respondió la llamada</span>
+        </div>`
+      : `<div class="move-option" onclick="moveWebinarNoContactado('${leadId}');closeAllMenus()">
+          <span class="move-option-dot" style="background:#676a82"></span>
+          <span>No respondió / Sin contacto</span>
+        </div>`;
+    const reinscritoBtn = esNA
+      ? `<div class="move-option" onclick="moveReinscritoWebinar('${leadId}');closeAllMenus()">
+          <span class="move-option-dot" style="background:#784bd1"></span>
+          <span>Reinscrito en Webinar</span>
+        </div>`
+      : '';
+    const niContext = esNA ? 'webinar-na' : 'webinar-as';
+    const ncContext = esNA ? 'webinar-na' : 'webinar-as';
+    document.getElementById('move-menu-options').innerHTML = `
+      ${noRespondioBtn}
+      ${reinscritoBtn}
+      <div class="move-option" onclick="moveParaEntrevista('${leadId}');closeAllMenus()">
+        <span class="move-option-dot" style="background:#00c875"></span>
+        <span>Para Entrevista</span>
+      </div>
+      <div style="border-top:1px solid var(--border);margin:4px 0"></div>
+      <div class="move-option-special no-interesado" onclick="openNoInteresado('${leadId}','${niContext}')">
+        <span class="move-option-dot" style="background:#fdab3d"></span>
+        <span>No interesado</span>
+      </div>
+      <div class="move-option-special no-califica" onclick="openNoCalifica('${leadId}','${ncContext}')">
+        <span class="move-option-dot" style="background:#e2445c"></span>
+        <span>No califica</span>
+      </div>`;
+  } else if (esModoSimplificado) {
     let siguienteEtapa = null;
     if (estaEnNewLead) siguienteEtapa = etapas.find(e => /^1er intento de contacto$/i.test(e));
     if (estaEn1er)     siguienteEtapa = etapas.find(e => /^2do intento de contacto$/i.test(e));
@@ -1411,11 +1464,44 @@ function moveNoContactado(leadId) {
   showToast('📵 Movido a No Contactados');
 }
 
-let _niLeadId = null;
+function moveWebinarNoContactado(leadId) {
+  const lead = leads.find(l => l.id === leadId);
+  if (!lead) return;
+  const prefix = lead.etapa.startsWith('AS - ') ? 'AS - ' : 'NA - ';
+  lead.etapa = prefix + 'No contactado';
+  saveLeads(); renderKanban(); renderSidebar();
+  showToast('📵 Sin contacto — 3er intento agotado');
+}
 
-function openNoInteresado(leadId) {
+function moveParaEntrevista(leadId) {
+  const lead = leads.find(l => l.id === leadId);
+  if (!lead) return;
+  lead.pipeline_id = 'entrevistas-generales';
+  lead.etapa = 'EN ENTREVISTA';
+  saveLeads(); renderKanban(); renderSidebar();
+  showToast('🤝 Movido a Entrevistas Generales');
+}
+
+function moveReinscritoWebinar(leadId) {
+  const lead = leads.find(l => l.id === leadId);
+  if (!lead) return;
+  lead.etapa = 'Inscrito en Webinar';
+  lead.reinscrito_from_na = true;
+  lead.webinar_accion = 'sin-registro';
+  lead.inscrito_webinar = false;
+  saveLeads();
+  setPipeTab('en-webinar', 'inscrito');
+  renderKanban(); renderSidebar();
+  showToast('🔄 Reinscrito en Webinar');
+}
+
+let _niLeadId = null;
+let _niContext = 'default';
+
+function openNoInteresado(leadId, context) {
   closeAllMenus();
   _niLeadId = leadId;
+  _niContext = context || 'default';
   document.querySelectorAll('input[name="ni-reason"]').forEach(r => r.checked = false);
   document.querySelectorAll('.ni-option').forEach(o => o.classList.remove('selected'));
   document.getElementById('ni-otros-text').style.display = 'none';
@@ -1449,8 +1535,14 @@ function confirmNoInteresado() {
   if (lead) {
     lead.notas = Array.isArray(lead.notas) ? lead.notas : [];
     lead.notas.push({ texto: '[No interesado] ' + motivo, fecha: new Date().toISOString(), autor: currentUser?.name || '' });
-    lead.pipeline_id = 'no-interesados-no-califica';
-    lead.etapa = 'No interesado';
+    if (_niContext === 'webinar-na') {
+      lead.etapa = 'NA - No interesado';
+    } else if (_niContext === 'webinar-as') {
+      lead.etapa = 'AS - No interesado';
+    } else {
+      lead.pipeline_id = 'no-interesados-no-califica';
+      lead.etapa = 'No interesado';
+    }
   }
   closeNoInteresado();
   saveLeads(); renderKanban(); renderSidebar();
@@ -1458,10 +1550,12 @@ function confirmNoInteresado() {
 }
 
 let _ncLeadId = null;
+let _ncContext = 'default';
 
-function openNoCalifica(leadId) {
+function openNoCalifica(leadId, context) {
   closeAllMenus();
   _ncLeadId = leadId;
+  _ncContext = context || 'default';
   // Reset selección
   document.querySelectorAll('input[name="nc-reason"]').forEach(r => r.checked = false);
   document.querySelectorAll('.nc-option').forEach(o => o.classList.remove('selected'));
@@ -1495,19 +1589,24 @@ function confirmNoCalifica() {
   }
   const lead = leads.find(l => l.id === _ncLeadId);
   if (lead) {
-    const nota = `[No califica] ${motivo}`;
     lead.notas = Array.isArray(lead.notas) ? lead.notas : (lead.notas ? [lead.notas] : []);
-    // Mapear motivo a etapa del board
-    const etapaMap = {
-      'No posee documentos':     'No califica - Sin documentos',
-      'Aún no es mayor de edad': 'No califica - Menor de edad',
-      'No habla Español':        'No califica - No habla Español',
-    };
-    const etapaDestino = motivo.startsWith('Otros:')
-      ? 'No califica - Otros'
-      : (etapaMap[motivo] || 'No califica - Otros');
-    lead.pipeline_id = 'no-interesados-no-califica';
-    lead.etapa = etapaDestino;
+    lead.notas.push({ texto: `[No califica] ${motivo}`, fecha: new Date().toISOString(), autor: currentUser?.name || '' });
+    if (_ncContext === 'webinar-na') {
+      lead.etapa = 'NA - No Califica';
+    } else if (_ncContext === 'webinar-as') {
+      lead.etapa = 'AS - No Califica';
+    } else {
+      const etapaMap = {
+        'No posee documentos':     'No califica - Sin documentos',
+        'Aún no es mayor de edad': 'No califica - Menor de edad',
+        'No habla Español':        'No califica - No habla Español',
+      };
+      const etapaDestino = motivo.startsWith('Otros:')
+        ? 'No califica - Otros'
+        : (etapaMap[motivo] || 'No califica - Otros');
+      lead.pipeline_id = 'no-interesados-no-califica';
+      lead.etapa = etapaDestino;
+    }
   }
   closeNoCalifica();
   saveLeads(); renderKanban(); renderSidebar();
