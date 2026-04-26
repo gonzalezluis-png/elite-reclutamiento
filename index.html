@@ -1831,8 +1831,8 @@ function sendToWebinar() {
     saveLeads(lead.id);
   }
   celebrateWebinar();
-  setPipeTab('en-webinar', 'inscrito');
-  selectPipeline('en-webinar');
+  renderKanban();
+  renderSidebar();
 }
 
 function celebrateWebinar() {
@@ -2111,8 +2111,8 @@ function saveNewLead() {
   leads.unshift(lead);
   saveLeads();
   closeNewLead();
-  if (lead.pipeline_id !== activePipelineId) selectPipeline(lead.pipeline_id);
-  else { renderKanban(); renderSidebar(); }
+  renderKanban();
+  renderSidebar();
   showToast('Aplicante creado');
 }
 
