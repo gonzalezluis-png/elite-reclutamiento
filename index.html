@@ -698,24 +698,36 @@ tr.lead-resuelto td:last-child { pointer-events:none;opacity:.4; }
 // ════════════════════════════════════════════
 //  PIPELINES
 // ════════════════════════════════════════════
+function makePostuladosTabs() {
+  return [
+    { id:'all', nombre:'Todos', sidebar:false,
+      etapas:[
+        {v:'New Lead',                  l:'New Lead'},
+        {v:'1er intento de contacto',   l:'1er intento de contacto'},
+        {v:'2do intento de contacto',   l:'2do intento de contacto'},
+        {v:'3er intento de contacto',   l:'3er intento de contacto'},
+      ]},
+    { id:'1er', nombre:'1er intento de contacto', sidebar:true,
+      etapas:[{v:'1er intento de contacto', l:'1er intento de contacto'}] },
+    { id:'2do', nombre:'2do intento de contacto', sidebar:true,
+      etapas:[{v:'2do intento de contacto', l:'2do intento de contacto'}] },
+    { id:'3er', nombre:'3er intento de contacto', sidebar:true,
+      etapas:[{v:'3er intento de contacto', l:'3er intento de contacto'}] },
+  ];
+}
+
 const PIPELINES = [
   { id:'postulados-meta', nombre:'POSTULADOS POR META', icon:'📌', visible:true,
+    tabs: makePostuladosTabs(),
     etapas:['New Lead','1er intento de contacto','2do intento de contacto','3er intento de contacto'] },
-  { id:'dallas-texas', nombre:'DALLAS - TEXAS', icon:'📍', visible:true,
-    etapas:['New Lead','1er Intento de Contacto','2do Intento de Contacto','3er Intento de Contacto'] },
-  { id:'austin-san-antonio', nombre:'AUSTIN - SAN ANTONIO TEXAS', icon:'📍', visible:true,
-    etapas:['New Lead','1er Intento de Contacto','2do Intento de Contacto','3er Intento de Contacto'] },
-  { id:'el-paso', nombre:'EL PASO', icon:'📍', visible:true,
-    etapas:['New Lead','1er Intento de Contacto','2do Intento de Contacto','3er Intento de Contacto'] },
-  { id:'florida', nombre:'FLORIDA', icon:'📍', visible:true,
-    etapas:['New Lead','1er Intento de Contacto','2do Intento de Contacto','3er Intento de Contacto'] },
-  { id:'otro-lugares', nombre:'OTRO LUGARES', icon:'📍', visible:true,
-    etapas:['New Lead','1er Intento de Contacto','2do Intento de Contacto','3er Intento de Contacto'] },
+  { id:'postulados-indeed', nombre:'POSTULADOS POR INDEED', icon:'📋', visible:true,
+    tabs: makePostuladosTabs(),
+    etapas:['New Lead','1er intento de contacto','2do intento de contacto','3er intento de contacto'] },
   { id:'en-webinar', nombre:'EN WEBINAR', icon:'🎥', visible:true,
     tabs: [
-      { id:'inscrito', nombre:'Inscrito en Webinar',
+      { id:'inscrito', nombre:'Inscrito en Webinar', sidebar:false, tableView:true,
         etapas:[{v:'Inscrito en Webinar', l:'Inscrito en Webinar'}] },
-      { id:'no-asistente', nombre:'No Asistente',
+      { id:'no-asistente', nombre:'No Asistente', sidebar:true,
         etapas:[
           {v:'NA - No Asistente',            l:'No Asistente'},
           {v:'NA - 1er intento de contacto', l:'1er intento de contacto'},
@@ -727,7 +739,7 @@ const PIPELINES = [
           {v:'NA - No Califica',             l:'No Califica'},
           {v:'NA - Para Entrevista',         l:'Para Entrevista'},
         ]},
-      { id:'asistente', nombre:'Asistente',
+      { id:'asistente', nombre:'Asistente', sidebar:true,
         etapas:[
           {v:'AS - Asistente',               l:'Asistente'},
           {v:'AS - 1er intento de contacto', l:'1er intento de contacto'},
@@ -786,7 +798,13 @@ let currentTags = [];
 let dragLeadId = null;
 let calYear = new Date().getFullYear();
 let calMonth = new Date().getMonth(); // 0-indexed
-let activeWebinarTab = 'inscrito';
+let pipeTabState = {};
+function getPipeTab(pipeId) {
+  const pipe = PIPELINES.find(p => p.id === pipeId);
+  if (!pipe?.tabs) return null;
+  return pipeTabState[pipeId] || pipe.tabs[0].id;
+}
+function setPipeTab(pipeId, tabId) { pipeTabState[pipeId] = tabId; }
 
 const USERS = JSON.parse(localStorage.getItem('er_users') || JSON.stringify([
   { email:'admin@elitereclutamiento.com', password:'admin123', name:'Admin', role:'Administrador' },
@@ -854,7 +872,7 @@ function renderSidebar() {
   const GROUPS = [
     {
       label: '📌 Postulados',
-      ids: ['postulados-meta','dallas-texas','austin-san-antonio','el-paso','florida','otro-lugares']
+      ids: ['postulados-meta','postulados-indeed']
     },
     {
       label: '🎥 Webinar',
@@ -894,9 +912,9 @@ function renderSidebar() {
       </div>`;
       if (p.tabs) {
         for (const tab of p.tabs) {
-          if (tab.id === 'inscrito') continue;
+          if (tab.sidebar === false) continue;
           const tabCount = leads.filter(l => l.pipeline_id === p.id && tab.etapas.some(e => e.v === l.etapa)).length;
-          const tabActive = activePipelineId === p.id && activeView === 'kanban' && activeWebinarTab === tab.id ? 'active' : '';
+          const tabActive = activePipelineId === p.id && activeView === 'kanban' && getPipeTab(p.id) === tab.id ? 'active' : '';
           html += `<div class="pipe-subtab ${tabActive}" onclick="selectPipelineTab('${p.id}','${tab.id}')">
             <span class="pipe-subtab-dot"></span>
             <span style="flex:1">${tab.nombre}</span>
@@ -913,8 +931,8 @@ function renderSidebar() {
 function selectPipeline(id) {
   activePipelineId = id;
   activeView = 'kanban';
-  if (id !== 'en-webinar') activeWebinarTab = 'inscrito';
   const pipe = PIPELINES.find(p => p.id === id);
+  if (pipe?.tabs && !pipeTabState[id]) setPipeTab(id, pipe.tabs[0].id);
   document.getElementById('board-title').textContent = pipe?.nombre || id;
   document.getElementById('kanban-wrap').style.display = '';
   document.getElementById('table-view-wrap').classList.remove('active');
@@ -924,18 +942,19 @@ function selectPipeline(id) {
 }
 
 function selectWebinarTab(tabId) {
-  activeWebinarTab = tabId;
+  setPipeTab(activePipelineId, tabId);
   renderSidebar();
   renderKanban();
 }
 
 function selectPipelineTab(pipeId, tabId) {
   activePipelineId = pipeId;
-  activeWebinarTab = tabId;
+  setPipeTab(pipeId, tabId);
   activeView = 'kanban';
   const pipe = PIPELINES.find(p => p.id === pipeId);
   document.getElementById('board-title').textContent = pipe?.nombre || pipeId;
   document.getElementById('kanban-wrap').style.display = '';
+  document.getElementById('table-view-wrap').classList.remove('active');
   document.getElementById('calendar-view').classList.remove('active');
   renderSidebar();
   renderKanban();
@@ -1011,25 +1030,27 @@ function renderKanban() {
   const q = (document.getElementById('search-input').value || '').toLowerCase();
   const tabsEl = document.getElementById('pipeline-tabs');
 
-  // Handle pipeline tabs (e.g. Webinar)
+  // Handle pipeline tabs
   if (pipe.tabs) {
+    const curTab = getPipeTab(activePipelineId);
     tabsEl.className = 'visible';
     tabsEl.innerHTML = pipe.tabs.map(t => {
       const count = leads.filter(l => l.pipeline_id === activePipelineId && t.etapas.some(e => e.v === l.etapa)).length;
-      return `<div class="ptab${activeWebinarTab === t.id ? ' active' : ''}" onclick="selectWebinarTab('${t.id}')">${t.nombre} <span style="font-size:10px;opacity:.6;">(${count})</span></div>`;
+      return `<div class="ptab${curTab === t.id ? ' active' : ''}" onclick="selectWebinarTab('${t.id}')">${t.nombre} <span style="font-size:10px;opacity:.6;">(${count})</span></div>`;
     }).join('');
-    const activeTab = pipe.tabs.find(t => t.id === activeWebinarTab);
+    const activeTab = pipe.tabs.find(t => t.id === curTab);
     const stageDefs = activeTab ? activeTab.etapas : [];
     const tableWrap = document.getElementById('table-view-wrap');
     const kanbanWrap = document.getElementById('kanban-wrap');
 
-    // Inscrito en Webinar → vista tabla
-    if (activeWebinarTab === 'inscrito') {
+    // Tab con tableView:true → vista tabla
+    if (activeTab?.tableView) {
       kanbanWrap.style.display = 'none';
       tableWrap.classList.add('active');
+      const tableEtapa = stageDefs[0]?.v || '';
       const rows = leads.filter(ld =>
         ld.pipeline_id === activePipelineId &&
-        ld.etapa === 'Inscrito en Webinar' &&
+        ld.etapa === tableEtapa &&
         (!q || [ld.nombre, ld.correo, ld.telefono, ld.fuente, ld.nombre_lead].join(' ').toLowerCase().includes(q))
       );
       const srcClass = s => ({'Meta / Facebook':'meta','Instagram':'ig','WhatsApp':'wa','Referido':'ref'}[s]||'otro');
