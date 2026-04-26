@@ -144,6 +144,15 @@ tr.lead-resuelto td:last-child { pointer-events:none;opacity:.4; }
 .ptab-dot { width:8px;height:8px;border-radius:50%;flex-shrink:0;opacity:.7; }
 .ptab.active .ptab-dot { opacity:1; }
 
+/* ── SECONDARY SUBTABS ── */
+#pipeline-subtabs { display:none;padding:0 14px;background:var(--bg);border-bottom:1px solid var(--border);flex-shrink:0;overflow-x:auto; }
+#pipeline-subtabs.visible { display:flex;align-items:center;gap:2px; }
+.ptab2 { padding:7px 13px;font-size:11.5px;font-weight:600;color:var(--text2);cursor:pointer;border-bottom:2px solid transparent;transition:color .15s,border-color .15s;white-space:nowrap;display:flex;align-items:center;gap:5px; }
+.ptab2:hover { color:var(--text); }
+.ptab2.active { color:#fff; }
+.ptab2-dot { width:7px;height:7px;border-radius:50%;flex-shrink:0;opacity:.7; }
+.ptab2.active .ptab2-dot { opacity:1; }
+
 /* ── KANBAN ── */
 #kanban-wrap { flex:1;overflow-x:auto;overflow-y:hidden;display:flex;align-items:flex-start;gap:10px;padding:14px;background:var(--bg); }
 .kanban-col { min-width:265px;width:265px;background:var(--card2);border-radius:10px;display:flex;flex-direction:column;max-height:100%;border:1px solid var(--border); }
@@ -443,6 +452,7 @@ tr.lead-resuelto td:last-child { pointer-events:none;opacity:.4; }
 
     <!-- PIPELINE TABS (webinar) -->
     <div id="pipeline-tabs"></div>
+    <div id="pipeline-subtabs"></div>
 
     <!-- TABLE VIEW (Inscrito en Webinar) -->
     <div id="table-view-wrap"></div>
@@ -743,7 +753,8 @@ const PIPELINES = [
           {v:'NA - No interesado',           l:'No interesado'},
           {v:'NA - No Califica',             l:'No Califica'},
           {v:'NA - Para Entrevista',         l:'Para Entrevista'},
-        ]},
+        ],
+        subTabs: true },
       { id:'asistente', nombre:'Asistente', sidebar:true,
         etapas:[
           {v:'AS - Asistente',               l:'Asistente'},
@@ -817,6 +828,11 @@ function getPipeTab(pipeId) {
   return pipeTabState[pipeId] || tabs[0].id;
 }
 function setPipeTab(pipeId, tabId) { pipeTabState[pipeId] = tabId; }
+
+let subTabState = {};
+function getSubTab(pipeId, tabId) { return subTabState[`${pipeId}:${tabId}`] || 'all'; }
+function setSubTab(pipeId, tabId, subId) { subTabState[`${pipeId}:${tabId}`] = subId; }
+function selectSubTab(pipeId, tabId, subId) { setSubTab(pipeId, tabId, subId); renderKanban(); }
 
 const USERS = JSON.parse(localStorage.getItem('er_users') || JSON.stringify([
   { email:'admin@elitereclutamiento.com', password:'admin123', name:'Admin', role:'Administrador' },
@@ -1063,6 +1079,9 @@ function renderKanban() {
     </div>`;
   }).join('');
 
+  // Ocultar sub-pestañas salvo que la pestaña las tenga
+  if (!curTab.subTabs) document.getElementById('pipeline-subtabs').className = '';
+
   // Inscrito en Webinar → tabla especial con acciones ASISTENTE/NO ASISTENTE
   if (curTab.tableView) {
     const tableEtapa = curTab.etapas[0]?.v || '';
@@ -1112,8 +1131,27 @@ function renderKanban() {
     return;
   }
 
-  // Vista tabla universal para todas las demás pestañas/pipelines
-  renderUniversalTable(curTab.etapas, activePipelineId, q, curTab.etapas.length > 1);
+  // Sub-pestañas dentro de una pestaña (ej. No Asistente en Webinar)
+  const subTabsEl = document.getElementById('pipeline-subtabs');
+  if (curTab.subTabs) {
+    const curSubId = getSubTab(activePipelineId, curTab.id);
+    const allSubs = [{id:'all', nombre:'Todos', etapas: curTab.etapas}]
+      .concat(curTab.etapas.map(e => ({id: e.v, nombre: e.l, etapas:[e]})));
+    subTabsEl.className = 'visible';
+    subTabsEl.innerHTML = allSubs.map(s => {
+      const cnt = leads.filter(l => l.pipeline_id === activePipelineId && s.etapas.some(e => e.v === l.etapa)).length;
+      const clr = stageColor(s.etapas[0]?.v || s.nombre);
+      const isActive = curSubId === s.id;
+      return `<div class="ptab2${isActive ? ' active' : ''}" style="${isActive ? `border-bottom-color:${clr};color:#fff;` : ''}" onclick="selectSubTab('${activePipelineId}','${curTab.id}','${s.id}')">
+        <span class="ptab2-dot" style="background:${clr}"></span>${esc(s.nombre)} <span style="font-size:10px;opacity:.6">(${cnt})</span>
+      </div>`;
+    }).join('');
+    const activeSub = allSubs.find(s => s.id === curSubId) || allSubs[0];
+    renderUniversalTable(activeSub.etapas, activePipelineId, q, activeSub.etapas.length > 1);
+  } else {
+    subTabsEl.className = '';
+    renderUniversalTable(curTab.etapas, activePipelineId, q, curTab.etapas.length > 1);
+  }
 }
 
 function renderUniversalTable(stageDefs, pipelineId, q, showEtapa) {
