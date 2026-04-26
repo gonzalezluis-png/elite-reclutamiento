@@ -111,6 +111,8 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); heig
 /* ── CONFIG VIEW ── */
 .sidebar-config-btn { color:var(--text2); }
 .sidebar-config-btn.active { background:rgba(99,102,241,.15);color:var(--accent); }
+.sidebar-webinar-link { color:#00c875;text-decoration:none;font-weight:600; }
+.sidebar-webinar-link:hover { background:rgba(0,200,117,.1);color:#00c875; }
 .cfg-section { background:var(--card2);border:1px solid var(--border);border-radius:10px;padding:24px 28px;margin-bottom:24px; }
 .cfg-section-title { font-size:13px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.6px;margin-bottom:18px;display:flex;align-items:center;gap:8px; }
 .cfg-profile-row { display:flex;align-items:center;gap:20px;margin-bottom:20px; }
@@ -482,6 +484,7 @@ tr.lead-resuelto td:last-child { pointer-events:none;opacity:.4; }
       <div id="pipe-list"></div>
     </div>
     <div class="sidebar-bottom">
+      <a id="sidebar-webinar-link" class="sidebar-item sidebar-webinar-link" href="https://quintero-partners.webinargeek.com/oportunidad-laboral-webinar-on-demand-q-p" target="_blank" rel="noopener">🔗 &nbsp;Link de Webinar</a>
       <div class="sidebar-item sidebar-config-btn" id="sidebar-config-btn" onclick="showConfig()">⚙️ &nbsp;Configuraciones</div>
       <div class="sidebar-item" onclick="doLogout()" style="color:var(--red);">🚪 &nbsp;Cerrar sesión</div>
     </div>
@@ -896,6 +899,7 @@ function stageColor(etapa) {
 // ════════════════════════════════════════════
 let currentUser = { name:'Luis González', role:'Administrador' };
 let activePipelineId = 'postulados-meta';
+let webinarLink = localStorage.getItem('er_webinar_link') || 'https://quintero-partners.webinargeek.com/oportunidad-laboral-webinar-on-demand-q-p';
 let activeView = 'kanban'; // 'kanban' | 'calendario'
 let leads = JSON.parse(localStorage.getItem('er_leads') || '[]');
 let currentLeadId = null;
@@ -1084,6 +1088,8 @@ function renderSidebar() {
   el.innerHTML = html;
   const cfgBtn = document.getElementById('sidebar-config-btn');
   if (cfgBtn) { cfgBtn.classList.toggle('active', activeView === 'config'); }
+  const wLink = document.getElementById('sidebar-webinar-link');
+  if (wLink) wLink.href = webinarLink;
 }
 
 function selectPipeline(id) {
@@ -1214,6 +1220,21 @@ function renderConfig() {
         <button class="cfg-save-btn" onclick="saveConfigProfile()">Guardar cambios</button>
       </div>
 
+      <!-- LINK DE WEBINAR -->
+      <div class="cfg-section">
+        <div class="cfg-section-title">🔗 Link de Webinar</div>
+        <div class="cfg-field" style="margin-bottom:12px;">
+          <label>URL del webinar</label>
+          <input id="cfg-webinar-url" value="${webinarLink}" placeholder="https://..." style="width:100%;box-sizing:border-box;" />
+        </div>
+        <div class="cfg-field" style="margin-bottom:12px;">
+          <label>Contraseña para confirmar cambio</label>
+          <input id="cfg-webinar-pass" type="password" placeholder="Tu contraseña actual" />
+        </div>
+        <button class="cfg-save-btn" onclick="saveWebinarLink()">Guardar link</button>
+        <a href="${webinarLink}" target="_blank" rel="noopener" style="display:inline-block;margin-left:12px;font-size:12px;color:#00c875;text-decoration:none;">↗ Abrir webinar</a>
+      </div>
+
       <!-- BOARDS ADICIONALES -->
       <div class="cfg-section">
         <div class="cfg-section-title">📂 Boards Adicionales</div>
@@ -1242,6 +1263,23 @@ function saveConfigProfile() {
   showToast('✅ Perfil actualizado');
   renderConfig();
 }
+
+function saveWebinarLink() {
+  const newUrl  = document.getElementById('cfg-webinar-url').value.trim();
+  const passVal = document.getElementById('cfg-webinar-pass').value;
+  if (!newUrl) { showToast('⚠️ El link no puede estar vacío'); return; }
+  if (!passVal) { showToast('⚠️ Ingresa tu contraseña para confirmar'); return; }
+  if (currentUser?.password && passVal !== currentUser.password) {
+    showToast('❌ Contraseña incorrecta'); return;
+  }
+  webinarLink = newUrl;
+  localStorage.setItem('er_webinar_link', webinarLink);
+  const sidebarLink = document.getElementById('sidebar-webinar-link');
+  if (sidebarLink) sidebarLink.href = webinarLink;
+  showToast('✅ Link de webinar actualizado');
+  renderConfig();
+}
+
 function calGoToday() { calYear = new Date().getFullYear(); calMonth = new Date().getMonth(); renderCalendario(); }
 
 function renderCalendario() {
