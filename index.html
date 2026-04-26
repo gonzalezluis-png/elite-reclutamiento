@@ -108,6 +108,27 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); heig
 .leads-table tr:last-child td { border-bottom:none; }
 .col-resizer { position:absolute;right:0;top:0;height:100%;width:5px;cursor:col-resize;user-select:none;z-index:3; }
 .col-resizer:hover, .col-resizer.dragging { background:var(--accent);opacity:.7; }
+/* ── WEBINAR HELPER PANEL ── */
+.webinar-helper { position:fixed;top:50%;right:22px;transform:translateY(-50%);width:310px;background:#1a1b2e;border:1px solid rgba(99,102,241,.4);border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.6);z-index:8000;display:flex;flex-direction:column;max-height:90vh; }
+.webinar-helper.hidden { display:none; }
+.wh-header { display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--border); }
+.wh-title { font-size:13px;font-weight:700;color:var(--text); }
+.wh-close { background:none;border:none;color:var(--text2);cursor:pointer;font-size:16px;padding:2px 6px;border-radius:4px; }
+.wh-close:hover { background:rgba(255,255,255,.08);color:var(--text); }
+.wh-body { padding:12px 14px;overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:8px; }
+.wh-field { background:var(--card);border:1px solid var(--border);border-radius:7px;padding:9px 11px;display:flex;flex-direction:column;gap:3px; }
+.wh-field-label { font-size:10px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.4px; }
+.wh-field-row { display:flex;align-items:center;gap:8px; }
+.wh-field-value { flex:1;font-size:12.5px;color:var(--text);word-break:break-all; }
+.wh-field-value.empty { color:var(--text2);font-style:italic; }
+.wh-copy-btn { flex-shrink:0;background:var(--accent);color:#fff;border:none;border-radius:5px;padding:3px 9px;font-size:10px;font-weight:700;cursor:pointer;font-family:var(--font);transition:opacity .15s; }
+.wh-copy-btn:hover { opacity:.8; }
+.wh-copy-btn.copied { background:#00c875; }
+.wh-divider { font-size:10px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;padding:4px 0 2px;border-top:1px solid var(--border);margin-top:4px; }
+.wh-footer { padding:12px 14px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:8px; }
+.wh-open-btn { width:100%;padding:8px;background:var(--accent);color:#fff;border:none;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;font-family:var(--font);transition:opacity .15s; }
+.wh-open-btn:hover { opacity:.85; }
+.wh-note { font-size:10.5px;color:var(--text2);text-align:center; }
 /* ── CONFIG VIEW ── */
 .sidebar-config-btn { color:var(--text2); }
 .sidebar-config-btn.active { background:rgba(99,102,241,.15);color:var(--accent); }
@@ -782,6 +803,19 @@ tr.lead-resuelto td:last-child { pointer-events:none;opacity:.4; }
   </div>
 </div>
 
+<!-- PANEL ASISTENTE WEBINAR -->
+<div id="webinar-helper" class="webinar-helper hidden">
+  <div class="wh-header">
+    <div class="wh-title">📋 Datos para el Webinar</div>
+    <button class="wh-close" onclick="closeWebinarHelper()">✕</button>
+  </div>
+  <div class="wh-body" id="wh-body"></div>
+  <div class="wh-footer">
+    <button class="wh-open-btn" id="wh-open-btn" onclick="reopenWebinar()">↗ Abrir Webinar de nuevo</button>
+    <div class="wh-note">💡 El webinar ya se abrió en una ventana pequeña</div>
+  </div>
+</div>
+
 <!-- MENÚ FLOTANTE GLOBAL DE ETAPAS -->
 <div id="global-move-menu">
   <div class="move-menu-title">
@@ -900,6 +934,13 @@ function stageColor(etapa) {
 let currentUser = { name:'Luis González', role:'Administrador' };
 let activePipelineId = 'postulados-meta';
 let webinarLink = localStorage.getItem('er_webinar_link') || 'https://quintero-partners.webinargeek.com/oportunidad-laboral-webinar-on-demand-q-p';
+let webinarFormConfig = JSON.parse(localStorage.getItem('er_webinar_form') || JSON.stringify({
+  leadParams: { name:'name', email:'email', phone:'phone', city:'city' },
+  fixed: [
+    { label:'Referido por', param:'referred_by', value:'' },
+    { label:'Manager',      param:'manager',     value:'' },
+  ]
+}));
 let activeView = 'kanban'; // 'kanban' | 'calendario'
 let leads = JSON.parse(localStorage.getItem('er_leads') || '[]');
 let currentLeadId = null;
@@ -1235,6 +1276,34 @@ function renderConfig() {
         <a href="${webinarLink}" target="_blank" rel="noopener" style="display:inline-block;margin-left:12px;font-size:12px;color:#00c875;text-decoration:none;">↗ Abrir webinar</a>
       </div>
 
+      <!-- FORMULARIO DEL WEBINAR -->
+      <div class="cfg-section">
+        <div class="cfg-section-title">📝 Formulario del Webinar</div>
+        <p style="font-size:12px;color:var(--text2);margin-bottom:16px;line-height:1.6;">
+          Cuando envíes un postulado a Webinar, el formulario se abrirá con sus datos pre-llenados usando los nombres de campo de la URL.<br>
+          <strong>¿Cómo saber el nombre del campo?</strong> Abre el webinar, clic derecho en cada campo → "Inspeccionar" → busca el atributo <code style="background:var(--card);padding:1px 5px;border-radius:3px;">name</code>.
+        </p>
+        <div style="font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;">Datos del postulado → nombre del parámetro URL</div>
+        <div class="cfg-field-grid" style="margin-bottom:16px;">
+          <div class="cfg-field"><label>Nombre completo</label><input id="cfg-wp-name"  value="${webinarFormConfig.leadParams.name||''}"  placeholder="ej: first_name o name" /></div>
+          <div class="cfg-field"><label>Correo</label>         <input id="cfg-wp-email" value="${webinarFormConfig.leadParams.email||''}" placeholder="ej: email" /></div>
+          <div class="cfg-field"><label>Teléfono</label>       <input id="cfg-wp-phone" value="${webinarFormConfig.leadParams.phone||''}" placeholder="ej: phone" /></div>
+          <div class="cfg-field"><label>Ciudad</label>         <input id="cfg-wp-city"  value="${webinarFormConfig.leadParams.city||''}"  placeholder="ej: city" /></div>
+        </div>
+        <div style="font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;">Campos fijos (siempre igual, ej: Manager, Referido por)</div>
+        <div id="cfg-fixed-fields" style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px;">
+          ${(webinarFormConfig.fixed||[]).map((f,i)=>`
+          <div class="cfg-fixed-row" style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:8px;align-items:center;">
+            <input class="cfg-ff-label" value="${f.label||''}" placeholder="Etiqueta (ej: Manager)" style="background:var(--card);border:1px solid var(--border);border-radius:6px;padding:7px 9px;color:var(--text);font-size:12px;font-family:var(--font);" />
+            <input class="cfg-ff-param" value="${f.param||''}" placeholder="Parámetro URL (ej: manager)" style="background:var(--card);border:1px solid var(--border);border-radius:6px;padding:7px 9px;color:var(--text);font-size:12px;font-family:var(--font);" />
+            <input class="cfg-ff-value" value="${f.value||''}" placeholder="Valor siempre fijo" style="background:var(--card);border:1px solid var(--border);border-radius:6px;padding:7px 9px;color:var(--text);font-size:12px;font-family:var(--font);" />
+            <button onclick="removeCfgFixed(this)" style="background:rgba(226,68,92,.15);border:1px solid rgba(226,68,92,.3);color:#e2445c;border-radius:6px;padding:6px 10px;cursor:pointer;font-size:13px;">✕</button>
+          </div>`).join('')}
+        </div>
+        <button onclick="addCfgFixed()" style="background:var(--card);border:1px dashed var(--border);color:var(--text2);border-radius:6px;padding:7px 14px;font-size:12px;cursor:pointer;font-family:var(--font);width:100%;margin-bottom:12px;">+ Agregar campo fijo</button>
+        <button class="cfg-save-btn" onclick="saveWebinarFormConfig()">Guardar configuración del formulario</button>
+      </div>
+
       <!-- BOARDS ADICIONALES -->
       <div class="cfg-section">
         <div class="cfg-section-title">📂 Boards Adicionales</div>
@@ -1262,6 +1331,44 @@ function saveConfigProfile() {
   document.getElementById('user-avatar').textContent = name[0];
   showToast('✅ Perfil actualizado');
   renderConfig();
+}
+
+function saveWebinarFormConfig() {
+  const fixed = [];
+  document.querySelectorAll('#cfg-fixed-fields .cfg-fixed-row').forEach(row => {
+    const label = row.querySelector('.cfg-ff-label').value.trim();
+    const param = row.querySelector('.cfg-ff-param').value.trim();
+    const value = row.querySelector('.cfg-ff-value').value.trim();
+    if (label || param) fixed.push({ label, param, value });
+  });
+  webinarFormConfig = {
+    leadParams: {
+      name:  document.getElementById('cfg-wp-name').value.trim(),
+      email: document.getElementById('cfg-wp-email').value.trim(),
+      phone: document.getElementById('cfg-wp-phone').value.trim(),
+      city:  document.getElementById('cfg-wp-city').value.trim(),
+    },
+    fixed
+  };
+  localStorage.setItem('er_webinar_form', JSON.stringify(webinarFormConfig));
+  showToast('✅ Configuración del formulario guardada');
+}
+
+function addCfgFixed() {
+  const container = document.getElementById('cfg-fixed-fields');
+  const row = document.createElement('div');
+  row.className = 'cfg-fixed-row';
+  row.style.cssText = 'display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:8px;align-items:center;';
+  row.innerHTML = `
+    <input class="cfg-ff-label" placeholder="Etiqueta (ej: Manager)" style="background:var(--card);border:1px solid var(--border);border-radius:6px;padding:7px 9px;color:var(--text);font-size:12px;font-family:var(--font);" />
+    <input class="cfg-ff-param" placeholder="Parámetro URL (ej: manager)" style="background:var(--card);border:1px solid var(--border);border-radius:6px;padding:7px 9px;color:var(--text);font-size:12px;font-family:var(--font);" />
+    <input class="cfg-ff-value" placeholder="Valor siempre fijo" style="background:var(--card);border:1px solid var(--border);border-radius:6px;padding:7px 9px;color:var(--text);font-size:12px;font-family:var(--font);" />
+    <button onclick="removeCfgFixed(this)" style="background:rgba(226,68,92,.15);border:1px solid rgba(226,68,92,.3);color:#e2445c;border-radius:6px;padding:6px 10px;cursor:pointer;font-size:13px;">✕</button>`;
+  container.appendChild(row);
+}
+
+function removeCfgFixed(btn) {
+  btn.closest('.cfg-fixed-row').remove();
 }
 
 function saveWebinarLink() {
@@ -1863,12 +1970,37 @@ function confirmNoCalifica() {
   showToast('🚫 Movido a No Califica', true);
 }
 
+let _lastWebinarUrl = '';
+
+function buildWebinarUrl(lead) {
+  const cfg = webinarFormConfig;
+  const p = cfg.leadParams;
+  const params = new URLSearchParams();
+  if (p.name  && lead.nombre)    params.set(p.name,  lead.nombre);
+  if (p.email && lead.correo)    params.set(p.email, lead.correo);
+  if (p.phone && lead.telefono)  params.set(p.phone, lead.telefono);
+  if (p.city  && lead.ubicacion) params.set(p.city,  lead.ubicacion);
+  (cfg.fixed || []).forEach(f => { if (f.param && f.value) params.set(f.param, f.value); });
+  const qs = params.toString();
+  return webinarLink + (qs ? '?' + qs : '');
+}
+
 function sendToWebinar() {
   const leadId = _openMenuLeadId || currentLeadId;
   if (!leadId) return;
+  const lead = leads.find(l => l.id === leadId);
+
+  // Abrir popup ANTES de cerrar menús (para que browser reconozca el click)
+  if (lead) {
+    const url = buildWebinarUrl(lead);
+    _lastWebinarUrl = url;
+    window.open(url, 'webinar_form', 'width=640,height=760,scrollbars=yes,resizable=yes');
+    showWebinarHelper(lead, url);
+  }
+
   closeAllMenus();
   closeLead();
-  const lead = leads.find(l => l.id === leadId);
+
   if (lead) {
     pushUndo('lead_change', JSON.parse(JSON.stringify(lead)));
     const prev = lead.etapa;
@@ -1881,7 +2013,58 @@ function sendToWebinar() {
   celebrateWebinar();
   renderKanban();
   renderSidebar();
-  showToast('🎥 Enviado a Webinar', true);
+  showToast('🎥 Enviado a Webinar — llena el formulario en la ventana', true);
+}
+
+function showWebinarHelper(lead, url) {
+  const cfg = webinarFormConfig;
+  const p = cfg.leadParams;
+
+  const leadFields = [
+    { label:'Nombre',   param: p.name,  value: lead.nombre    || '' },
+    { label:'Correo',   param: p.email, value: lead.correo    || '' },
+    { label:'Teléfono', param: p.phone, value: lead.telefono  || '' },
+    { label:'Ciudad',   param: p.city,  value: lead.ubicacion || '' },
+  ];
+  const fixedFields = (cfg.fixed || []).filter(f => f.label);
+
+  function fieldHtml(label, value, idx) {
+    const empty = !value;
+    return `<div class="wh-field">
+      <div class="wh-field-label">${label}</div>
+      <div class="wh-field-row">
+        <div class="wh-field-value${empty?' empty':''}">${value || '(sin dato)'}</div>
+        ${!empty ? `<button class="wh-copy-btn" id="whcopy-${idx}" onclick="whCopy('${value.replace(/'/g,"\\'")}','whcopy-${idx}')">Copiar</button>` : ''}
+      </div>
+    </div>`;
+  }
+
+  let html = leadFields.map((f, i) => fieldHtml(f.label, f.value, i)).join('');
+  if (fixedFields.length) {
+    html += `<div class="wh-divider">Datos fijos</div>`;
+    html += fixedFields.map((f, i) => fieldHtml(f.label, f.value, 100+i)).join('');
+  }
+
+  document.getElementById('wh-body').innerHTML = html;
+  document.getElementById('webinar-helper').classList.remove('hidden');
+}
+
+function whCopy(text, btnId) {
+  navigator.clipboard.writeText(text).catch(() => {
+    const ta = document.createElement('textarea');
+    ta.value = text; document.body.appendChild(ta); ta.select();
+    document.execCommand('copy'); document.body.removeChild(ta);
+  });
+  const btn = document.getElementById(btnId);
+  if (btn) { btn.textContent = '✓'; btn.classList.add('copied'); setTimeout(() => { btn.textContent='Copiar'; btn.classList.remove('copied'); }, 1500); }
+}
+
+function reopenWebinar() {
+  window.open(_lastWebinarUrl || webinarLink, 'webinar_form', 'width=640,height=760,scrollbars=yes,resizable=yes');
+}
+
+function closeWebinarHelper() {
+  document.getElementById('webinar-helper').classList.add('hidden');
 }
 
 function celebrateWebinar() {
