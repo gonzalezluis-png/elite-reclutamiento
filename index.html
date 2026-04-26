@@ -100,7 +100,8 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); heig
 
 /* ── TABLE VIEW (Inscrito en Webinar) ── */
 #table-view-wrap { flex:1;overflow:auto;padding:14px;background:var(--bg);display:none; }
-#table-view-wrap.active { display:block; }
+#table-view-wrap.active { display:block;overflow-x:auto; }
+.leads-table { min-width:700px; }
 .leads-table { width:100%;border-collapse:collapse;font-size:12px;table-layout:fixed; }
 .leads-table th { background:var(--card2);color:var(--text2);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;padding:9px 12px;border-bottom:2px solid var(--border);text-align:left;white-space:nowrap;position:sticky;top:0;z-index:2;overflow:hidden;position:relative; }
 .leads-table td { padding:8px 12px;border-bottom:1px solid var(--border);color:var(--text);vertical-align:middle;background:var(--card2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
