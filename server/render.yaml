@@ -2,11 +2,11 @@ services:
   - type: web
     name: elite-webinar-bot
     runtime: node
-    buildCommand: npm install && npx puppeteer browsers install chrome
+    buildCommand: npm install && npx playwright install chromium
     startCommand: node server.js
     envVars:
       - key: NODE_ENV
         value: production
-      - key: PUPPETEER_CACHE_DIR
-        value: /opt/render/project/src/.cache/puppeteer
+      - key: PLAYWRIGHT_BROWSERS_PATH
+        value: /opt/render/project/src/.playwright
     plan: free
