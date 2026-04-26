@@ -1,3 +1,5 @@
+// PLAYWRIGHT_BROWSERS_PATH se setea vía env var en render.yaml
+
 const express  = require('express');
 const cors     = require('cors');
 const { chromium } = require('playwright');
@@ -35,7 +37,7 @@ app.post('/registrar-webinar', async (req, res) => {
     });
 
     await page.goto(webinarUrl, { waitUntil: 'networkidle', timeout: 30000 });
-    await page.waitForSelector('input', { timeout: 15000 });
+    await page.waitForSelector('input:not([type="hidden"])', { timeout: 15000 });
 
     // Llena el primer selector visible que encuentre
     async function fill(selectors, value) {
