@@ -101,11 +101,13 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); heig
 /* ── TABLE VIEW (Inscrito en Webinar) ── */
 #table-view-wrap { flex:1;overflow:auto;padding:14px;background:var(--bg);display:none; }
 #table-view-wrap.active { display:block; }
-.leads-table { width:100%;border-collapse:collapse;font-size:12px; }
-.leads-table th { background:var(--card2);color:var(--text2);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;padding:9px 12px;border-bottom:2px solid var(--border);text-align:left;white-space:nowrap;position:sticky;top:0;z-index:2; }
-.leads-table td { padding:8px 12px;border-bottom:1px solid var(--border);color:var(--text);vertical-align:middle;background:var(--card2); }
+.leads-table { width:100%;border-collapse:collapse;font-size:12px;table-layout:fixed; }
+.leads-table th { background:var(--card2);color:var(--text2);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;padding:9px 12px;border-bottom:2px solid var(--border);text-align:left;white-space:nowrap;position:sticky;top:0;z-index:2;overflow:hidden;position:relative; }
+.leads-table td { padding:8px 12px;border-bottom:1px solid var(--border);color:var(--text);vertical-align:middle;background:var(--card2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
 .leads-table tr:hover td { background:var(--card);cursor:pointer; }
 .leads-table tr:last-child td { border-bottom:none; }
+.col-resizer { position:absolute;right:0;top:0;height:100%;width:5px;cursor:col-resize;user-select:none;z-index:3; }
+.col-resizer:hover, .col-resizer.dragging { background:var(--accent);opacity:.7; }
 .lt-badge { display:inline-block;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:600; }
 .lt-badge.meta { background:rgba(0,115,234,.18);color:#4da6ff; }
 .lt-badge.ig   { background:rgba(253,171,61,.18);color:var(--yellow); }
@@ -1195,6 +1197,7 @@ function renderKanban() {
           <th>#</th><th>Nombre</th><th>Correo</th><th>Teléfono</th><th>Fuente</th>
           <th>Ubicación</th><th>Inscrito por</th><th>Fecha de inscripción</th><th>Fecha</th><th>Acciones</th>
         </tr></thead>
+
         <tbody>${rows.length ? rows.map((ld, i) => {
           const date = ld.created_at ? new Date(ld.created_at).toLocaleDateString('es-MX',{day:'2-digit',month:'short',year:'numeric'}) : '';
           const accion = ld.webinar_accion || 'sin-registro';
@@ -1226,6 +1229,7 @@ function renderKanban() {
         }).join('') : `<tr><td colspan="10" style="text-align:center;padding:40px;color:var(--text2)">Sin leads inscritos</td></tr>`}
         </tbody>
       </table>`;
+    initResizableCols('inscrito-webinar');
     return;
   }
 
@@ -1253,6 +1257,7 @@ function renderKanban() {
     subTabsEl.className = '';
     renderUniversalTable(curTab.etapas, activePipelineId, q, curTab.etapas.length > 1);
   }
+  initResizableCols(activePipelineId + ':' + curTabId);
 }
 
 function renderUniversalTable(stageDefs, pipelineId, q, showEtapa) {
@@ -2288,6 +2293,53 @@ function setWebinarAccion(leadId, accion) {
   renderKanban();
   renderSidebar();
 }
+// ════════════════════════════════════════════
+//  RESIZABLE COLUMNS
+// ════════════════════════════════════════════
+let _colWidths = JSON.parse(localStorage.getItem('er_col_widths') || '{}');
+
+function saveColWidths() {
+  localStorage.setItem('er_col_widths', JSON.stringify(_colWidths));
+}
+
+function initResizableCols(tableKey) {
+  const table = document.querySelector(`#table-view-wrap .leads-table`);
+  if (!table) return;
+  const ths = table.querySelectorAll('th');
+  ths.forEach((th, i) => {
+    const key = `${tableKey}:${i}`;
+    // Apply saved width
+    if (_colWidths[key]) th.style.width = _colWidths[key] + 'px';
+    // Add resizer handle
+    const resizer = document.createElement('div');
+    resizer.className = 'col-resizer';
+    th.appendChild(resizer);
+    // Drag logic
+    let startX, startW;
+    resizer.addEventListener('mousedown', e => {
+      e.preventDefault();
+      startX = e.clientX;
+      startW = th.offsetWidth;
+      resizer.classList.add('dragging');
+      document.body.style.cursor = 'col-resize';
+      const onMove = ev => {
+        const newW = Math.max(50, startW + ev.clientX - startX);
+        th.style.width = newW + 'px';
+        _colWidths[key] = newW;
+      };
+      const onUp = () => {
+        resizer.classList.remove('dragging');
+        document.body.style.cursor = '';
+        saveColWidths();
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+      };
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    });
+  });
+}
+
 function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function fmtDate(d) {
   if (!d) return '';
