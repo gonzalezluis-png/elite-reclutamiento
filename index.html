@@ -117,6 +117,20 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); heig
 .lt-actions { display:flex;gap:4px; }
 .lt-btn { background:transparent;border:1px solid var(--border);border-radius:5px;padding:3px 7px;font-size:11px;cursor:pointer;color:var(--text2); }
 .lt-btn:hover { background:var(--card);color:var(--text); }
+.lt-accion-btn { position:relative;display:inline-block; }
+.lt-accion-trigger { padding:4px 10px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;border:1px solid transparent;white-space:nowrap; }
+.lt-accion-trigger.sin-registro { background:rgba(103,106,130,.18);color:var(--gray);border-color:rgba(103,106,130,.3); }
+.lt-accion-trigger.asistente    { background:rgba(0,200,117,.18);color:var(--green);border-color:rgba(0,200,117,.3); }
+.lt-accion-trigger.no-asistente { background:rgba(226,68,92,.18);color:var(--red);border-color:rgba(226,68,92,.3); }
+.lt-accion-menu { display:none;position:absolute;right:0;top:calc(100% + 4px);background:var(--card);border:1px solid var(--border);border-radius:8px;box-shadow:var(--shadow);z-index:100;min-width:148px;overflow:hidden; }
+.lt-accion-menu.open { display:block; }
+.lt-accion-opt { padding:8px 14px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap; }
+.lt-accion-opt:hover { background:var(--card2); }
+.lt-accion-opt.opt-asistente    { color:var(--green); }
+.lt-accion-opt.opt-no-asistente { color:var(--red); }
+.lt-accion-opt.opt-sin-registro { color:var(--gray); }
+tr.lead-resuelto td { opacity:.38;pointer-events:none; }
+tr.lead-resuelto td:last-child { pointer-events:auto; }
 
 /* ── PIPELINE TABS ── */
 #pipeline-tabs { display:none;padding:0 14px;background:var(--card2);border-bottom:1px solid var(--border);flex-shrink:0; }
@@ -1024,7 +1038,6 @@ function renderKanban() {
               <th>Fuente</th>
               <th>Propietario</th>
               <th>Inscrito por</th>
-              <th>Etiquetas</th>
               <th>Fecha</th>
               <th>Acciones</th>
             </tr>
@@ -1033,8 +1046,10 @@ function renderKanban() {
             ${rows.length ? rows.map((ld, i) => {
               const initials = ld.propietario ? ld.propietario.split(' ').map(w=>w[0]).join('').slice(0,2) : '?';
               const date = ld.created_at ? new Date(ld.created_at).toLocaleDateString('es-MX',{day:'2-digit',month:'short',year:'numeric'}) : '';
-              const tags = (ld.etiquetas||[]).map(t=>`<span class="lt-tag">${esc(t)}</span>`).join('');
-              return `<tr onclick="openLead('${ld.id}')">
+              const accion = ld.webinar_accion || 'sin-registro';
+              const accionLabel = accion === 'asistente' ? 'ASISTENTE' : accion === 'no-asistente' ? 'NO ASISTENTE' : 'SIN REGISTRO';
+              const resuelto = accion !== 'sin-registro' ? 'lead-resuelto' : '';
+              return `<tr class="${resuelto}" onclick="${resuelto ? '' : `openLead('${ld.id}')`}">
                 <td style="color:var(--text2)">${i+1}</td>
                 <td style="font-weight:600;color:#fff">${esc(ld.nombre)}</td>
                 <td>${esc(ld.nombre_lead||'')}</td>
@@ -1043,18 +1058,19 @@ function renderKanban() {
                 <td><span class="lt-badge ${srcClass(ld.fuente)}">${esc(ld.fuente||'')}</span></td>
                 <td><span class="lt-avatar" title="${esc(ld.propietario||'')}">${esc(initials)}</span> <span style="font-size:11px;color:var(--text2);margin-left:5px">${esc(ld.propietario||'')}</span></td>
                 <td style="color:#c4a8ff;font-weight:600">${esc(ld.inscrito_por||ld.propietario||'—')}</td>
-                <td>${tags||'<span style="color:var(--text2);font-size:10px">—</span>'}</td>
                 <td style="color:var(--text2);white-space:nowrap">${date}</td>
                 <td onclick="event.stopPropagation()">
-                  <div class="lt-actions">
-                    <button class="lt-btn" title="Llamar" onclick="quickAction('call','${ld.id}')">📞</button>
-                    <button class="lt-btn" title="Mensaje" onclick="quickAction('msg','${ld.id}')">💬</button>
-                    <button class="lt-btn" title="Notas" onclick="openLead('${ld.id}','notas')">📝</button>
-                    <button class="lt-btn" title="Tareas" onclick="openLead('${ld.id}','tareas')">✅</button>
+                  <div class="lt-accion-btn">
+                    <button class="lt-accion-trigger ${accion}" onclick="toggleAccionMenu(event,'${ld.id}')">${accionLabel} ▾</button>
+                    <div class="lt-accion-menu" id="accion-menu-${ld.id}">
+                      <div class="lt-accion-opt opt-asistente"    onclick="setWebinarAccion('${ld.id}','asistente')">✅ ASISTENTE</div>
+                      <div class="lt-accion-opt opt-no-asistente" onclick="setWebinarAccion('${ld.id}','no-asistente')">✗ NO ASISTENTE</div>
+                      <div class="lt-accion-opt opt-sin-registro" onclick="setWebinarAccion('${ld.id}','sin-registro')">— SIN REGISTRO</div>
+                    </div>
                   </div>
                 </td>
               </tr>`;
-            }).join('') : `<tr><td colspan="11" style="text-align:center;padding:40px;color:var(--text2)">Sin leads inscritos</td></tr>`}
+            }).join('') : `<tr><td colspan="10" style="text-align:center;padding:40px;color:var(--text2)">Sin leads inscritos</td></tr>`}
           </tbody>
         </table>`;
       return;
@@ -1794,6 +1810,27 @@ function quickAction(type, leadId) {
 //  UTILS
 // ════════════════════════════════════════════
 function saveLeads() { localStorage.setItem('er_leads', JSON.stringify(leads)); }
+
+function toggleAccionMenu(event, leadId) {
+  event.stopPropagation();
+  document.querySelectorAll('.lt-accion-menu.open').forEach(m => { if (m.id !== 'accion-menu-'+leadId) m.classList.remove('open'); });
+  document.getElementById('accion-menu-'+leadId)?.classList.toggle('open');
+}
+document.addEventListener('click', () => document.querySelectorAll('.lt-accion-menu.open').forEach(m => m.classList.remove('open')));
+
+function setWebinarAccion(leadId, accion) {
+  const lead = leads.find(l => l.id === leadId);
+  if (!lead) return;
+  lead.webinar_accion = accion;
+  if (accion === 'asistente') {
+    lead.etapa = 'AS - Asistente';
+  } else if (accion === 'no-asistente') {
+    lead.etapa = 'NA - No Asistente';
+  }
+  saveLeads();
+  renderKanban();
+  renderSidebar();
+}
 function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function fmtDate(d) {
   if (!d) return '';
