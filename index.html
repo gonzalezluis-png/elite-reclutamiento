@@ -799,10 +799,17 @@ let dragLeadId = null;
 let calYear = new Date().getFullYear();
 let calMonth = new Date().getMonth(); // 0-indexed
 let pipeTabState = {};
+function getPipelineTabs(pipe) {
+  if (pipe.tabs) return pipe.tabs;
+  const allTab = { id:'all', nombre:'Todos', sidebar:false, etapas: pipe.etapas.map(e => ({v:e, l:e})) };
+  const stageTabs = pipe.etapas.map((e, i) => ({ id:'s'+i, nombre:e, sidebar:false, etapas:[{v:e, l:e}] }));
+  return [allTab, ...stageTabs];
+}
 function getPipeTab(pipeId) {
   const pipe = PIPELINES.find(p => p.id === pipeId);
-  if (!pipe?.tabs) return null;
-  return pipeTabState[pipeId] || pipe.tabs[0].id;
+  const tabs = pipe ? getPipelineTabs(pipe) : null;
+  if (!tabs) return null;
+  return pipeTabState[pipeId] || tabs[0].id;
 }
 function setPipeTab(pipeId, tabId) { pipeTabState[pipeId] = tabId; }
 
@@ -932,7 +939,7 @@ function selectPipeline(id) {
   activePipelineId = id;
   activeView = 'kanban';
   const pipe = PIPELINES.find(p => p.id === id);
-  if (pipe?.tabs && !pipeTabState[id]) setPipeTab(id, pipe.tabs[0].id);
+  if (pipe && !pipeTabState[id]) setPipeTab(id, getPipelineTabs(pipe)[0].id);
   document.getElementById('board-title').textContent = pipe?.nombre || id;
   document.getElementById('kanban-wrap').style.display = '';
   document.getElementById('table-view-wrap').classList.remove('active');
@@ -1022,143 +1029,138 @@ function renderCalendario() {
 }
 
 // ════════════════════════════════════════════
-//  KANBAN
+//  KANBAN (all views now use table layout)
 // ════════════════════════════════════════════
 function renderKanban() {
   const pipe = PIPELINES.find(p => p.id === activePipelineId);
   if (!pipe) return;
   const q = (document.getElementById('search-input').value || '').toLowerCase();
-  const tabsEl = document.getElementById('pipeline-tabs');
+  const tabsEl   = document.getElementById('pipeline-tabs');
+  const tableWrap = document.getElementById('table-view-wrap');
+  const kanbanWrap = document.getElementById('kanban-wrap');
 
-  // Handle pipeline tabs
-  if (pipe.tabs) {
-    const curTab = getPipeTab(activePipelineId);
-    tabsEl.className = 'visible';
-    tabsEl.innerHTML = pipe.tabs.map(t => {
-      const count = leads.filter(l => l.pipeline_id === activePipelineId && t.etapas.some(e => e.v === l.etapa)).length;
-      return `<div class="ptab${curTab === t.id ? ' active' : ''}" onclick="selectWebinarTab('${t.id}')">${t.nombre} <span style="font-size:10px;opacity:.6;">(${count})</span></div>`;
-    }).join('');
-    const activeTab = pipe.tabs.find(t => t.id === curTab);
-    const stageDefs = activeTab ? activeTab.etapas : [];
-    const tableWrap = document.getElementById('table-view-wrap');
-    const kanbanWrap = document.getElementById('kanban-wrap');
+  kanbanWrap.style.display = 'none';
+  tableWrap.classList.add('active');
 
-    // Tab con tableView:true → vista tabla
-    if (activeTab?.tableView) {
-      kanbanWrap.style.display = 'none';
-      tableWrap.classList.add('active');
-      const tableEtapa = stageDefs[0]?.v || '';
-      const rows = leads.filter(ld =>
-        ld.pipeline_id === activePipelineId &&
-        ld.etapa === tableEtapa &&
-        (!q || [ld.nombre, ld.correo, ld.telefono, ld.fuente, ld.nombre_lead].join(' ').toLowerCase().includes(q))
-      );
-      const srcClass = s => ({'Meta / Facebook':'meta','Instagram':'ig','WhatsApp':'wa','Referido':'ref'}[s]||'otro');
-      tableWrap.innerHTML = `
-        <table class="leads-table">
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>Nombre</th>
-              <th>Correo</th>
-              <th>Teléfono</th>
-              <th>Fuente</th>
-              <th>Ubicación</th>
-              <th>Inscrito por</th>
-              <th>Fecha de inscripción</th>
-              <th>Fecha</th>
-              <th>Acciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${rows.length ? rows.map((ld, i) => {
-              const initials = ld.propietario ? ld.propietario.split(' ').map(w=>w[0]).join('').slice(0,2) : '?';
-              const date = ld.created_at ? new Date(ld.created_at).toLocaleDateString('es-MX',{day:'2-digit',month:'short',year:'numeric'}) : '';
-              const accion = ld.webinar_accion || 'sin-registro';
-              const accionLabel = accion === 'asistente' ? 'ASISTENTE' : accion === 'no-asistente' ? 'NO ASISTENTE' : 'SIN REGISTRO';
-              const resuelto = accion !== 'sin-registro' ? 'lead-resuelto' : '';
-              const fechaInscripcion = ld.fecha_inscripcion_webinar ? new Date(ld.fecha_inscripcion_webinar).toLocaleDateString('es-MX',{day:'2-digit',month:'short',year:'numeric'}) : '—';
-              const statusIcon = accion === 'asistente' ? `<span class="lead-status-icon asistente">✓</span>` : accion === 'no-asistente' ? `<span class="lead-status-icon no-asistente">✗</span>` : '';
-              return `<tr class="${resuelto}" onclick="${resuelto ? '' : `openLead('${ld.id}')`}">
-                <td style="color:var(--text2);display:flex;align-items:center;gap:6px;min-height:36px">${statusIcon}${i+1}</td>
-                <td style="font-weight:600;color:#fff">${esc(ld.nombre)}</td>
-                <td style="color:var(--text2)">${esc(ld.correo||'')}</td>
-                <td>${esc(ld.telefono||'')}</td>
-                <td><span class="lt-badge ${srcClass(ld.fuente)}">${esc(ld.fuente||'')}</span></td>
-                <td style="color:var(--text2)">${esc(ld.ubicacion||'—')}</td>
-                <td style="color:#c4a8ff;font-weight:600">${esc(ld.inscrito_por||ld.propietario||'—')}</td>
-                <td style="color:var(--text2);white-space:nowrap">${fechaInscripcion}</td>
-                <td style="color:var(--text2);white-space:nowrap">${date}</td>
-                <td onclick="event.stopPropagation()">
-                  <div class="lt-accion-btn">
-                    <button class="lt-accion-trigger ${accion}" onclick="toggleAccionMenu(event,'${ld.id}')">${accionLabel} ▾</button>
-                    <div class="lt-accion-menu" id="accion-menu-${ld.id}">
-                      <div class="lt-accion-opt opt-asistente"    onclick="setWebinarAccion('${ld.id}','asistente')">✅ ASISTENTE</div>
-                      <div class="lt-accion-opt opt-no-asistente" onclick="setWebinarAccion('${ld.id}','no-asistente')">✗ NO ASISTENTE</div>
-                      <div class="lt-accion-opt opt-sin-registro" onclick="setWebinarAccion('${ld.id}','sin-registro')">— SIN REGISTRO</div>
-                    </div>
-                  </div>
-                </td>
-              </tr>`;
-            }).join('') : `<tr><td colspan="10" style="text-align:center;padding:40px;color:var(--text2)">Sin leads inscritos</td></tr>`}
-          </tbody>
-        </table>`;
-      return;
-    }
+  const allTabs  = getPipelineTabs(pipe);
+  const curTabId = getPipeTab(activePipelineId);
+  const curTab   = allTabs.find(t => t.id === curTabId) || allTabs[0];
 
-    // Otras pestañas → vista kanban
-    tableWrap.classList.remove('active');
-    kanbanWrap.style.display = '';
-    kanbanWrap.innerHTML = stageDefs.map(({v, l: label}) => {
-      const stageleads = leads.filter(ld =>
-        ld.pipeline_id === activePipelineId &&
-        ld.etapa === v &&
-        (!q || [ld.nombre, ld.correo, ld.telefono, ld.fuente, ld.nombre_lead].join(' ').toLowerCase().includes(q))
-      );
-      const color = stageColor(v);
-      return `
-      <div class="kanban-col" data-etapa="${esc(v)}"
-           ondragover="event.preventDefault();this.querySelector('.kanban-col-body').classList.add('drag-over')"
-           ondragleave="this.querySelector('.kanban-col-body').classList.remove('drag-over')"
-           ondrop="handleDrop(event,'${esc(v)}')">
-        <div class="kanban-col-header">
-          <div class="kch-dot" style="background:${color}"></div>
-          <div class="kch-name" title="${esc(label)}">${esc(label)}</div>
-          <div class="kch-count">${stageleads.length}</div>
-        </div>
-        <div class="kanban-col-body">
-          ${stageleads.map(ld => renderCard(ld)).join('')}
-        </div>
-      </div>`;
-    }).join('');
+  tabsEl.className = 'visible';
+  tabsEl.innerHTML = allTabs.map(t => {
+    const cnt = leads.filter(l => l.pipeline_id === activePipelineId && t.etapas.some(e => e.v === l.etapa)).length;
+    return `<div class="ptab${curTab.id === t.id ? ' active' : ''}" onclick="selectWebinarTab('${t.id}')">${esc(t.nombre)} <span style="font-size:10px;opacity:.6">(${cnt})</span></div>`;
+  }).join('');
+
+  // Inscrito en Webinar → tabla especial con acciones ASISTENTE/NO ASISTENTE
+  if (curTab.tableView) {
+    const tableEtapa = curTab.etapas[0]?.v || '';
+    const rows = leads.filter(ld =>
+      ld.pipeline_id === activePipelineId && ld.etapa === tableEtapa &&
+      (!q || [ld.nombre, ld.correo, ld.telefono, ld.fuente, ld.nombre_lead].join(' ').toLowerCase().includes(q))
+    );
+    const srcClass = s => ({'Meta / Facebook':'meta','Instagram':'ig','WhatsApp':'wa','Referido':'ref'}[s]||'otro');
+    tableWrap.innerHTML = `
+      <table class="leads-table">
+        <thead><tr>
+          <th>#</th><th>Nombre</th><th>Correo</th><th>Teléfono</th><th>Fuente</th>
+          <th>Ubicación</th><th>Inscrito por</th><th>Fecha de inscripción</th><th>Fecha</th><th>Acciones</th>
+        </tr></thead>
+        <tbody>${rows.length ? rows.map((ld, i) => {
+          const date = ld.created_at ? new Date(ld.created_at).toLocaleDateString('es-MX',{day:'2-digit',month:'short',year:'numeric'}) : '';
+          const accion = ld.webinar_accion || 'sin-registro';
+          const accionLabel = accion==='asistente'?'ASISTENTE':accion==='no-asistente'?'NO ASISTENTE':'SIN REGISTRO';
+          const resuelto = accion !== 'sin-registro' ? 'lead-resuelto' : '';
+          const fechaIns = ld.fecha_inscripcion_webinar ? new Date(ld.fecha_inscripcion_webinar).toLocaleDateString('es-MX',{day:'2-digit',month:'short',year:'numeric'}) : '—';
+          const icon = accion==='asistente'?`<span class="lead-status-icon asistente">✓</span>`:accion==='no-asistente'?`<span class="lead-status-icon no-asistente">✗</span>`:'';
+          return `<tr class="${resuelto}" onclick="${resuelto?'':` openLead('${ld.id}')`}">
+            <td style="color:var(--text2);display:flex;align-items:center;gap:6px;min-height:36px">${icon}${i+1}</td>
+            <td style="font-weight:600;color:#fff">${esc(ld.nombre)}</td>
+            <td style="color:var(--text2)">${esc(ld.correo||'')}</td>
+            <td>${esc(ld.telefono||'')}</td>
+            <td><span class="lt-badge ${srcClass(ld.fuente)}">${esc(ld.fuente||'')}</span></td>
+            <td style="color:var(--text2)">${esc(ld.ubicacion||'—')}</td>
+            <td style="color:#c4a8ff;font-weight:600">${esc(ld.inscrito_por||ld.propietario||'—')}</td>
+            <td style="color:var(--text2);white-space:nowrap">${fechaIns}</td>
+            <td style="color:var(--text2);white-space:nowrap">${date}</td>
+            <td onclick="event.stopPropagation()">
+              <div class="lt-accion-btn">
+                <button class="lt-accion-trigger ${accion}" onclick="toggleAccionMenu(event,'${ld.id}')">${accionLabel} ▾</button>
+                <div class="lt-accion-menu" id="accion-menu-${ld.id}">
+                  <div class="lt-accion-opt opt-asistente"    onclick="setWebinarAccion('${ld.id}','asistente')">✅ ASISTENTE</div>
+                  <div class="lt-accion-opt opt-no-asistente" onclick="setWebinarAccion('${ld.id}','no-asistente')">✗ NO ASISTENTE</div>
+                  <div class="lt-accion-opt opt-sin-registro" onclick="setWebinarAccion('${ld.id}','sin-registro')">— SIN REGISTRO</div>
+                </div>
+              </div>
+            </td>
+          </tr>`;
+        }).join('') : `<tr><td colspan="10" style="text-align:center;padding:40px;color:var(--text2)">Sin leads inscritos</td></tr>`}
+        </tbody>
+      </table>`;
     return;
   }
 
-  // Default: no tabs
-  tabsEl.className = '';
-  const wrap = document.getElementById('kanban-wrap');
-  wrap.innerHTML = pipe.etapas.map(etapa => {
-    const stageleads = leads.filter(l =>
-      l.pipeline_id === activePipelineId &&
-      l.etapa === etapa &&
-      (!q || [l.nombre, l.correo, l.telefono, l.fuente, l.nombre_lead].join(' ').toLowerCase().includes(q))
-    );
-    const color = stageColor(etapa);
-    return `
-    <div class="kanban-col" data-etapa="${esc(etapa)}"
-         ondragover="event.preventDefault();this.querySelector('.kanban-col-body').classList.add('drag-over')"
-         ondragleave="this.querySelector('.kanban-col-body').classList.remove('drag-over')"
-         ondrop="handleDrop(event,'${esc(etapa)}')">
-      <div class="kanban-col-header">
-        <div class="kch-dot" style="background:${color}"></div>
-        <div class="kch-name" title="${esc(etapa)}">${esc(etapa)}</div>
-        <div class="kch-count">${stageleads.length}</div>
-      </div>
-      <div class="kanban-col-body">
-        ${stageleads.map(l => renderCard(l)).join('')}
-      </div>
-    </div>`;
-  }).join('');
+  // Vista tabla universal para todas las demás pestañas/pipelines
+  renderUniversalTable(curTab.etapas, activePipelineId, q, curTab.etapas.length > 1);
+}
+
+function renderUniversalTable(stageDefs, pipelineId, q, showEtapa) {
+  const srcClass = s => ({'Meta / Facebook':'meta','Instagram':'ig','WhatsApp':'wa','Referido':'ref','LinkedIn':'otro','OCC / Indeed':'otro'}[s]||'otro');
+  const rows = stageDefs.flatMap(({v, l: label}) =>
+    leads.filter(ld =>
+      ld.pipeline_id === pipelineId && ld.etapa === v &&
+      (!q || [ld.nombre,ld.correo,ld.telefono,ld.fuente,ld.nombre_lead].join(' ').toLowerCase().includes(q))
+    ).map(ld => ({...ld, _etapaLabel: label}))
+  );
+  const cols = showEtapa ? 13 : 12;
+  document.getElementById('table-view-wrap').innerHTML = `
+    <table class="leads-table">
+      <thead><tr>
+        <th>#</th>
+        <th>Nombre</th>
+        <th>Puesto</th>
+        <th>Correo</th>
+        <th>Teléfono</th>
+        <th>Fuente</th>
+        ${showEtapa ? '<th>Etapa</th>' : ''}
+        <th>Propietario</th>
+        <th>Ubicación</th>
+        <th>Fecha</th>
+        <th>Notas</th>
+        <th>Tareas</th>
+        <th>Acciones</th>
+      </tr></thead>
+      <tbody>${rows.length ? rows.map((ld, i) => {
+        const date = ld.created_at ? new Date(ld.created_at).toLocaleDateString('es-MX',{day:'2-digit',month:'short',year:'numeric'}) : '';
+        const notasCnt = (ld.notas||[]).length;
+        const tareasCnt = (ld.tareas||[]).filter(t=>!t.done).length;
+        const clr = stageColor(ld.etapa);
+        return `<tr onclick="openLead('${ld.id}')">
+          <td style="color:var(--text2)">${i+1}</td>
+          <td style="font-weight:600;color:#fff">${esc(ld.nombre)}</td>
+          <td style="color:var(--text2)">${esc(ld.nombre_lead||'—')}</td>
+          <td style="color:var(--text2)">${esc(ld.correo||'')}</td>
+          <td>${esc(ld.telefono||'')}</td>
+          <td><span class="lt-badge ${srcClass(ld.fuente)}">${esc(ld.fuente||'')}</span></td>
+          ${showEtapa ? `<td><span style="display:inline-block;padding:2px 9px;border-radius:20px;font-size:10px;font-weight:600;background:${clr}22;color:${clr};border:1px solid ${clr}44">${esc(ld._etapaLabel)}</span></td>` : ''}
+          <td style="color:var(--text2)">${esc(ld.propietario||'—')}</td>
+          <td style="color:var(--text2)">${esc(ld.ubicacion||'—')}</td>
+          <td style="color:var(--text2);white-space:nowrap">${date}</td>
+          <td>${notasCnt?`<span style="background:rgba(0,115,234,.18);color:#4da6ff;padding:2px 7px;border-radius:10px;font-size:10px;font-weight:600">${notasCnt}</span>`:'<span style="color:var(--text2);font-size:10px">—</span>'}</td>
+          <td>${tareasCnt?`<span style="background:rgba(253,171,61,.18);color:var(--yellow);padding:2px 7px;border-radius:10px;font-size:10px;font-weight:600">${tareasCnt}</span>`:'<span style="color:var(--text2);font-size:10px">—</span>'}</td>
+          <td onclick="event.stopPropagation()">
+            <div class="lt-actions">
+              <button class="lt-btn" onclick="quickAction('call','${ld.id}')">📞</button>
+              <button class="lt-btn" onclick="quickAction('msg','${ld.id}')">💬</button>
+              <button class="lt-btn" onclick="openLead('${ld.id}','notas')">📝</button>
+              <button class="lt-btn" onclick="openLead('${ld.id}','tareas')">✅</button>
+              <button class="lt-btn" onclick="toggleMoveMenu(event,'${ld.id}')">Mover ↕</button>
+            </div>
+          </td>
+        </tr>`;
+      }).join('') : `<tr><td colspan="${cols}" style="text-align:center;padding:40px;color:var(--text2)">Sin leads en esta etapa</td></tr>`}
+      </tbody>
+    </table>`;
 }
 
 function renderCard(l) {
