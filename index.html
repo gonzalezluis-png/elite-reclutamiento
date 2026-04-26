@@ -62,6 +62,11 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); heig
 .pipe-item.active .pipe-name { font-weight:600;color:#fff; }
 .pipe-count { font-size:10px;font-weight:600;background:var(--border);color:var(--text2);padding:1px 6px;border-radius:10px;min-width:18px;text-align:center; }
 .pipe-item.active .pipe-count { background:var(--accent);color:#fff; }
+.pipe-subtab { display:flex;align-items:center;gap:6px;padding:5px 10px 5px 28px;cursor:pointer;border-radius:6px;margin:1px 5px;font-size:11.5px;color:var(--text2);transition:background .12s; }
+.pipe-subtab:hover { background:rgba(255,255,255,.05);color:var(--text); }
+.pipe-subtab.active { background:rgba(120,75,209,.2);color:#c4a8ff;font-weight:600; }
+.pipe-subtab-dot { width:6px;height:6px;border-radius:50%;background:var(--text2);flex-shrink:0; }
+.pipe-subtab.active .pipe-subtab-dot { background:#c4a8ff; }
 .sidebar-bottom { border-top:1px solid var(--border);padding:8px 5px; }
 .sidebar-item { display:flex;align-items:center;gap:8px;padding:7px 12px;border-radius:6px;cursor:pointer;font-size:12px;color:var(--text2);transition:background .12s; }
 .sidebar-item:hover { background:rgba(255,255,255,.05);color:var(--text); }
@@ -831,6 +836,18 @@ function renderSidebar() {
         <span class="pipe-name">${p.nombre}</span>
         <span class="pipe-count">${count}</span>
       </div>`;
+      if (p.tabs) {
+        for (const tab of p.tabs) {
+          if (tab.id === 'inscrito') continue;
+          const tabCount = leads.filter(l => l.pipeline_id === p.id && tab.etapas.some(e => e.v === l.etapa)).length;
+          const tabActive = activePipelineId === p.id && activeView === 'kanban' && activeWebinarTab === tab.id ? 'active' : '';
+          html += `<div class="pipe-subtab ${tabActive}" onclick="selectPipelineTab('${p.id}','${tab.id}')">
+            <span class="pipe-subtab-dot"></span>
+            <span style="flex:1">${tab.nombre}</span>
+            <span class="pipe-count" style="font-size:10px">${tabCount}</span>
+          </div>`;
+        }
+      }
     }
     if (group.extra) html += group.extra;
   }
@@ -851,6 +868,19 @@ function selectPipeline(id) {
 
 function selectWebinarTab(tabId) {
   activeWebinarTab = tabId;
+  renderSidebar();
+  renderKanban();
+}
+
+function selectPipelineTab(pipeId, tabId) {
+  activePipelineId = pipeId;
+  activeWebinarTab = tabId;
+  activeView = 'kanban';
+  const pipe = PIPELINES.find(p => p.id === pipeId);
+  document.getElementById('board-title').textContent = pipe?.nombre || pipeId;
+  document.getElementById('kanban-wrap').style.display = '';
+  document.getElementById('calendar-view').classList.remove('active');
+  renderSidebar();
   renderKanban();
 }
 
