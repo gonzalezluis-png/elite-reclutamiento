@@ -1515,7 +1515,7 @@ function moveNoContactado(leadId) {
   lead.pipeline_id = 'no-contactados';
   lead.etapa = 'Sin respuesta - 3er intento';
   addHistorial(leadId, `No contactado después de 3 intentos (desde ${prev})`, '📵');
-  saveLeads(); renderKanban(); renderSidebar();
+  saveLeads(leadId); renderKanban(); renderSidebar();
   showToast('📵 Movido a No Contactados');
 }
 
@@ -1526,7 +1526,7 @@ function moveWebinarNoContactado(leadId) {
   const prev = lead.etapa;
   lead.etapa = prefix + 'No contactado';
   addHistorial(leadId, `Sin contacto en 3er intento (desde ${prev})`, '📵');
-  saveLeads(); renderKanban(); renderSidebar();
+  saveLeads(leadId); renderKanban(); renderSidebar();
   showToast('📵 Sin contacto — 3er intento agotado');
 }
 
@@ -1537,7 +1537,7 @@ function moveParaEntrevista(leadId) {
   lead.pipeline_id = 'entrevistas-generales';
   lead.etapa = 'EN ENTREVISTA';
   addHistorial(leadId, `Enviado a Entrevistas Generales (desde ${prev})`, '🤝');
-  saveLeads(); renderKanban(); renderSidebar();
+  saveLeads(leadId); renderKanban(); renderSidebar();
   showToast('🤝 Movido a Entrevistas Generales');
 }
 
@@ -1550,7 +1550,7 @@ function moveReinscritoWebinar(leadId) {
   lead.webinar_accion = 'sin-registro';
   lead.inscrito_webinar = false;
   addHistorial(leadId, `Reinscrito en Webinar (desde ${prev})`, '🔄');
-  saveLeads();
+  saveLeads(leadId);
   setPipeTab('en-webinar', 'inscrito');
   renderKanban(); renderSidebar();
   showToast('🔄 Reinscrito en Webinar');
@@ -1607,7 +1607,7 @@ function confirmNoInteresado() {
   }
   if (lead) addHistorial(_niLeadId, `No interesado: ${motivo}`, '⚠️');
   closeNoInteresado();
-  saveLeads(); renderKanban(); renderSidebar();
+  saveLeads(_niLeadId); renderKanban(); renderSidebar();
   showToast('⚠️ Movido a No Interesados');
 }
 
@@ -1672,7 +1672,7 @@ function confirmNoCalifica() {
   }
   if (lead) addHistorial(_ncLeadId, `No califica: ${motivo}`, '🚫');
   closeNoCalifica();
-  saveLeads(); renderKanban(); renderSidebar();
+  saveLeads(_ncLeadId); renderKanban(); renderSidebar();
   showToast('🚫 Movido a No Califica');
 }
 
@@ -1688,7 +1688,7 @@ function sendToWebinar() {
     lead.etapa       = 'Inscrito en Webinar';
     lead.fecha_inscripcion_webinar = new Date().toISOString();
     addHistorial(lead.id, `Enviado a Webinar (desde ${prev})`, '🎥');
-    saveLeads();
+    saveLeads(lead.id);
   }
   celebrateWebinar();
   setPipeTab('en-webinar', 'inscrito');
@@ -1738,7 +1738,7 @@ function moveLead(leadId, newEtapa) {
     lead.pipeline_id = transition.pipeline;
     lead.etapa       = transition.etapa;
     addHistorial(leadId, `Movido de ${prevEtapa} → ${transition.etapa} (${PIPELINES.find(p=>p.id===transition.pipeline)?.nombre||transition.pipeline})`, '↕️');
-    saveLeads(); renderKanban(); renderSidebar();
+    saveLeads(leadId); renderKanban(); renderSidebar();
     showToast('✅ Movido a ' + transition.msg);
     return;
   }
@@ -1746,7 +1746,7 @@ function moveLead(leadId, newEtapa) {
   const prevEtapa = lead.etapa;
   lead.etapa = newEtapa;
   addHistorial(leadId, `Etapa cambiada: ${prevEtapa} → ${newEtapa}`, '↕️');
-  saveLeads(); renderKanban(); renderSidebar();
+  saveLeads(leadId); renderKanban(); renderSidebar();
   showToast('Movido a: ' + newEtapa);
 }
 
@@ -2206,21 +2206,20 @@ async function fsLoadLeads() {
   } catch(e) { return []; }
 }
 
-async function fsSaveAll() {
-  if (!leads.length) return;
+async function fsSaveLead(lead) {
   try {
-    const writes = leads.map(lead => ({
-      update: {
-        name: `projects/${FS_PROJECT}/databases/(default)/documents/leads/${lead.id}`,
-        ...toFsDoc(lead)
-      }
-    }));
-    await fetch(`${FS_BASE}:batchWrite?key=${FS_KEY}`, {
-      method: 'POST',
+    const doc = toFsDoc(lead);
+    const fields = Object.keys(doc.fields).join('&updateMask.fieldPaths=');
+    await fetch(`${FS_BASE}/leads/${lead.id}?key=${FS_KEY}&updateMask.fieldPaths=${fields}`, {
+      method: 'PATCH',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({writes})
+      body: JSON.stringify(doc)
     });
   } catch(e) { console.warn('Firestore save failed', e); }
+}
+
+function fsSaveAll() {
+  Promise.all(leads.map(lead => fsSaveLead(lead)));
 }
 
 async function fsDeleteLead(id) {
@@ -2262,9 +2261,14 @@ function renderHistorial(historial) {
   }).join('');
 }
 
-function saveLeads() {
+function saveLeads(changedLeadId) {
   localStorage.setItem('er_leads', JSON.stringify(leads));
-  fsSaveAll();
+  if (changedLeadId) {
+    const lead = leads.find(l => l.id === changedLeadId);
+    if (lead) fsSaveLead(lead);
+  } else {
+    fsSaveAll();
+  }
 }
 
 function toggleAccionMenu(event, leadId) {
@@ -2291,7 +2295,7 @@ function setWebinarAccion(leadId, accion) {
     lead.inscrito_webinar = false;
     addHistorial(leadId, 'Registro de Webinar restablecido a Sin Registro', '—');
   }
-  saveLeads();
+  saveLeads(leadId);
   renderKanban();
   renderSidebar();
 }
