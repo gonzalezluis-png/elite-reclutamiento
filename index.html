@@ -1384,10 +1384,19 @@ function confirmNoCalifica() {
 }
 
 function sendToWebinar() {
-  if (!_openMenuLeadId) return;
+  const leadId = _openMenuLeadId || currentLeadId;
+  if (!leadId) return;
   closeAllMenus();
-  moveLead(_openMenuLeadId, 'En Webinar');
+  closeLead();
+  const lead = leads.find(l => l.id === leadId);
+  if (lead) {
+    lead.pipeline_id = 'en-webinar';
+    lead.etapa       = 'Inscrito en Webinar';
+    saveLeads();
+  }
   celebrateWebinar();
+  setPipeTab('en-webinar', 'inscrito');
+  selectPipeline('en-webinar');
 }
 
 function celebrateWebinar() {
