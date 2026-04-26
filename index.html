@@ -513,6 +513,16 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); heig
                 </select>
               </div>
             </div>
+            <div class="field"><label>Inscrito por</label>
+              <select id="ml-inscrito-por">
+                <option value="">— Sin especificar —</option>
+                <option>Luis González</option>
+                <option>Maria Lugo</option>
+                <option>Caritza Rojas</option>
+                <option>Bryan Palacios</option>
+                <option>Alexander</option>
+              </select>
+            </div>
             <div class="field"><label>Seguidores</label><input id="ml-seguidores" placeholder="Nombres separados por coma" /></div>
           </div>
         </div>
@@ -1013,6 +1023,7 @@ function renderKanban() {
               <th>Teléfono</th>
               <th>Fuente</th>
               <th>Propietario</th>
+              <th>Inscrito por</th>
               <th>Etiquetas</th>
               <th>Fecha</th>
               <th>Acciones</th>
@@ -1031,6 +1042,7 @@ function renderKanban() {
                 <td>${esc(ld.telefono||'')}</td>
                 <td><span class="lt-badge ${srcClass(ld.fuente)}">${esc(ld.fuente||'')}</span></td>
                 <td><span class="lt-avatar" title="${esc(ld.propietario||'')}">${esc(initials)}</span> <span style="font-size:11px;color:var(--text2);margin-left:5px">${esc(ld.propietario||'')}</span></td>
+                <td style="color:#c4a8ff;font-weight:600">${esc(ld.inscrito_por||ld.propietario||'—')}</td>
                 <td>${tags||'<span style="color:var(--text2);font-size:10px">—</span>'}</td>
                 <td style="color:var(--text2);white-space:nowrap">${date}</td>
                 <td onclick="event.stopPropagation()">
@@ -1042,7 +1054,7 @@ function renderKanban() {
                   </div>
                 </td>
               </tr>`;
-            }).join('') : `<tr><td colspan="10" style="text-align:center;padding:40px;color:var(--text2)">Sin leads inscritos</td></tr>`}
+            }).join('') : `<tr><td colspan="11" style="text-align:center;padding:40px;color:var(--text2)">Sin leads inscritos</td></tr>`}
           </tbody>
         </table>`;
       return;
@@ -1465,6 +1477,7 @@ function openLead(id, tabName) {
   document.getElementById('ml-correo').value = lead.correo || '';
   document.getElementById('ml-telefono').value = lead.telefono || '';
   document.getElementById('ml-propietario').value = lead.propietario || '';
+  document.getElementById('ml-inscrito-por').value = lead.inscrito_por || '';
   document.getElementById('ml-fuente').value = lead.fuente || 'Meta / Facebook';
   document.getElementById('ml-seguidores').value = (lead.seguidores||[]).join(', ');
 
@@ -1510,8 +1523,9 @@ function saveLead() {
   lead.contacto    = document.getElementById('ml-contacto').value.trim();
   lead.correo      = document.getElementById('ml-correo').value.trim();
   lead.telefono    = document.getElementById('ml-telefono').value.trim();
-  lead.propietario = document.getElementById('ml-propietario').value;
-  lead.fuente      = document.getElementById('ml-fuente').value;
+  lead.propietario  = document.getElementById('ml-propietario').value;
+  lead.inscrito_por = document.getElementById('ml-inscrito-por').value;
+  lead.fuente       = document.getElementById('ml-fuente').value;
   lead.seguidores  = document.getElementById('ml-seguidores').value.split(',').map(s=>s.trim()).filter(Boolean);
 
   saveLeads();
