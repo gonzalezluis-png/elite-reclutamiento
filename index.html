@@ -108,6 +108,31 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); heig
 .leads-table tr:last-child td { border-bottom:none; }
 .col-resizer { position:absolute;right:0;top:0;height:100%;width:5px;cursor:col-resize;user-select:none;z-index:3; }
 .col-resizer:hover, .col-resizer.dragging { background:var(--accent);opacity:.7; }
+/* ── CONFIG VIEW ── */
+.sidebar-config-btn { color:var(--text2); }
+.sidebar-config-btn.active { background:rgba(99,102,241,.15);color:var(--accent); }
+.cfg-section { background:var(--card2);border:1px solid var(--border);border-radius:10px;padding:24px 28px;margin-bottom:24px; }
+.cfg-section-title { font-size:13px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.6px;margin-bottom:18px;display:flex;align-items:center;gap:8px; }
+.cfg-profile-row { display:flex;align-items:center;gap:20px;margin-bottom:20px; }
+.cfg-avatar { width:64px;height:64px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:26px;font-weight:700;color:#fff;flex-shrink:0; }
+.cfg-profile-info { flex:1; }
+.cfg-profile-name { font-size:20px;font-weight:700;color:var(--text);margin-bottom:4px; }
+.cfg-profile-email { font-size:13px;color:var(--text2); }
+.cfg-profile-role { display:inline-block;margin-top:6px;padding:2px 10px;border-radius:20px;font-size:11px;font-weight:600;background:rgba(99,102,241,.15);color:var(--accent); }
+.cfg-field-grid { display:grid;grid-template-columns:1fr 1fr;gap:14px; }
+.cfg-field { display:flex;flex-direction:column;gap:5px; }
+.cfg-field label { font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.4px; }
+.cfg-field input,.cfg-field select { background:var(--card);border:1px solid var(--border);border-radius:6px;padding:8px 10px;color:var(--text);font-size:13px;font-family:var(--font);outline:none; }
+.cfg-field input:focus,.cfg-field select:focus { border-color:var(--accent); }
+.cfg-board-grid { display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px; }
+.cfg-board-card { background:var(--card);border:1px solid var(--border);border-radius:8px;padding:16px 18px;cursor:pointer;transition:border-color .15s,background .15s;display:flex;align-items:center;gap:12px; }
+.cfg-board-card:hover { border-color:var(--accent);background:rgba(99,102,241,.07); }
+.cfg-board-card .cb-icon { font-size:22px; }
+.cfg-board-card .cb-info { flex:1; }
+.cfg-board-card .cb-name { font-size:12px;font-weight:600;color:var(--text);line-height:1.3; }
+.cfg-board-card .cb-count { font-size:11px;color:var(--text2);margin-top:2px; }
+.cfg-save-btn { margin-top:16px;padding:8px 20px;background:var(--accent);color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;transition:opacity .15s; }
+.cfg-save-btn:hover { opacity:.85; }
 .lt-badge { display:inline-block;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:600; }
 .lt-badge.meta { background:rgba(0,115,234,.18);color:#4da6ff; }
 .lt-badge.ig   { background:rgba(253,171,61,.18);color:var(--yellow); }
@@ -454,6 +479,7 @@ tr.lead-resuelto td:last-child { pointer-events:none;opacity:.4; }
       <div id="pipe-list"></div>
     </div>
     <div class="sidebar-bottom">
+      <div class="sidebar-item sidebar-config-btn" id="sidebar-config-btn" onclick="showConfig()">⚙️ &nbsp;Configuraciones</div>
       <div class="sidebar-item" onclick="doLogout()" style="color:var(--red);">🚪 &nbsp;Cerrar sesión</div>
     </div>
   </div>
@@ -486,6 +512,9 @@ tr.lead-resuelto td:last-child { pointer-events:none;opacity:.4; }
 
     <!-- KANBAN -->
     <div id="kanban-wrap"></div>
+
+    <!-- CONFIGURACIONES -->
+    <div id="config-view" style="display:none;flex:1;overflow:auto;padding:28px 32px;background:var(--bg);"></div>
 
     <!-- CALENDARIO DE ENTREVISTAS -->
     <div id="calendar-view">
@@ -1013,11 +1042,7 @@ function renderSidebar() {
     },
     {
       label: '🤝 Entrevistas',
-      ids: ['entrevistas-generales','caritza-rojas','maria-lugo','brayan-alexander']
-    },
-    {
-      label: '🗑️ Otros',
-      ids: ['no-contactados','no-interesados-no-califica','eliminados']
+      ids: ['entrevistas-generales']
     }
   ];
 
@@ -1054,6 +1079,8 @@ function renderSidebar() {
     if (group.extra) html += group.extra;
   }
   el.innerHTML = html;
+  const cfgBtn = document.getElementById('sidebar-config-btn');
+  if (cfgBtn) { cfgBtn.classList.toggle('active', activeView === 'config'); }
 }
 
 function selectPipeline(id) {
@@ -1065,6 +1092,8 @@ function selectPipeline(id) {
   document.getElementById('kanban-wrap').style.display = '';
   document.getElementById('table-view-wrap').classList.remove('active');
   document.getElementById('calendar-view').classList.remove('active');
+  document.getElementById('config-view').style.display = 'none';
+  document.getElementById('search-input').style.display = '';
   renderSidebar();
   renderKanban();
 }
@@ -1084,6 +1113,8 @@ function selectPipelineTab(pipeId, tabId) {
   document.getElementById('kanban-wrap').style.display = '';
   document.getElementById('table-view-wrap').classList.remove('active');
   document.getElementById('calendar-view').classList.remove('active');
+  document.getElementById('config-view').style.display = 'none';
+  document.getElementById('search-input').style.display = '';
   renderSidebar();
   renderKanban();
 }
@@ -1093,11 +1124,121 @@ function selectCalendario() {
   document.getElementById('board-title').textContent = 'Calendario de Entrevistas';
   document.getElementById('kanban-wrap').style.display = 'none';
   document.getElementById('calendar-view').classList.add('active');
+  document.getElementById('config-view').style.display = 'none';
+  document.getElementById('search-input').style.display = '';
   renderSidebar();
   renderCalendario();
 }
 
 function calNavMonth(dir) { calMonth += dir; if (calMonth > 11) { calMonth=0; calYear++; } if (calMonth < 0) { calMonth=11; calYear--; } renderCalendario(); }
+
+// ════════════════════════════════════════════
+//  CONFIGURACIONES
+// ════════════════════════════════════════════
+function showConfig() {
+  activeView = 'config';
+  document.getElementById('board-title').textContent = 'Configuraciones';
+  document.getElementById('kanban-wrap').style.display = 'none';
+  document.getElementById('table-view-wrap').classList.remove('active');
+  document.getElementById('calendar-view').classList.remove('active');
+  document.getElementById('pipeline-tabs').innerHTML = '';
+  document.getElementById('pipeline-subtabs').innerHTML = '';
+  document.getElementById('search-input').style.display = 'none';
+  document.getElementById('config-view').style.display = 'flex';
+  document.getElementById('config-view').style.flexDirection = 'column';
+  document.getElementById('sidebar-config-btn').classList.add('active');
+  renderSidebar();
+  renderConfig();
+}
+
+function renderConfig() {
+  const u = currentUser || {};
+  const initials = (u.name || 'U').split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
+
+  const OTROS_IDS = ['no-contactados','no-interesados-no-califica','eliminados'];
+  const ENTREVISTAS_IDS = ['caritza-rojas','maria-lugo','brayan-alexander'];
+  const boardIds = [...OTROS_IDS, ...ENTREVISTAS_IDS];
+
+  let boardsHtml = boardIds.map(id => {
+    const p = PIPELINES.find(x => x.id === id);
+    if (!p) return '';
+    const count = leads.filter(l => l.pipeline_id === p.id).length;
+    return `<div class="cfg-board-card" onclick="selectPipeline('${p.id}')">
+      <span class="cb-icon">${p.icon}</span>
+      <div class="cb-info">
+        <div class="cb-name">${p.nombre}</div>
+        <div class="cb-count">${count} leads</div>
+      </div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('config-view').innerHTML = `
+    <div style="max-width:780px;width:100%;">
+
+      <!-- PERFIL -->
+      <div class="cfg-section">
+        <div class="cfg-section-title">👤 Mi Perfil</div>
+        <div class="cfg-profile-row">
+          <div class="cfg-avatar">${initials}</div>
+          <div class="cfg-profile-info">
+            <div class="cfg-profile-name">${u.name || '—'}</div>
+            <div class="cfg-profile-email">${u.email || '—'}</div>
+            <span class="cfg-profile-role">${u.role || '—'}</span>
+          </div>
+        </div>
+        <div class="cfg-field-grid">
+          <div class="cfg-field">
+            <label>Nombre completo</label>
+            <input id="cfg-name" value="${u.name || ''}" placeholder="Tu nombre" />
+          </div>
+          <div class="cfg-field">
+            <label>Correo electrónico</label>
+            <input id="cfg-email" value="${u.email || ''}" placeholder="correo@empresa.com" type="email" />
+          </div>
+          <div class="cfg-field">
+            <label>Rol</label>
+            <select id="cfg-role">
+              <option ${u.role==='Administrador'?'selected':''}>Administrador</option>
+              <option ${u.role==='Reclutador'?'selected':''}>Reclutador</option>
+              <option ${u.role==='Supervisor'?'selected':''}>Supervisor</option>
+            </select>
+          </div>
+          <div class="cfg-field">
+            <label>Nueva contraseña</label>
+            <input id="cfg-pass" type="password" placeholder="Dejar vacío para no cambiar" />
+          </div>
+        </div>
+        <button class="cfg-save-btn" onclick="saveConfigProfile()">Guardar cambios</button>
+      </div>
+
+      <!-- BOARDS ADICIONALES -->
+      <div class="cfg-section">
+        <div class="cfg-section-title">📂 Boards Adicionales</div>
+        <div class="cfg-board-grid">${boardsHtml}</div>
+      </div>
+
+    </div>`;
+}
+
+function saveConfigProfile() {
+  const name  = document.getElementById('cfg-name').value.trim();
+  const email = document.getElementById('cfg-email').value.trim();
+  const role  = document.getElementById('cfg-role').value;
+  const pass  = document.getElementById('cfg-pass').value;
+  if (!name || !email) { showToast('⚠️ Nombre y correo son requeridos'); return; }
+  currentUser.name  = name;
+  currentUser.email = email;
+  currentUser.role  = role;
+  if (pass) currentUser.password = pass;
+  const idx = USERS.findIndex(u => u.email === email);
+  if (idx >= 0) USERS[idx] = { ...USERS[idx], ...currentUser };
+  localStorage.setItem('er_users', JSON.stringify(USERS));
+  document.getElementById('user-name').textContent = name;
+  document.getElementById('user-role').textContent = role;
+  document.getElementById('user-avatar').textContent = name[0];
+  showToast('✅ Perfil actualizado');
+  renderConfig();
+}
 function calGoToday() { calYear = new Date().getFullYear(); calMonth = new Date().getMonth(); renderCalendario(); }
 
 function renderCalendario() {
