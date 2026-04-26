@@ -108,20 +108,6 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); heig
 .leads-table tr:last-child td { border-bottom:none; }
 .col-resizer { position:absolute;right:0;top:0;height:100%;width:5px;cursor:col-resize;user-select:none;z-index:3; }
 .col-resizer:hover, .col-resizer.dragging { background:var(--accent);opacity:.7; }
-/* ── WEBINAR SCREENSHOT MODAL ── */
-.wss-modal { background:var(--card2);border:1px solid var(--border);border-radius:12px;width:680px;max-width:95vw;max-height:90vh;display:flex;flex-direction:column;overflow:hidden; }
-.wss-header { display:flex;align-items:flex-start;justify-content:space-between;padding:18px 20px 14px;border-bottom:1px solid var(--border); }
-.wss-title { font-size:15px;font-weight:700;color:var(--text); }
-.wss-sub { font-size:12px;color:var(--text2);margin-top:3px; }
-.wss-tabs { display:flex;gap:4px;padding:12px 20px 0;border-bottom:1px solid var(--border); }
-.wss-tab { background:none;border:none;border-bottom:2px solid transparent;padding:7px 14px;font-size:12.5px;font-weight:600;color:var(--text2);cursor:pointer;font-family:var(--font);transition:color .15s;margin-bottom:-1px; }
-.wss-tab.active { color:var(--accent);border-bottom-color:var(--accent); }
-.wss-body { padding:16px 20px 20px;overflow-y:auto; }
-/* ── WEBINAR BOT STATUS ── */
-.wbot-badge { display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:20px;font-size:11px;font-weight:600; }
-.wbot-badge.pending  { background:rgba(253,171,61,.15);color:#fdab3d; }
-.wbot-badge.ok       { background:rgba(0,200,117,.15);color:#00c875; }
-.wbot-badge.error    { background:rgba(226,68,92,.15);color:#e2445c; }
 /* ── CONFIG VIEW ── */
 .sidebar-config-btn { color:var(--text2); }
 .sidebar-config-btn.active { background:rgba(99,102,241,.15);color:var(--accent); }
@@ -796,25 +782,6 @@ tr.lead-resuelto td:last-child { pointer-events:none;opacity:.4; }
   </div>
 </div>
 
-<!-- MODAL CAPTURAS WEBINAR -->
-<div id="wss-overlay" class="modal-overlay hidden" onclick="if(event.target===this)closeWebinarScreenshots()">
-  <div class="wss-modal">
-    <div class="wss-header">
-      <div>
-        <div class="wss-title">📸 Verificación de registro</div>
-        <div class="wss-sub" id="wss-lead-name"></div>
-      </div>
-      <button class="mlh-close" onclick="closeWebinarScreenshots()">✕</button>
-    </div>
-    <div class="wss-tabs">
-      <button class="wss-tab active" id="wss-tab-before" onclick="showSsTab('before')">Formulario llenado</button>
-      <button class="wss-tab" id="wss-tab-after" onclick="showSsTab('after')">Confirmación recibida</button>
-    </div>
-    <div class="wss-body">
-      <img id="wss-img" src="" alt="Captura" style="width:100%;border-radius:6px;display:block;" />
-    </div>
-  </div>
-</div>
 
 <!-- MENÚ FLOTANTE GLOBAL DE ETAPAS -->
 <div id="global-move-menu">
@@ -934,11 +901,6 @@ function stageColor(etapa) {
 let currentUser = { name:'Luis González', role:'Administrador' };
 let activePipelineId = 'postulados-meta';
 let webinarLink = localStorage.getItem('er_webinar_link') || 'https://quintero-partners.webinargeek.com/oportunidad-laboral-webinar-on-demand-q-p';
-let backendUrl   = localStorage.getItem('er_backend_url') || '';
-let webinarFixed = JSON.parse(localStorage.getItem('er_webinar_fixed') || JSON.stringify([
-  { label:'Referido por', value:'' },
-  { label:'Manager',      value:'' },
-]));
 let activeView = 'kanban'; // 'kanban' | 'calendario'
 let leads = JSON.parse(localStorage.getItem('er_leads') || '[]');
 let currentLeadId = null;
@@ -1275,33 +1237,6 @@ function renderConfig() {
       </div>
 
       <!-- SERVIDOR WEBINAR (BACKEND) -->
-      <div class="cfg-section">
-        <div class="cfg-section-title">🤖 Servidor de Registro Automático</div>
-        <p style="font-size:12px;color:var(--text2);margin-bottom:16px;line-height:1.6;">
-          El servidor registra al postulado en el webinar automáticamente al hacer clic en "Enviar a Webinar".<br>
-          Una vez desplegado en Railway o Render, pega la URL aquí.
-        </p>
-        <div class="cfg-field" style="margin-bottom:12px;">
-          <label>URL del servidor (ej: https://mi-bot.railway.app)</label>
-          <input id="cfg-backend-url" value="${backendUrl}" placeholder="https://..." style="width:100%;box-sizing:border-box;" />
-        </div>
-        <div style="display:flex;gap:10px;margin-bottom:20px;">
-          <button class="cfg-save-btn" onclick="saveBackendConfig()">Guardar URL del servidor</button>
-          <button onclick="testBackend()" style="padding:8px 16px;background:var(--card);border:1px solid var(--border);color:var(--text2);border-radius:6px;font-size:13px;cursor:pointer;font-family:var(--font);">Probar conexión</button>
-        </div>
-        <div style="font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;">Campos fijos enviados al servidor (ej: Manager, Referido por)</div>
-        <div id="cfg-fixed-fields" style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px;">
-          ${(webinarFixed||[]).map((f,i)=>`
-          <div class="cfg-fixed-row" style="display:grid;grid-template-columns:1fr 1fr auto;gap:8px;align-items:center;">
-            <input class="cfg-ff-label" value="${f.label||''}" placeholder="Etiqueta (ej: Manager)" style="background:var(--card);border:1px solid var(--border);border-radius:6px;padding:7px 9px;color:var(--text);font-size:12px;font-family:var(--font);" />
-            <input class="cfg-ff-value" value="${f.value||''}" placeholder="Valor" style="background:var(--card);border:1px solid var(--border);border-radius:6px;padding:7px 9px;color:var(--text);font-size:12px;font-family:var(--font);" />
-            <button onclick="removeCfgFixed(this)" style="background:rgba(226,68,92,.15);border:1px solid rgba(226,68,92,.3);color:#e2445c;border-radius:6px;padding:6px 10px;cursor:pointer;font-size:13px;">✕</button>
-          </div>`).join('')}
-        </div>
-        <button onclick="addCfgFixed()" style="background:var(--card);border:1px dashed var(--border);color:var(--text2);border-radius:6px;padding:7px 14px;font-size:12px;cursor:pointer;font-family:var(--font);width:100%;margin-bottom:12px;">+ Agregar campo fijo</button>
-        <button class="cfg-save-btn" onclick="saveFixedFields()">Guardar campos fijos</button>
-      </div>
-
       <!-- BOARDS ADICIONALES -->
       <div class="cfg-section">
         <div class="cfg-section-title">📂 Boards Adicionales</div>
@@ -1331,61 +1266,6 @@ function saveConfigProfile() {
   renderConfig();
 }
 
-function saveBackendConfig() {
-  backendUrl = document.getElementById('cfg-backend-url').value.trim().replace(/\/$/, '');
-  localStorage.setItem('er_backend_url', backendUrl);
-  showToast('✅ URL del servidor guardada');
-}
-
-async function testBackend() {
-  const url = document.getElementById('cfg-backend-url').value.trim().replace(/\/$/, '');
-  if (!url) { showToast('⚠️ Ingresa la URL primero'); return; }
-  showToast('⏳ Probando conexión...', false);
-  try {
-    const res = await fetch(`${url}/health`, { signal: AbortSignal.timeout(8000) });
-    const data = await res.json();
-    showToast(data.status === 'ok' ? '✅ Servidor conectado correctamente' : '⚠️ Respuesta inesperada del servidor');
-  } catch (e) {
-    showToast('❌ No se pudo conectar — verifica la URL y que el servidor esté activo');
-  }
-}
-
-function saveFixedFields() {
-  const fixed = [];
-  document.querySelectorAll('#cfg-fixed-fields .cfg-fixed-row').forEach(row => {
-    const label = row.querySelector('.cfg-ff-label').value.trim();
-    const value = row.querySelector('.cfg-ff-value').value.trim();
-    if (label) fixed.push({ label, value });
-  });
-  webinarFixed = fixed;
-  localStorage.setItem('er_webinar_fixed', JSON.stringify(webinarFixed));
-  showToast('✅ Campos fijos guardados');
-}
-
-function _unused_saveWebinarFormConfig_deleted() {
-  const fixed = [];
-  document.querySelectorAll('#cfg-fixed-fields .cfg-fixed-row').forEach(row => {
-    const label = row.querySelector('.cfg-ff-label').value.trim();
-    const value = row.querySelector('.cfg-ff-value').value.trim();
-    if (label) fixed.push({ label, value });
-  });
-}
-
-function addCfgFixed() {
-  const container = document.getElementById('cfg-fixed-fields');
-  const row = document.createElement('div');
-  row.className = 'cfg-fixed-row';
-  row.style.cssText = 'display:grid;grid-template-columns:1fr 1fr auto;gap:8px;align-items:center;';
-  row.innerHTML = `
-    <input class="cfg-ff-label" placeholder="Etiqueta (ej: Manager)" style="background:var(--card);border:1px solid var(--border);border-radius:6px;padding:7px 9px;color:var(--text);font-size:12px;font-family:var(--font);" />
-    <input class="cfg-ff-value" placeholder="Valor" style="background:var(--card);border:1px solid var(--border);border-radius:6px;padding:7px 9px;color:var(--text);font-size:12px;font-family:var(--font);" />
-    <button onclick="removeCfgFixed(this)" style="background:rgba(226,68,92,.15);border:1px solid rgba(226,68,92,.3);color:#e2445c;border-radius:6px;padding:6px 10px;cursor:pointer;font-size:13px;">✕</button>`;
-  container.appendChild(row);
-}
-
-function removeCfgFixed(btn) {
-  btn.closest('.cfg-fixed-row').remove();
-}
 
 function saveWebinarLink() {
   const newUrl  = document.getElementById('cfg-webinar-url').value.trim();
@@ -2000,68 +1880,14 @@ function sendToWebinar() {
     lead.fecha_inscripcion_webinar = new Date().toISOString();
     addHistorial(lead.id, `Enviado a Webinar (desde ${prev})`, '🎥');
     saveLeads(lead.id);
-    registrarEnWebinar(lead);
+    const wUrl = `/webinar.html?id=${lead.id}&nombre=${encodeURIComponent(lead.nombre||'')}&correo=${encodeURIComponent(lead.correo||'')}`;
+    window.open(wUrl, '_blank');
   }
   celebrateWebinar();
   renderKanban();
   renderSidebar();
 }
 
-let _wssScreenshots = {};
-
-function showWebinarScreenshots(leadNombre, before, after) {
-  _wssScreenshots = { before, after };
-  document.getElementById('wss-lead-name').textContent = leadNombre || '';
-  document.getElementById('wss-overlay').classList.remove('hidden');
-  showSsTab('before');
-}
-
-function showSsTab(tab) {
-  const img = document.getElementById('wss-img');
-  const src = _wssScreenshots[tab];
-  img.src = src ? `data:image/jpeg;base64,${src}` : '';
-  document.getElementById('wss-tab-before').classList.toggle('active', tab === 'before');
-  document.getElementById('wss-tab-after').classList.toggle('active', tab === 'after');
-}
-
-function closeWebinarScreenshots() {
-  document.getElementById('wss-overlay').classList.add('hidden');
-}
-
-async function registrarEnWebinar(lead) {
-  if (!backendUrl) {
-    showToast('⚠️ Configura la URL del servidor en Configuraciones', false);
-    return;
-  }
-  showToast('⏳ Registrando en webinar...', false);
-  const extra = {};
-  (webinarFixed || []).forEach(f => { if (f.label && f.value) extra[f.label] = f.value; });
-  try {
-    const res = await fetch(`${backendUrl.replace(/\/$/, '')}/registrar-webinar`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        nombre:    lead.nombre    || '',
-        correo:    lead.correo    || '',
-        telefono:  lead.telefono  || '',
-        ciudad:    lead.ubicacion || '',
-        webinarUrl: webinarLink,
-        extra,
-      })
-    });
-    const data = await res.json();
-    if (data.ok) {
-      addHistorial(lead.id, 'Registrado en webinar automáticamente ✅', '🤖');
-      saveLeads(lead.id);
-      showToast('✅ Registrado en webinar — ver capturas', false);
-      showWebinarScreenshots(lead.nombre, data.screenshotBefore, data.screenshotAfter);
-    } else {
-      showToast(`❌ Error del servidor: ${data.error}`, false);
-    }
-  } catch (e) {
-    showToast('❌ No se pudo conectar al servidor — ¿está desplegado?', false);
-  }
-}
 
 function celebrateWebinar() {
   const el = document.getElementById('webinar-celebrate');

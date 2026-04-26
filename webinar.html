@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Elite Reclutamiento — Webinar</title>
+<link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg:     #1b1e2e; --card: #22253a; --card2: #191c2d;
+  --border: #2a2e46; --accent: #0073ea; --green: #00c875;
+  --text:   #d0d3e8; --text2: #6b6f8c;
+  --font:   'Plus Jakarta Sans','Inter',system-ui,sans-serif;
+}
+body { font-family: var(--font); background: var(--bg); color: var(--text); min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; padding: 32px 16px 60px; }
+
+.logo { font-size: 15px; font-weight: 800; color: #fff; margin-bottom: 6px; letter-spacing: -.3px; }
+.logo span { color: var(--accent); }
+.subtitle { font-size: 12px; color: var(--text2); margin-bottom: 28px; }
+
+.player-wrap { width: 100%; max-width: 860px; border-radius: 12px; overflow: hidden; box-shadow: 0 8px 40px rgba(0,0,0,.5); background: #000; }
+
+.info-bar { width: 100%; max-width: 860px; margin-top: 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.info-lead { font-size: 13px; color: var(--text2); }
+.info-lead strong { color: var(--text); }
+
+.progress-wrap { width: 100%; max-width: 860px; margin-top: 14px; background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 14px 18px; display: flex; align-items: center; gap: 16px; }
+.progress-label { font-size: 12px; color: var(--text2); white-space: nowrap; }
+.progress-bar-bg { flex: 1; height: 6px; background: var(--border); border-radius: 99px; overflow: hidden; }
+.progress-bar-fill { height: 100%; background: var(--accent); border-radius: 99px; transition: width .5s; width: 0%; }
+.progress-pct { font-size: 13px; font-weight: 700; color: var(--accent); min-width: 36px; text-align: right; }
+
+.stats-grid { width: 100%; max-width: 860px; margin-top: 12px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.stat-card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; }
+.stat-label { font-size: 10px; color: var(--text2); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 4px; }
+.stat-value { font-size: 16px; font-weight: 700; color: var(--text); }
+
+/* plyr overrides */
+.plyr--video { border-radius: 12px; }
+.plyr__control--overlaid { background: var(--accent) !important; }
+.plyr--full-ui input[type=range] { color: var(--accent); }
+
+/* not-found */
+.not-found { text-align: center; padding: 60px 20px; }
+.not-found h2 { font-size: 20px; margin-bottom: 10px; }
+.not-found p  { font-size: 14px; color: var(--text2); }
+
+@media (max-width: 600px) {
+  .stats-grid { grid-template-columns: repeat(2, 1fr); }
+}
+</style>
+</head>
+<body>
+
+<div class="logo">Elite <span>Reclutamiento</span></div>
+<div class="subtitle">Webinar On-Demand</div>
+
+<div id="main-content" style="width:100%;max-width:860px;display:flex;flex-direction:column;align-items:stretch;">
+
+  <div class="player-wrap">
+    <video id="player" playsinline controls crossorigin>
+      <source src="https://f005.backblazeb2.com/file/elite-webinar/Webinar+abril+2026.mp4" type="video/mp4" />
+    </video>
+  </div>
+
+  <div class="info-bar">
+    <div class="info-lead" id="info-lead">Cargando...</div>
+    <div id="watch-status" style="font-size:12px;color:var(--text2);"></div>
+  </div>
+
+  <div class="progress-wrap">
+    <span class="progress-label">Progreso</span>
+    <div class="progress-bar-bg"><div class="progress-bar-fill" id="prog-fill"></div></div>
+    <span class="progress-pct" id="prog-pct">0%</span>
+  </div>
+
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-label">Tiempo visto</div>
+      <div class="stat-value" id="stat-watched">0:00</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Duración total</div>
+      <div class="stat-value" id="stat-duration">–</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Pausas</div>
+      <div class="stat-value" id="stat-pauses">0</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Estado</div>
+      <div class="stat-value" id="stat-status">–</div>
+    </div>
+  </div>
+
+</div>
+
+<script src="https://cdn.plyr.io/3.7.8/plyr.polyfilled.js"></script>
+<script>
+// ── CONFIG ────────────────────────────────────────────────────────────────────
+const FS_PROJECT = 'elite-reclutamiento-crm';
+const FS_KEY     = 'AIzaSyCW2t1oHb7xc2Vi6vJROGRM7E7nu-CbU3s';
+const FS_BASE    = `https://firestore.googleapis.com/v1/projects/${FS_PROJECT}/databases/(default)/documents`;
+
+// ── PARAMS ────────────────────────────────────────────────────────────────────
+const params  = new URLSearchParams(location.search);
+const leadId  = params.get('id');
+const nombre  = decodeURIComponent(params.get('nombre') || '');
+const correo  = decodeURIComponent(params.get('correo') || '');
+
+document.getElementById('info-lead').innerHTML = nombre
+  ? `Viendo como: <strong>${nombre}</strong> &nbsp;·&nbsp; ${correo}`
+  : 'Sesión de webinar';
+
+// ── TRACKING STATE ────────────────────────────────────────────────────────────
+let pauseCount   = 0;
+let watchedSecs  = 0;
+let maxPct       = 0;
+let lastSaveTime = 0;
+let playing      = false;
+let startedAt    = null;
+let completed    = false;
+let sessionStart = new Date().toISOString();
+
+// ── HELPERS ───────────────────────────────────────────────────────────────────
+function fmt(secs) {
+  const m = Math.floor(secs / 60);
+  const s = Math.floor(secs % 60);
+  return `${m}:${s.toString().padStart(2,'0')}`;
+}
+
+// ── FIRESTORE SAVE ────────────────────────────────────────────────────────────
+async function saveProgress(final = false) {
+  if (!leadId) return;
+  const now = Date.now();
+  if (!final && now - lastSaveTime < 15000) return;
+  lastSaveTime = now;
+
+  const pct = Math.round(maxPct);
+  const fields = {
+    webinar_visto_pct:      { integerValue: String(pct) },
+    webinar_tiempo_visto:   { integerValue: String(Math.round(watchedSecs)) },
+    webinar_pausas:         { integerValue: String(pauseCount) },
+    webinar_completado:     { booleanValue: completed },
+    webinar_ultima_sesion:  { stringValue: sessionStart },
+    webinar_ultimo_evento:  { stringValue: new Date().toISOString() },
+  };
+
+  try {
+    const updateFields = Object.keys(fields).join(',');
+    await fetch(`${FS_BASE}/leads/${leadId}?key=${FS_KEY}&updateMask.fieldPaths=${updateFields}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fields }),
+    });
+  } catch(e) { console.warn('Firestore save failed', e); }
+}
+
+// ── PLAYER ────────────────────────────────────────────────────────────────────
+const player = new Plyr('#player', {
+  controls: ['play-large','play','progress','current-time','duration','mute','volume','fullscreen'],
+  hideControls: false,
+  resetOnEnd: false,
+});
+
+player.on('ready', () => {
+  const dur = player.duration;
+  if (dur) document.getElementById('stat-duration').textContent = fmt(dur);
+  document.getElementById('stat-status').textContent = 'Listo';
+});
+
+player.on('durationchange', () => {
+  document.getElementById('stat-duration').textContent = fmt(player.duration);
+});
+
+player.on('play', () => {
+  playing = true;
+  if (!startedAt) startedAt = Date.now();
+  document.getElementById('stat-status').textContent = '▶ Reproduciendo';
+  document.getElementById('watch-status').textContent = '';
+});
+
+player.on('pause', () => {
+  if (playing) pauseCount++;
+  playing = false;
+  document.getElementById('stat-status').textContent = '⏸ Pausado';
+  document.getElementById('stat-pauses').textContent = pauseCount;
+  saveProgress();
+});
+
+player.on('timeupdate', () => {
+  const cur = player.currentTime;
+  const dur = player.duration || 1;
+  const pct = (cur / dur) * 100;
+
+  if (pct > maxPct) maxPct = pct;
+  if (playing) watchedSecs += 0.25;
+
+  // UI
+  document.getElementById('prog-fill').style.width = maxPct.toFixed(1) + '%';
+  document.getElementById('prog-pct').textContent   = Math.round(maxPct) + '%';
+  document.getElementById('stat-watched').textContent = fmt(watchedSecs);
+
+  // auto-save cada 15s
+  saveProgress();
+});
+
+player.on('ended', () => {
+  playing = false;
+  completed = true;
+  document.getElementById('stat-status').textContent = '✅ Completado';
+  document.getElementById('watch-status').textContent = '¡Webinar completado!';
+  saveProgress(true);
+});
+
+// save on page close
+window.addEventListener('beforeunload', () => saveProgress(true));
+</script>
+</body>
+</html>
