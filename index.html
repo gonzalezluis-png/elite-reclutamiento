@@ -93,6 +93,13 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); heig
 .ts { display:flex;align-items:center;gap:4px; }
 .ts-dot { width:7px;height:7px;border-radius:50%; }
 
+/* ── PIPELINE TABS ── */
+#pipeline-tabs { display:none;padding:0 14px;background:var(--card2);border-bottom:1px solid var(--border);flex-shrink:0; }
+#pipeline-tabs.visible { display:flex;align-items:center;gap:2px; }
+.ptab { padding:10px 18px;font-size:12.5px;font-weight:600;color:var(--text2);cursor:pointer;border-bottom:2px solid transparent;transition:color .15s,border-color .15s;white-space:nowrap; }
+.ptab:hover { color:var(--text); }
+.ptab.active { color:#fff;border-bottom-color:var(--accent); }
+
 /* ── KANBAN ── */
 #kanban-wrap { flex:1;overflow-x:auto;overflow-y:hidden;display:flex;align-items:flex-start;gap:10px;padding:14px;background:var(--bg); }
 .kanban-col { min-width:265px;width:265px;background:var(--card2);border-radius:10px;display:flex;flex-direction:column;max-height:100%;border:1px solid var(--border); }
@@ -390,6 +397,9 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); heig
       </div>
     </div>
 
+    <!-- PIPELINE TABS (webinar) -->
+    <div id="pipeline-tabs"></div>
+
     <!-- KANBAN -->
     <div id="kanban-wrap"></div>
 
@@ -643,7 +653,33 @@ const PIPELINES = [
   { id:'otro-lugares', nombre:'OTRO LUGARES', icon:'📍', visible:true,
     etapas:['New Lead','1er Intento de Contacto','2do Intento de Contacto','3er Intento de Contacto'] },
   { id:'en-webinar', nombre:'EN WEBINAR', icon:'🎥', visible:true,
-    etapas:['Inscrito en Webinar','No asistente','1er Intento de contacto (No asistente)','Ultimo intento de contacto - ELIMINAR - no asistente','Asistente','1er Intento de contacto (Asistente)','Ultimo intento de contacto - ELIMINAR - asistente','PARA ENTREVISTA (ENVIAR)','No interesado (ENVIAR)','NO CONTACTADO (ENVIAR)'] },
+    tabs: [
+      { id:'inscrito', nombre:'Inscrito en Webinar',
+        etapas:[{v:'Inscrito en Webinar', l:'Inscrito en Webinar'}] },
+      { id:'no-asistente', nombre:'No Asistente',
+        etapas:[
+          {v:'NA - 1er intento de contacto', l:'1er intento de contacto'},
+          {v:'NA - 2do intento de contacto', l:'2do intento de contacto'},
+          {v:'NA - 3er intento de contacto', l:'3er intento de contacto'},
+          {v:'NA - Reinscrito en Webinar',   l:'Reinscrito en Webinar'},
+          {v:'NA - No contactado',           l:'No contactado'},
+          {v:'NA - No interesado',           l:'No interesado'},
+          {v:'NA - No Califica',             l:'No Califica'},
+          {v:'NA - Para Entrevista',         l:'Para Entrevista'},
+        ]},
+      { id:'asistente', nombre:'Asistente',
+        etapas:[
+          {v:'AS - 1er intento de contacto', l:'1er intento de contacto'},
+          {v:'AS - 2do intento de contacto', l:'2do intento de contacto'},
+          {v:'AS - 3er intento de contacto', l:'3er intento de contacto'},
+          {v:'AS - Reinscrito en Webinar',   l:'Reinscrito en Webinar'},
+          {v:'AS - No contactado',           l:'No contactado'},
+          {v:'AS - No interesado',           l:'No interesado'},
+          {v:'AS - No Califica',             l:'No Califica'},
+          {v:'AS - Para Entrevista',         l:'Para Entrevista'},
+        ]},
+    ],
+    etapas:['Inscrito en Webinar','NA - 1er intento de contacto','NA - 2do intento de contacto','NA - 3er intento de contacto','NA - Reinscrito en Webinar','NA - No contactado','NA - No interesado','NA - No Califica','NA - Para Entrevista','AS - 1er intento de contacto','AS - 2do intento de contacto','AS - 3er intento de contacto','AS - Reinscrito en Webinar','AS - No contactado','AS - No interesado','AS - No Califica','AS - Para Entrevista'] },
   { id:'entrevistas-generales', nombre:'ENTREVISTAS GENERALES', icon:'🤝', visible:true,
     etapas:['EN ENTREVISTA','NO SHOW','ENVIAR a Caritza Rojas','ENVIAR a Maria Lugo','ENVIAR a Bryan Palacios','Contratados Personales'] },
   { id:'maria-lugo', nombre:'ENTREVISTA: MARIA LUGO', icon:'👤', visible:false,
@@ -669,6 +705,7 @@ function stageColor(etapa) {
   if (e.includes('no contactado') || e.includes('no asistente') || e.includes('no show')) return '#676a82';
   if (e.includes('no interesado') || e.includes('no califica') || e.includes('eliminar')) return '#e2445c';
   if (e.includes('asistente')) return '#00bcd4';
+  if (e.includes('para entrevista')) return '#00c875';
   if (e.includes('entrevistado') || e.includes('en entrevista') || e.includes('enviar')) return '#fdab3d';
   if (e.includes('contratado') || e.includes('ganado')) return '#00c875';
   if (e.includes('pending payment')) return '#ff9800';
@@ -688,6 +725,7 @@ let currentTags = [];
 let dragLeadId = null;
 let calYear = new Date().getFullYear();
 let calMonth = new Date().getMonth(); // 0-indexed
+let activeWebinarTab = 'inscrito';
 
 const USERS = JSON.parse(localStorage.getItem('er_users') || JSON.stringify([
   { email:'admin@elitereclutamiento.com', password:'admin123', name:'Admin', role:'Administrador' },
@@ -802,11 +840,17 @@ function renderSidebar() {
 function selectPipeline(id) {
   activePipelineId = id;
   activeView = 'kanban';
+  if (id !== 'en-webinar') activeWebinarTab = 'inscrito';
   const pipe = PIPELINES.find(p => p.id === id);
   document.getElementById('board-title').textContent = pipe?.nombre || id;
   document.getElementById('kanban-wrap').style.display = '';
   document.getElementById('calendar-view').classList.remove('active');
   renderSidebar();
+  renderKanban();
+}
+
+function selectWebinarTab(tabId) {
+  activeWebinarTab = tabId;
   renderKanban();
 }
 
@@ -878,7 +922,45 @@ function renderKanban() {
   const pipe = PIPELINES.find(p => p.id === activePipelineId);
   if (!pipe) return;
   const q = (document.getElementById('search-input').value || '').toLowerCase();
+  const tabsEl = document.getElementById('pipeline-tabs');
 
+  // Handle pipeline tabs (e.g. Webinar)
+  if (pipe.tabs) {
+    tabsEl.className = 'visible';
+    tabsEl.innerHTML = pipe.tabs.map(t => {
+      const count = leads.filter(l => l.pipeline_id === activePipelineId && t.etapas.some(e => e.v === l.etapa)).length;
+      return `<div class="ptab${activeWebinarTab === t.id ? ' active' : ''}" onclick="selectWebinarTab('${t.id}')">${t.nombre} <span style="font-size:10px;opacity:.6;">(${count})</span></div>`;
+    }).join('');
+    const activeTab = pipe.tabs.find(t => t.id === activeWebinarTab);
+    const stageDefs = activeTab ? activeTab.etapas : [];
+    const wrap = document.getElementById('kanban-wrap');
+    wrap.innerHTML = stageDefs.map(({v, l: label}) => {
+      const stageleads = leads.filter(ld =>
+        ld.pipeline_id === activePipelineId &&
+        ld.etapa === v &&
+        (!q || [ld.nombre, ld.correo, ld.telefono, ld.fuente, ld.nombre_lead].join(' ').toLowerCase().includes(q))
+      );
+      const color = stageColor(v);
+      return `
+      <div class="kanban-col" data-etapa="${esc(v)}"
+           ondragover="event.preventDefault();this.querySelector('.kanban-col-body').classList.add('drag-over')"
+           ondragleave="this.querySelector('.kanban-col-body').classList.remove('drag-over')"
+           ondrop="handleDrop(event,'${esc(v)}')">
+        <div class="kanban-col-header">
+          <div class="kch-dot" style="background:${color}"></div>
+          <div class="kch-name" title="${esc(label)}">${esc(label)}</div>
+          <div class="kch-count">${stageleads.length}</div>
+        </div>
+        <div class="kanban-col-body">
+          ${stageleads.map(ld => renderCard(ld)).join('')}
+        </div>
+      </div>`;
+    }).join('');
+    return;
+  }
+
+  // Default: no tabs
+  tabsEl.className = '';
   const wrap = document.getElementById('kanban-wrap');
   wrap.innerHTML = pipe.etapas.map(etapa => {
     const stageleads = leads.filter(l =>
