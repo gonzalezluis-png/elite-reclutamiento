@@ -260,6 +260,13 @@ tr.lead-resuelto td:last-child { pointer-events:none;opacity:.4; }
 
 /* notas */
 .nota-item { background:var(--card2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:8px; }
+.hist-item { display:flex;gap:12px;padding:10px 0;border-bottom:1px solid var(--border); }
+.hist-item:last-child { border-bottom:none; }
+.hist-dot { width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;margin-top:2px; }
+.hist-body { flex:1; }
+.hist-accion { font-size:12.5px;color:var(--text);font-weight:500;line-height:1.4; }
+.hist-meta { font-size:10.5px;color:var(--text2);margin-top:3px; }
+.hist-empty { text-align:center;padding:30px;color:var(--text2);font-size:12px; }
 .nota-meta { font-size:10.5px;color:var(--text2);margin-bottom:5px; }
 .nota-text { font-size:12.5px;color:var(--text);white-space:pre-wrap; }
 .nota-form { display:flex;flex-direction:column;gap:8px;margin-bottom:14px; }
@@ -518,6 +525,7 @@ tr.lead-resuelto td:last-child { pointer-events:none;opacity:.4; }
         <div class="ml-tab" onclick="showTab('cita')" id="tab-btn-cita"><span class="ml-tab-icon">📅</span>Cita</div>
         <div class="ml-tab" onclick="showTab('tareas')" id="tab-btn-tareas"><span class="ml-tab-icon">✅</span>Tareas</div>
         <div class="ml-tab" onclick="showTab('notas')" id="tab-btn-notas"><span class="ml-tab-icon">📝</span>Notas</div>
+        <div class="ml-tab" onclick="showTab('historial')" id="tab-btn-historial"><span class="ml-tab-icon">🕓</span>Historial</div>
       </div>
 
       <!-- Content -->
@@ -627,6 +635,13 @@ tr.lead-resuelto td:last-child { pointer-events:none;opacity:.4; }
           </div>
         </div>
 
+        <!-- HISTORIAL TAB -->
+        <div id="tab-historial" class="tab-pane">
+          <div class="form-section">
+            <div class="form-section-title">🕓 Historial de actividad</div>
+            <div id="historial-list"></div>
+          </div>
+        </div>
 
       </div><!-- /ml-content -->
     </div><!-- /ml-body -->
@@ -1490,8 +1505,10 @@ function closeAllMenus() {
 function moveNoContactado(leadId) {
   const lead = leads.find(l => l.id === leadId);
   if (!lead) return;
+  const prev = lead.etapa;
   lead.pipeline_id = 'no-contactados';
   lead.etapa = 'Sin respuesta - 3er intento';
+  addHistorial(leadId, `No contactado después de 3 intentos (desde ${prev})`, '📵');
   saveLeads(); renderKanban(); renderSidebar();
   showToast('📵 Movido a No Contactados');
 }
@@ -1500,7 +1517,9 @@ function moveWebinarNoContactado(leadId) {
   const lead = leads.find(l => l.id === leadId);
   if (!lead) return;
   const prefix = lead.etapa.startsWith('AS - ') ? 'AS - ' : 'NA - ';
+  const prev = lead.etapa;
   lead.etapa = prefix + 'No contactado';
+  addHistorial(leadId, `Sin contacto en 3er intento (desde ${prev})`, '📵');
   saveLeads(); renderKanban(); renderSidebar();
   showToast('📵 Sin contacto — 3er intento agotado');
 }
@@ -1508,8 +1527,10 @@ function moveWebinarNoContactado(leadId) {
 function moveParaEntrevista(leadId) {
   const lead = leads.find(l => l.id === leadId);
   if (!lead) return;
+  const prev = lead.etapa;
   lead.pipeline_id = 'entrevistas-generales';
   lead.etapa = 'EN ENTREVISTA';
+  addHistorial(leadId, `Enviado a Entrevistas Generales (desde ${prev})`, '🤝');
   saveLeads(); renderKanban(); renderSidebar();
   showToast('🤝 Movido a Entrevistas Generales');
 }
@@ -1517,10 +1538,12 @@ function moveParaEntrevista(leadId) {
 function moveReinscritoWebinar(leadId) {
   const lead = leads.find(l => l.id === leadId);
   if (!lead) return;
+  const prev = lead.etapa;
   lead.etapa = 'Inscrito en Webinar';
   lead.reinscrito_from_na = true;
   lead.webinar_accion = 'sin-registro';
   lead.inscrito_webinar = false;
+  addHistorial(leadId, `Reinscrito en Webinar (desde ${prev})`, '🔄');
   saveLeads();
   setPipeTab('en-webinar', 'inscrito');
   renderKanban(); renderSidebar();
@@ -1576,6 +1599,7 @@ function confirmNoInteresado() {
       lead.etapa = 'No interesado';
     }
   }
+  if (lead) addHistorial(_niLeadId, `No interesado: ${motivo}`, '⚠️');
   closeNoInteresado();
   saveLeads(); renderKanban(); renderSidebar();
   showToast('⚠️ Movido a No Interesados');
@@ -1640,6 +1664,7 @@ function confirmNoCalifica() {
       lead.etapa = etapaDestino;
     }
   }
+  if (lead) addHistorial(_ncLeadId, `No califica: ${motivo}`, '🚫');
   closeNoCalifica();
   saveLeads(); renderKanban(); renderSidebar();
   showToast('🚫 Movido a No Califica');
@@ -1652,8 +1677,10 @@ function sendToWebinar() {
   closeLead();
   const lead = leads.find(l => l.id === leadId);
   if (lead) {
+    const prev = lead.etapa;
     lead.pipeline_id = 'en-webinar';
     lead.etapa       = 'Inscrito en Webinar';
+    addHistorial(lead.id, `Enviado a Webinar (desde ${prev})`, '🎥');
     saveLeads();
   }
   celebrateWebinar();
@@ -1700,19 +1727,19 @@ function moveLead(leadId, newEtapa) {
 
   const transition = AUTO_TRANSITIONS.find(t => t.match(newEtapa));
   if (transition) {
+    const prevPipe = lead.pipeline_id; const prevEtapa = lead.etapa;
     lead.pipeline_id = transition.pipeline;
     lead.etapa       = transition.etapa;
-    saveLeads();
-    renderKanban();
-    renderSidebar();
+    addHistorial(leadId, `Movido de ${prevEtapa} → ${transition.etapa} (${PIPELINES.find(p=>p.id===transition.pipeline)?.nombre||transition.pipeline})`, '↕️');
+    saveLeads(); renderKanban(); renderSidebar();
     showToast('✅ Movido a ' + transition.msg);
     return;
   }
 
+  const prevEtapa = lead.etapa;
   lead.etapa = newEtapa;
-  saveLeads();
-  renderKanban();
-  renderSidebar();
+  addHistorial(leadId, `Etapa cambiada: ${prevEtapa} → ${newEtapa}`, '↕️');
+  saveLeads(); renderKanban(); renderSidebar();
   showToast('Movido a: ' + newEtapa);
 }
 
@@ -1813,9 +1840,10 @@ function openLead(id, tabName) {
   document.getElementById('cita-notas').value = lead.cita?.notas || '';
   renderCitaActual(lead.cita);
 
-  // tareas, notas, pagos
+  // tareas, notas, historial
   renderTareas(lead.tareas || []);
   renderNotas(lead.notas || []);
+  renderHistorial(lead.historial || []);
 
   showTab(tabName || 'info');
   document.getElementById('lead-modal').classList.remove('hidden');
@@ -1849,6 +1877,12 @@ function saveLead() {
   lead.fuente                    = document.getElementById('ml-fuente').value;
   lead.seguidores  = document.getElementById('ml-seguidores').value.split(',').map(s=>s.trim()).filter(Boolean);
 
+  if (oldEtapa !== lead.etapa || oldPipeline !== lead.pipeline_id) {
+    const pipeName = PIPELINES.find(p => p.id === lead.pipeline_id)?.nombre || lead.pipeline_id;
+    addHistorial(lead.id, `Movido a: ${pipeName} → ${lead.etapa}`, '↕️');
+  } else {
+    addHistorial(lead.id, 'Información actualizada', '✏️');
+  }
   saveLeads();
   closeLead();
   renderKanban();
@@ -1910,8 +1944,10 @@ function closeNewLead() {
 function saveNewLead() {
   const nombre = document.getElementById('nml-nombre').value.trim();
   if (!nombre) { showToast('El nombre es obligatorio'); return; }
+  const numero = (leads.length > 0 ? Math.max(...leads.map(l => l.numero||0)) : 0) + 1;
   const lead = {
     id: 'lead-' + Date.now(),
+    numero,
     nombre,
     telefono:    document.getElementById('nml-tel').value.trim(),
     correo:      document.getElementById('nml-correo').value.trim(),
@@ -1920,9 +1956,11 @@ function saveNewLead() {
     etapa:       document.getElementById('nml-etapa').value,
     propietario: document.getElementById('nml-propietario').value,
     estado: 'abierto',
-    notas:[], tareas:[],
+    notas:[], tareas:[], historial:[],
     created_at: new Date().toISOString(),
   };
+  const pipeName = PIPELINES.find(p => p.id === lead.pipeline_id)?.nombre || lead.pipeline_id;
+  addHistorial(lead.id, `Lead creado en ${pipeName} → ${lead.etapa}`, '🌟');
   leads.unshift(lead);
   saveLeads();
   closeNewLead();
@@ -2008,6 +2046,7 @@ function addNota() {
   if (!lead) return;
   if (!lead.notas) lead.notas = [];
   lead.notas.unshift({ texto, fecha: new Date().toISOString(), autor: currentUser?.name || 'Sistema' });
+  addHistorial(currentLeadId, `Nota agregada: "${texto.slice(0,60)}${texto.length>60?'…':''}"`, '📝');
   saveLeads();
   renderNotas(lead.notas);
   document.getElementById('nota-inp').value = '';
@@ -2183,6 +2222,39 @@ async function fsDeleteLead(id) {
   } catch(e) {}
 }
 
+function addHistorial(leadId, accion, icono) {
+  const lead = leads.find(l => l.id === leadId);
+  if (!lead) return;
+  if (!Array.isArray(lead.historial)) lead.historial = [];
+  lead.historial.unshift({
+    accion,
+    icono: icono || '📋',
+    fecha: new Date().toISOString(),
+    usuario: currentUser?.name || 'Sistema'
+  });
+}
+
+function renderHistorial(historial) {
+  const el = document.getElementById('historial-list');
+  if (!el) return;
+  if (!historial || !historial.length) {
+    el.innerHTML = '<div class="hist-empty">Sin actividad registrada</div>';
+    return;
+  }
+  el.innerHTML = historial.map(h => {
+    const fecha = new Date(h.fecha);
+    const fechaStr = fecha.toLocaleDateString('es-MX', {day:'2-digit', month:'short', year:'numeric'});
+    const horaStr  = fecha.toLocaleTimeString('es-MX', {hour:'2-digit', minute:'2-digit'});
+    return `<div class="hist-item">
+      <div class="hist-dot" style="background:rgba(100,180,255,.12)">${h.icono||'📋'}</div>
+      <div class="hist-body">
+        <div class="hist-accion">${esc(h.accion)}</div>
+        <div class="hist-meta">${fechaStr} · ${horaStr} &nbsp;·&nbsp; ${esc(h.usuario)}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
 function saveLeads() {
   localStorage.setItem('er_leads', JSON.stringify(leads));
   fsSaveAll();
@@ -2202,12 +2274,15 @@ function setWebinarAccion(leadId, accion) {
   if (accion === 'asistente') {
     lead.etapa = 'AS - Asistente';
     lead.inscrito_webinar = true;
+    addHistorial(leadId, 'Marcado como ASISTENTE al Webinar', '✅');
   } else if (accion === 'no-asistente') {
     lead.etapa = 'NA - No Asistente';
     lead.inscrito_webinar = true;
+    addHistorial(leadId, 'Marcado como NO ASISTENTE al Webinar', '✗');
   } else {
     lead.etapa = 'Inscrito en Webinar';
     lead.inscrito_webinar = false;
+    addHistorial(leadId, 'Registro de Webinar restablecido a Sin Registro', '—');
   }
   saveLeads();
   renderKanban();
