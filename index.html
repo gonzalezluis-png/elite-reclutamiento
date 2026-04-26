@@ -537,6 +537,10 @@ tr.lead-resuelto td:last-child { pointer-events:auto; }
                 <option>Alexander</option>
               </select>
             </div>
+            <div class="field-row">
+              <div class="field"><label>Ubicación</label><input id="ml-ubicacion" placeholder="Ciudad, Estado" /></div>
+              <div class="field"><label>Fecha de inscripción en Webinar</label><input type="date" id="ml-fecha-inscripcion-webinar" /></div>
+            </div>
             <div class="field"><label>Seguidores</label><input id="ml-seguidores" placeholder="Nombres separados por coma" /></div>
           </div>
         </div>
@@ -1032,12 +1036,12 @@ function renderKanban() {
             <tr>
               <th>#</th>
               <th>Nombre</th>
-              <th>Puesto</th>
               <th>Correo</th>
               <th>Teléfono</th>
               <th>Fuente</th>
-              <th>Propietario</th>
+              <th>Ubicación</th>
               <th>Inscrito por</th>
+              <th>Fecha de inscripción</th>
               <th>Fecha</th>
               <th>Acciones</th>
             </tr>
@@ -1049,15 +1053,16 @@ function renderKanban() {
               const accion = ld.webinar_accion || 'sin-registro';
               const accionLabel = accion === 'asistente' ? 'ASISTENTE' : accion === 'no-asistente' ? 'NO ASISTENTE' : 'SIN REGISTRO';
               const resuelto = accion !== 'sin-registro' ? 'lead-resuelto' : '';
+              const fechaInscripcion = ld.fecha_inscripcion_webinar ? new Date(ld.fecha_inscripcion_webinar).toLocaleDateString('es-MX',{day:'2-digit',month:'short',year:'numeric'}) : '—';
               return `<tr class="${resuelto}" onclick="${resuelto ? '' : `openLead('${ld.id}')`}">
                 <td style="color:var(--text2)">${i+1}</td>
                 <td style="font-weight:600;color:#fff">${esc(ld.nombre)}</td>
-                <td>${esc(ld.nombre_lead||'')}</td>
                 <td style="color:var(--text2)">${esc(ld.correo||'')}</td>
                 <td>${esc(ld.telefono||'')}</td>
                 <td><span class="lt-badge ${srcClass(ld.fuente)}">${esc(ld.fuente||'')}</span></td>
-                <td><span class="lt-avatar" title="${esc(ld.propietario||'')}">${esc(initials)}</span> <span style="font-size:11px;color:var(--text2);margin-left:5px">${esc(ld.propietario||'')}</span></td>
+                <td style="color:var(--text2)">${esc(ld.ubicacion||'—')}</td>
                 <td style="color:#c4a8ff;font-weight:600">${esc(ld.inscrito_por||ld.propietario||'—')}</td>
+                <td style="color:var(--text2);white-space:nowrap">${fechaInscripcion}</td>
                 <td style="color:var(--text2);white-space:nowrap">${date}</td>
                 <td onclick="event.stopPropagation()">
                   <div class="lt-accion-btn">
@@ -1494,6 +1499,8 @@ function openLead(id, tabName) {
   document.getElementById('ml-telefono').value = lead.telefono || '';
   document.getElementById('ml-propietario').value = lead.propietario || '';
   document.getElementById('ml-inscrito-por').value = lead.inscrito_por || '';
+  document.getElementById('ml-ubicacion').value = lead.ubicacion || '';
+  document.getElementById('ml-fecha-inscripcion-webinar').value = lead.fecha_inscripcion_webinar || '';
   document.getElementById('ml-fuente').value = lead.fuente || 'Meta / Facebook';
   document.getElementById('ml-seguidores').value = (lead.seguidores||[]).join(', ');
 
@@ -1540,8 +1547,10 @@ function saveLead() {
   lead.correo      = document.getElementById('ml-correo').value.trim();
   lead.telefono    = document.getElementById('ml-telefono').value.trim();
   lead.propietario  = document.getElementById('ml-propietario').value;
-  lead.inscrito_por = document.getElementById('ml-inscrito-por').value;
-  lead.fuente       = document.getElementById('ml-fuente').value;
+  lead.inscrito_por              = document.getElementById('ml-inscrito-por').value;
+  lead.ubicacion                 = document.getElementById('ml-ubicacion').value.trim();
+  lead.fecha_inscripcion_webinar = document.getElementById('ml-fecha-inscripcion-webinar').value;
+  lead.fuente                    = document.getElementById('ml-fuente').value;
   lead.seguidores  = document.getElementById('ml-seguidores').value.split(',').map(s=>s.trim()).filter(Boolean);
 
   saveLeads();
