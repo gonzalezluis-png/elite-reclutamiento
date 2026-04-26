@@ -375,6 +375,24 @@ tr.lead-resuelto td:last-child { pointer-events:none;opacity:.4; }
 .nc-btn-confirm { background:#e2445c;border:none;color:#fff;border-radius:8px;padding:7px 16px;font-family:var(--font);font-size:12px;font-weight:700;cursor:pointer; }
 .nc-btn-confirm:hover { opacity:.85; }
 
+/* Modal No interesado */
+#no-interesado-overlay { position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:10000;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(3px); }
+#no-interesado-overlay.hidden { display:none; }
+#no-interesado-modal { background:var(--card);border:1px solid var(--border);border-radius:14px;padding:24px;width:340px;max-width:94vw;box-shadow:0 24px 60px rgba(0,0,0,.7); }
+#no-interesado-modal h3 { margin:0 0 4px;font-size:15px;color:#fdab3d; }
+#no-interesado-modal p { margin:0 0 16px;font-size:12px;color:var(--text2); }
+.ni-option { display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;cursor:pointer;transition:background .1s;font-size:13px;color:var(--text);border:1px solid transparent; }
+.ni-option:hover { background:rgba(253,171,61,.1);border-color:rgba(253,171,61,.3); }
+.ni-option.selected { background:rgba(253,171,61,.15);border-color:#fdab3d;color:#fff; }
+.ni-option input[type=radio] { accent-color:#fdab3d;width:15px;height:15px;flex-shrink:0; }
+#ni-otros-text { width:100%;margin-top:10px;background:var(--card2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--font);font-size:12.5px;padding:8px 10px;resize:none;display:none; }
+#ni-otros-text:focus { outline:none;border-color:#fdab3d; }
+.ni-footer { display:flex;gap:8px;justify-content:flex-end;margin-top:18px; }
+.ni-btn-cancel { background:none;border:1px solid var(--border);color:var(--text2);border-radius:8px;padding:7px 16px;font-family:var(--font);font-size:12px;cursor:pointer; }
+.ni-btn-cancel:hover { border-color:var(--text2); }
+.ni-btn-confirm { background:#fdab3d;border:none;color:#fff;border-radius:8px;padding:7px 16px;font-family:var(--font);font-size:12px;font-weight:700;cursor:pointer; }
+.ni-btn-confirm:hover { opacity:.85; }
+
 /* Animación celebración webinar */
 #webinar-celebrate { position:fixed;inset:0;pointer-events:none;z-index:99999;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .2s; }
 #webinar-celebrate.show { opacity:1; }
@@ -680,6 +698,26 @@ tr.lead-resuelto td:last-child { pointer-events:none;opacity:.4; }
     <div class="nc-footer">
       <button class="nc-btn-cancel" onclick="closeNoCalifica()">Cancelar</button>
       <button class="nc-btn-confirm" onclick="confirmNoCalifica()">Confirmar</button>
+    </div>
+  </div>
+</div>
+
+<!-- NO INTERESADO MODAL -->
+<div id="no-interesado-overlay" class="hidden">
+  <div id="no-interesado-modal">
+    <h3>⚠️ No Interesado</h3>
+    <p>¿Por qué la persona no está interesada?</p>
+    <div id="ni-options">
+      <label class="ni-option"><input type="radio" name="ni-reason" value="Ya tiene trabajo / No busca trabajo"> Ya tiene trabajo / No busca trabajo</label>
+      <label class="ni-option"><input type="radio" name="ni-reason" value="No le interesa el esquema de pago"> No le interesa el esquema de pago</label>
+      <label class="ni-option"><input type="radio" name="ni-reason" value="No le convence el horario o modalidad"> No le convence el horario o modalidad</label>
+      <label class="ni-option"><input type="radio" name="ni-reason" value="Cambió de opinión"> Cambió de opinión</label>
+      <label class="ni-option"><input type="radio" name="ni-reason" value="otros"> Otros motivos</label>
+    </div>
+    <textarea id="ni-otros-text" rows="3" placeholder="Explica el motivo..."></textarea>
+    <div class="ni-footer">
+      <button class="ni-btn-cancel" onclick="closeNoInteresado()">Cancelar</button>
+      <button class="ni-btn-confirm" onclick="confirmNoInteresado()">Confirmar</button>
     </div>
   </div>
 </div>
@@ -1259,55 +1297,56 @@ function toggleMoveMenu(event, leadId) {
   const pipe = PIPELINES.find(p => p.id === lead?.pipeline_id);
   const etapas = pipe?.etapas || [];
   const etapaActual = lead?.etapa || '';
+  const esPostulados    = ['postulados-meta','postulados-indeed','postulados-whatsapp-meta'].includes(lead?.pipeline_id);
   const estaEnNewLead   = /^new lead$/i.test(etapaActual);
   const estaEn1er       = /^1er intento de contacto$/i.test(etapaActual);
   const estaEn2do       = /^2do intento de contacto$/i.test(etapaActual);
   const estaEn3er       = /^3er intento de contacto$/i.test(etapaActual);
-  const esModoSimplificado = estaEnNewLead || estaEn1er || estaEn2do || estaEn3er;
+  const esModoSimplificado = esPostulados && (estaEnNewLead || estaEn1er || estaEn2do || estaEn3er);
 
   // Ocultar botón global "En Webinar" en modo simplificado (se pone dentro del menú)
   const webinarSection = document.getElementById('move-menu-webinar-section');
   if (webinarSection) webinarSection.style.display = (lead?.pipeline_id === 'en-webinar' || esModoSimplificado) ? 'none' : '';
 
   if (esModoSimplificado) {
-    // Determinar la siguiente etapa principal
     let siguienteEtapa = null;
     if (estaEnNewLead) siguienteEtapa = etapas.find(e => /^1er intento de contacto$/i.test(e));
-    if (estaEn1er)    siguienteEtapa = etapas.find(e => /^2do intento de contacto$/i.test(e));
-    if (estaEn2do)    siguienteEtapa = etapas.find(e => /^3er intento de contacto$/i.test(e));
+    if (estaEn1er)     siguienteEtapa = etapas.find(e => /^2do intento de contacto$/i.test(e));
+    if (estaEn2do)     siguienteEtapa = etapas.find(e => /^3er intento de contacto$/i.test(e));
 
-    const noContactadoBtn = estaEn3er ? `
-      <div class="move-option" onclick="moveNoContactado('${leadId}');closeAllMenus()">
-        <span class="move-option-dot" style="background:#676a82"></span>
-        <span>No contactado</span>
-      </div>
-      <div style="border-top:1px solid var(--border);margin:2px 0"></div>` : '';
+    // "No respondió" → siguiente etapa o no-contactados en 3er
+    const noRespondioBtn = estaEn3er
+      ? `<div class="move-option" onclick="moveNoContactado('${leadId}');closeAllMenus()">
+          <span class="move-option-dot" style="background:#676a82"></span>
+          <span>No respondió / No contactado</span>
+        </div>`
+      : siguienteEtapa
+        ? `<div class="move-option" onclick="moveLead('${leadId}','${siguienteEtapa.replace(/'/g,"\\'")}');closeAllMenus()">
+            <span class="move-option-dot" style="background:#fdab3d"></span>
+            <span>No contestó la llamada</span>
+          </div>`
+        : '';
 
-    const siguienteBtn = siguienteEtapa ? `
-      <div class="move-option" onclick="moveLead('${leadId}','${siguienteEtapa.replace(/'/g,"\\'")}');closeAllMenus()">
-        <span class="move-option-dot" style="background:#fdab3d"></span>
-        <span>${esc(siguienteEtapa)}</span>
-      </div>
-      <div style="border-top:1px solid var(--border);margin:2px 0"></div>` : '';
-
-    const webinarBtn = lead?.pipeline_id !== 'en-webinar' ? `
-      <div style="padding:8px 13px;border-top:1px solid var(--border);">
-        <button class="move-menu-webinar-btn" onclick="sendToWebinar()">
-          🎥 <span>Enviar a En Webinar</span>
-        </button>
-      </div>` : '';
-
-    document.getElementById('move-menu-options').innerHTML =
-      noContactadoBtn + siguienteBtn +
-      `<div class="move-option-special no-interesado" onclick="moveNoInteresado('${leadId}')">
+    // No interesado / No califica solo en 1er, 2do, 3er (no en New Lead)
+    const extraOpts = (!estaEnNewLead) ? `
+      <div style="border-top:1px solid var(--border);margin:4px 0"></div>
+      <div class="move-option-special no-interesado" onclick="openNoInteresado('${leadId}')">
         <span class="move-option-dot" style="background:#fdab3d"></span>
         <span>No interesado</span>
       </div>
       <div class="move-option-special no-califica" onclick="openNoCalifica('${leadId}')">
         <span class="move-option-dot" style="background:#e2445c"></span>
         <span>No califica</span>
-      </div>` +
-      webinarBtn;
+      </div>` : '';
+
+    const webinarBtn = `
+      <div style="padding:8px 13px;border-top:1px solid var(--border);">
+        <button class="move-menu-webinar-btn" onclick="sendToWebinar()">
+          🎥 <span>Enviar a En Webinar</span>
+        </button>
+      </div>`;
+
+    document.getElementById('move-menu-options').innerHTML = noRespondioBtn + extraOpts + webinarBtn;
   } else {
     document.getElementById('move-menu-options').innerHTML = etapas
       .filter(e => {
@@ -1325,6 +1364,15 @@ function toggleMoveMenu(event, leadId) {
           ${isCurrent ? '<span class="move-option-check">✓ actual</span>' : ''}
         </div>`;
       }).join('');
+    if (lead?.pipeline_id !== 'en-webinar') {
+      document.getElementById('move-menu-options').innerHTML +=
+        `<div style="padding:8px 13px;border-top:1px solid var(--border);">
+          <button class="move-menu-webinar-btn" onclick="sendToWebinar()">
+            🎥 <span>Enviar a En Webinar</span>
+          </button>
+        </div>`;
+    }
+    if (webinarSection) webinarSection.style.display = 'none';
   }
 
   // Posicionar el menú cerca del botón, evitando salirse de pantalla
@@ -1363,14 +1411,50 @@ function moveNoContactado(leadId) {
   showToast('📵 Movido a No Contactados');
 }
 
-function moveNoInteresado(leadId) {
+let _niLeadId = null;
+
+function openNoInteresado(leadId) {
   closeAllMenus();
-  const lead = leads.find(l => l.id === leadId);
-  if (!lead) return;
-  lead.pipeline_id = 'no-interesados-no-califica';
-  lead.etapa = 'No interesado';
+  _niLeadId = leadId;
+  document.querySelectorAll('input[name="ni-reason"]').forEach(r => r.checked = false);
+  document.querySelectorAll('.ni-option').forEach(o => o.classList.remove('selected'));
+  document.getElementById('ni-otros-text').style.display = 'none';
+  document.getElementById('ni-otros-text').value = '';
+  document.querySelectorAll('input[name="ni-reason"]').forEach(r => {
+    r.onchange = () => {
+      document.querySelectorAll('.ni-option').forEach(o => o.classList.remove('selected'));
+      r.closest('.ni-option').classList.add('selected');
+      document.getElementById('ni-otros-text').style.display = r.value === 'otros' ? 'block' : 'none';
+    };
+  });
+  document.getElementById('no-interesado-overlay').classList.remove('hidden');
+}
+
+function closeNoInteresado() {
+  document.getElementById('no-interesado-overlay').classList.add('hidden');
+  _niLeadId = null;
+}
+
+function confirmNoInteresado() {
+  if (!_niLeadId) return;
+  const selected = document.querySelector('input[name="ni-reason"]:checked');
+  if (!selected) { alert('Selecciona un motivo'); return; }
+  let motivo = selected.value;
+  if (motivo === 'otros') {
+    const txt = document.getElementById('ni-otros-text').value.trim();
+    if (!txt) { alert('Explica el motivo'); return; }
+    motivo = 'Otros: ' + txt;
+  }
+  const lead = leads.find(l => l.id === _niLeadId);
+  if (lead) {
+    lead.notas = Array.isArray(lead.notas) ? lead.notas : [];
+    lead.notas.push({ texto: '[No interesado] ' + motivo, fecha: new Date().toISOString(), autor: currentUser?.name || '' });
+    lead.pipeline_id = 'no-interesados-no-califica';
+    lead.etapa = 'No interesado';
+  }
+  closeNoInteresado();
   saveLeads(); renderKanban(); renderSidebar();
-  showToast('📵 Movido a No Interesados');
+  showToast('⚠️ Movido a No Interesados');
 }
 
 let _ncLeadId = null;
