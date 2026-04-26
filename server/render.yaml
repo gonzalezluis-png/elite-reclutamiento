@@ -2,9 +2,11 @@ services:
   - type: web
     name: elite-webinar-bot
     runtime: node
-    buildCommand: npm install
+    buildCommand: npm install && npx puppeteer browsers install chrome
     startCommand: node server.js
     envVars:
       - key: NODE_ENV
         value: production
+      - key: PUPPETEER_CACHE_DIR
+        value: /opt/render/project/src/.cache/puppeteer
     plan: free
