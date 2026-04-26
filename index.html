@@ -108,27 +108,35 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); heig
 .leads-table tr:last-child td { border-bottom:none; }
 .col-resizer { position:absolute;right:0;top:0;height:100%;width:5px;cursor:col-resize;user-select:none;z-index:3; }
 .col-resizer:hover, .col-resizer.dragging { background:var(--accent);opacity:.7; }
-/* ── WEBINAR HELPER PANEL ── */
-.webinar-helper { position:fixed;top:50%;right:22px;transform:translateY(-50%);width:310px;background:#1a1b2e;border:1px solid rgba(99,102,241,.4);border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.6);z-index:8000;display:flex;flex-direction:column;max-height:90vh; }
-.webinar-helper.hidden { display:none; }
-.wh-header { display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--border); }
-.wh-title { font-size:13px;font-weight:700;color:var(--text); }
-.wh-close { background:none;border:none;color:var(--text2);cursor:pointer;font-size:16px;padding:2px 6px;border-radius:4px; }
-.wh-close:hover { background:rgba(255,255,255,.08);color:var(--text); }
-.wh-body { padding:12px 14px;overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:8px; }
-.wh-field { background:var(--card);border:1px solid var(--border);border-radius:7px;padding:9px 11px;display:flex;flex-direction:column;gap:3px; }
-.wh-field-label { font-size:10px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.4px; }
-.wh-field-row { display:flex;align-items:center;gap:8px; }
-.wh-field-value { flex:1;font-size:12.5px;color:var(--text);word-break:break-all; }
-.wh-field-value.empty { color:var(--text2);font-style:italic; }
-.wh-copy-btn { flex-shrink:0;background:var(--accent);color:#fff;border:none;border-radius:5px;padding:3px 9px;font-size:10px;font-weight:700;cursor:pointer;font-family:var(--font);transition:opacity .15s; }
+/* ── WEBINAR IFRAME PANEL ── */
+#webinar-panel { position:fixed;inset:0;z-index:9000;display:flex;flex-direction:column;background:var(--bg);transform:translateY(100%);transition:transform .28s cubic-bezier(.4,0,.2,1); }
+#webinar-panel.open { transform:translateY(0); }
+.wip-header { display:flex;align-items:center;gap:12px;padding:10px 18px;background:var(--card2);border-bottom:1px solid var(--border);flex-shrink:0;min-height:48px; }
+.wip-title { font-size:13px;font-weight:700;color:var(--text);flex:1; }
+.wip-lead-name { font-size:12px;color:var(--text2);margin-left:6px; }
+.wip-close { background:none;border:1px solid var(--border);color:var(--text2);cursor:pointer;font-size:13px;padding:5px 13px;border-radius:6px;font-family:var(--font);transition:background .12s; }
+.wip-close:hover { background:rgba(255,255,255,.07);color:var(--text); }
+.wip-ext-btn { background:var(--card);border:1px solid var(--border);color:var(--text2);cursor:pointer;font-size:12px;padding:5px 12px;border-radius:6px;font-family:var(--font);text-decoration:none;display:flex;align-items:center;gap:5px;transition:background .12s; }
+.wip-ext-btn:hover { background:rgba(255,255,255,.07);color:var(--text); }
+.wip-body { display:flex;flex:1;overflow:hidden; }
+.wip-data { width:260px;flex-shrink:0;border-right:1px solid var(--border);overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:8px;background:var(--card2); }
+.wip-data-title { font-size:10px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px; }
+.wip-field { background:var(--card);border:1px solid var(--border);border-radius:7px;padding:8px 10px; }
+.wip-field-lbl { font-size:9.5px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.4px;margin-bottom:3px; }
+.wip-field-row { display:flex;align-items:center;gap:7px; }
+.wip-field-val { flex:1;font-size:12px;color:var(--text);word-break:break-all;line-height:1.3; }
+.wip-field-val.empty { color:var(--text2);font-style:italic;font-size:11px; }
+.wh-copy-btn { flex-shrink:0;background:var(--accent);color:#fff;border:none;border-radius:4px;padding:3px 8px;font-size:10px;font-weight:700;cursor:pointer;font-family:var(--font);transition:opacity .15s; }
 .wh-copy-btn:hover { opacity:.8; }
 .wh-copy-btn.copied { background:#00c875; }
-.wh-divider { font-size:10px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;padding:4px 0 2px;border-top:1px solid var(--border);margin-top:4px; }
-.wh-footer { padding:12px 14px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:8px; }
-.wh-open-btn { width:100%;padding:8px;background:var(--accent);color:#fff;border:none;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;font-family:var(--font);transition:opacity .15s; }
-.wh-open-btn:hover { opacity:.85; }
-.wh-note { font-size:10.5px;color:var(--text2);text-align:center; }
+.wip-divider { font-size:9.5px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;padding-top:6px;border-top:1px solid var(--border); }
+.wip-iframe-wrap { flex:1;position:relative;background:#f5f5f5; }
+#webinar-iframe { width:100%;height:100%;border:none;display:block; }
+.wip-blocked { position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;gap:16px;background:#f5f5f5;text-align:center;padding:32px; }
+.wip-blocked.show { display:flex; }
+.wip-blocked-icon { font-size:48px; }
+.wip-blocked-msg { font-size:14px;color:#333;line-height:1.6; }
+.wip-blocked-btn { padding:10px 22px;background:#6366f1;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer; }
 /* ── CONFIG VIEW ── */
 .sidebar-config-btn { color:var(--text2); }
 .sidebar-config-btn.active { background:rgba(99,102,241,.15);color:var(--accent); }
@@ -803,16 +811,28 @@ tr.lead-resuelto td:last-child { pointer-events:none;opacity:.4; }
   </div>
 </div>
 
-<!-- PANEL ASISTENTE WEBINAR -->
-<div id="webinar-helper" class="webinar-helper hidden">
-  <div class="wh-header">
-    <div class="wh-title">📋 Datos para el Webinar</div>
-    <button class="wh-close" onclick="closeWebinarHelper()">✕</button>
+<!-- PANEL WEBINAR EMBEBIDO -->
+<div id="webinar-panel">
+  <div class="wip-header">
+    <span class="wip-title">🎥 Formulario de Webinar</span>
+    <span class="wip-lead-name" id="wip-lead-name"></span>
+    <a id="wip-ext-btn" href="#" target="_blank" rel="noopener" class="wip-ext-btn">↗ Abrir en pestaña</a>
+    <button class="wip-close" onclick="closeWebinarPanel()">✕ Cerrar</button>
   </div>
-  <div class="wh-body" id="wh-body"></div>
-  <div class="wh-footer">
-    <button class="wh-open-btn" id="wh-open-btn" onclick="reopenWebinar()">↗ Abrir Webinar de nuevo</button>
-    <div class="wh-note">💡 El webinar ya se abrió en una ventana pequeña</div>
+  <div class="wip-body">
+    <div class="wip-data" id="wip-data"></div>
+    <div class="wip-iframe-wrap">
+      <iframe id="webinar-iframe" src="" allow="autoplay" sandbox="allow-scripts allow-forms allow-same-origin allow-popups allow-top-navigation"></iframe>
+      <div class="wip-blocked" id="wip-blocked">
+        <div class="wip-blocked-icon">🔒</div>
+        <div class="wip-blocked-msg">
+          <strong>El sitio del webinar no permite mostrarse aquí</strong><br>
+          (medida de seguridad del servidor externo)<br><br>
+          Usa los datos de la izquierda para llenar el formulario manualmente,<br>o ábrelo en una pestaña nueva.
+        </div>
+        <button class="wip-blocked-btn" id="wip-blocked-open">↗ Abrir en pestaña nueva</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -1988,19 +2008,9 @@ function buildWebinarUrl(lead) {
 function sendToWebinar() {
   const leadId = _openMenuLeadId || currentLeadId;
   if (!leadId) return;
-  const lead = leads.find(l => l.id === leadId);
-
-  // Abrir popup ANTES de cerrar menús (para que browser reconozca el click)
-  if (lead) {
-    const url = buildWebinarUrl(lead);
-    _lastWebinarUrl = url;
-    window.open(url, 'webinar_form', 'width=640,height=760,scrollbars=yes,resizable=yes');
-    showWebinarHelper(lead, url);
-  }
-
   closeAllMenus();
   closeLead();
-
+  const lead = leads.find(l => l.id === leadId);
   if (lead) {
     pushUndo('lead_change', JSON.parse(JSON.stringify(lead)));
     const prev = lead.etapa;
@@ -2009,44 +2019,76 @@ function sendToWebinar() {
     lead.fecha_inscripcion_webinar = new Date().toISOString();
     addHistorial(lead.id, `Enviado a Webinar (desde ${prev})`, '🎥');
     saveLeads(lead.id);
+    openWebinarPanel(lead);
   }
   celebrateWebinar();
   renderKanban();
   renderSidebar();
-  showToast('🎥 Enviado a Webinar — llena el formulario en la ventana', true);
+  showToast('🎥 Enviado a Webinar — llena el formulario', true);
 }
 
-function showWebinarHelper(lead, url) {
-  const cfg = webinarFormConfig;
-  const p = cfg.leadParams;
+function openWebinarPanel(lead) {
+  const url = buildWebinarUrl(lead);
+  _lastWebinarUrl = url;
 
+  // Header
+  document.getElementById('wip-lead-name').textContent = lead.nombre || '';
+  document.getElementById('wip-ext-btn').href = url;
+  document.getElementById('wip-blocked-open').onclick = () => window.open(url, '_blank');
+
+  // Data panel
+  const cfg = webinarFormConfig;
   const leadFields = [
-    { label:'Nombre',   param: p.name,  value: lead.nombre    || '' },
-    { label:'Correo',   param: p.email, value: lead.correo    || '' },
-    { label:'Teléfono', param: p.phone, value: lead.telefono  || '' },
-    { label:'Ciudad',   param: p.city,  value: lead.ubicacion || '' },
+    { label:'Nombre',   value: lead.nombre    || '' },
+    { label:'Correo',   value: lead.correo    || '' },
+    { label:'Teléfono', value: lead.telefono  || '' },
+    { label:'Ciudad',   value: lead.ubicacion || '' },
   ];
   const fixedFields = (cfg.fixed || []).filter(f => f.label);
 
   function fieldHtml(label, value, idx) {
-    const empty = !value;
-    return `<div class="wh-field">
-      <div class="wh-field-label">${label}</div>
-      <div class="wh-field-row">
-        <div class="wh-field-value${empty?' empty':''}">${value || '(sin dato)'}</div>
-        ${!empty ? `<button class="wh-copy-btn" id="whcopy-${idx}" onclick="whCopy('${value.replace(/'/g,"\\'")}','whcopy-${idx}')">Copiar</button>` : ''}
+    const esc = value.replace(/'/g,"\\'");
+    return `<div class="wip-field">
+      <div class="wip-field-lbl">${label}</div>
+      <div class="wip-field-row">
+        <div class="wip-field-val${!value?' empty':''}">${value||'(sin dato)'}</div>
+        ${value?`<button class="wh-copy-btn" id="wipc-${idx}" onclick="whCopy('${esc}','wipc-${idx}')">Copiar</button>`:''}
       </div>
     </div>`;
   }
 
-  let html = leadFields.map((f, i) => fieldHtml(f.label, f.value, i)).join('');
+  let dataHtml = `<div class="wip-data-title">📋 Datos del postulado</div>`;
+  dataHtml += leadFields.map((f,i) => fieldHtml(f.label, f.value, i)).join('');
   if (fixedFields.length) {
-    html += `<div class="wh-divider">Datos fijos</div>`;
-    html += fixedFields.map((f, i) => fieldHtml(f.label, f.value, 100+i)).join('');
+    dataHtml += `<div class="wip-divider">Campos fijos</div>`;
+    dataHtml += fixedFields.map((f,i) => fieldHtml(f.label, f.value, 100+i)).join('');
   }
+  document.getElementById('wip-data').innerHTML = dataHtml;
 
-  document.getElementById('wh-body').innerHTML = html;
-  document.getElementById('webinar-helper').classList.remove('hidden');
+  // Iframe — detect block via timeout heuristic
+  const iframe = document.getElementById('webinar-iframe');
+  const blockedEl = document.getElementById('wip-blocked');
+  blockedEl.classList.remove('show');
+  iframe.src = '';
+  requestAnimationFrame(() => { iframe.src = url; });
+
+  // If iframe can't load cross-origin content, it still fires load but we can't read it.
+  // We detect a likely block if load fires in <300ms (empty frame) or via CSP console error.
+  let loadTime = Date.now();
+  iframe.onload = () => {
+    if (Date.now() - loadTime < 400) {
+      // Fired too fast — probably blocked/redirected, show fallback
+      blockedEl.classList.add('show');
+    }
+  };
+
+  // Show panel
+  document.getElementById('webinar-panel').classList.add('open');
+}
+
+function closeWebinarPanel() {
+  document.getElementById('webinar-panel').classList.remove('open');
+  document.getElementById('webinar-iframe').src = '';
 }
 
 function whCopy(text, btnId) {
@@ -2056,15 +2098,11 @@ function whCopy(text, btnId) {
     document.execCommand('copy'); document.body.removeChild(ta);
   });
   const btn = document.getElementById(btnId);
-  if (btn) { btn.textContent = '✓'; btn.classList.add('copied'); setTimeout(() => { btn.textContent='Copiar'; btn.classList.remove('copied'); }, 1500); }
+  if (btn) { btn.textContent='✓'; btn.classList.add('copied'); setTimeout(()=>{ btn.textContent='Copiar'; btn.classList.remove('copied'); },1500); }
 }
 
 function reopenWebinar() {
-  window.open(_lastWebinarUrl || webinarLink, 'webinar_form', 'width=640,height=760,scrollbars=yes,resizable=yes');
-}
-
-function closeWebinarHelper() {
-  document.getElementById('webinar-helper').classList.add('hidden');
+  window.open(_lastWebinarUrl || webinarLink, '_blank');
 }
 
 function celebrateWebinar() {
