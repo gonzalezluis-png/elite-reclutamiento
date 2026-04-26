@@ -129,8 +129,11 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); heig
 .lt-accion-opt.opt-asistente    { color:var(--green); }
 .lt-accion-opt.opt-no-asistente { color:var(--red); }
 .lt-accion-opt.opt-sin-registro { color:var(--gray); }
-tr.lead-resuelto td { opacity:.38;pointer-events:none; }
-tr.lead-resuelto td:last-child { pointer-events:auto; }
+tr.lead-resuelto td { opacity:.4;pointer-events:none; }
+tr.lead-resuelto td:last-child { pointer-events:none;opacity:.4; }
+.lead-status-icon { display:inline-block;width:18px;height:18px;border-radius:50%;font-size:11px;line-height:18px;text-align:center;font-weight:700;flex-shrink:0; }
+.lead-status-icon.asistente    { background:rgba(0,200,117,.25);color:var(--green); }
+.lead-status-icon.no-asistente { background:rgba(226,68,92,.25);color:var(--red); }
 
 /* ── PIPELINE TABS ── */
 #pipeline-tabs { display:none;padding:0 14px;background:var(--card2);border-bottom:1px solid var(--border);flex-shrink:0; }
@@ -1054,8 +1057,9 @@ function renderKanban() {
               const accionLabel = accion === 'asistente' ? 'ASISTENTE' : accion === 'no-asistente' ? 'NO ASISTENTE' : 'SIN REGISTRO';
               const resuelto = accion !== 'sin-registro' ? 'lead-resuelto' : '';
               const fechaInscripcion = ld.fecha_inscripcion_webinar ? new Date(ld.fecha_inscripcion_webinar).toLocaleDateString('es-MX',{day:'2-digit',month:'short',year:'numeric'}) : '—';
+              const statusIcon = accion === 'asistente' ? `<span class="lead-status-icon asistente">✓</span>` : accion === 'no-asistente' ? `<span class="lead-status-icon no-asistente">✗</span>` : '';
               return `<tr class="${resuelto}" onclick="${resuelto ? '' : `openLead('${ld.id}')`}">
-                <td style="color:var(--text2)">${i+1}</td>
+                <td style="color:var(--text2);display:flex;align-items:center;gap:6px;min-height:36px">${statusIcon}${i+1}</td>
                 <td style="font-weight:600;color:#fff">${esc(ld.nombre)}</td>
                 <td style="color:var(--text2)">${esc(ld.correo||'')}</td>
                 <td>${esc(ld.telefono||'')}</td>
@@ -1831,11 +1835,6 @@ function setWebinarAccion(leadId, accion) {
   const lead = leads.find(l => l.id === leadId);
   if (!lead) return;
   lead.webinar_accion = accion;
-  if (accion === 'asistente') {
-    lead.etapa = 'AS - Asistente';
-  } else if (accion === 'no-asistente') {
-    lead.etapa = 'NA - No Asistente';
-  }
   saveLeads();
   renderKanban();
   renderSidebar();
