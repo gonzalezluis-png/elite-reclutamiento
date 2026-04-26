@@ -2114,7 +2114,79 @@ function quickAction(type, leadId) {
 // ════════════════════════════════════════════
 //  UTILS
 // ════════════════════════════════════════════
-function saveLeads() { localStorage.setItem('er_leads', JSON.stringify(leads)); }
+// ════════════════════════════════════════════
+//  FIRESTORE
+// ════════════════════════════════════════════
+const FS_PROJECT = 'elite-reclutamiento-crm';
+const FS_KEY     = 'AIzaSyCW2t1oHb7xc2Vi6vJROGRM7E7nu-CbU3s';
+const FS_BASE    = `https://firestore.googleapis.com/v1/projects/${FS_PROJECT}/databases/(default)/documents`;
+
+function toFsVal(v) {
+  if (v === null || v === undefined) return {nullValue: null};
+  if (typeof v === 'boolean')  return {booleanValue: v};
+  if (typeof v === 'number')   return Number.isInteger(v) ? {integerValue: String(v)} : {doubleValue: v};
+  if (typeof v === 'string')   return {stringValue: v};
+  if (Array.isArray(v))        return {arrayValue: {values: v.map(toFsVal)}};
+  if (typeof v === 'object')   return {mapValue: {fields: Object.fromEntries(Object.entries(v).map(([k,x]) => [k, toFsVal(x)]))}};
+  return {stringValue: String(v)};
+}
+function fromFsVal(fv) {
+  if (!fv) return null;
+  if ('nullValue'      in fv) return null;
+  if ('booleanValue'   in fv) return fv.booleanValue;
+  if ('integerValue'   in fv) return parseInt(fv.integerValue);
+  if ('doubleValue'    in fv) return fv.doubleValue;
+  if ('stringValue'    in fv) return fv.stringValue;
+  if ('timestampValue' in fv) return fv.timestampValue;
+  if ('arrayValue'     in fv) return (fv.arrayValue.values || []).map(fromFsVal);
+  if ('mapValue'       in fv) return Object.fromEntries(Object.entries(fv.mapValue.fields || {}).map(([k,v]) => [k, fromFsVal(v)]));
+  return null;
+}
+function toFsDoc(obj) {
+  const {id, ...fields} = obj;
+  return {fields: Object.fromEntries(Object.entries(fields).map(([k,v]) => [k, toFsVal(v)]))};
+}
+function fromFsDoc(doc) {
+  const obj = Object.fromEntries(Object.entries(doc.fields || {}).map(([k,v]) => [k, fromFsVal(v)]));
+  obj.id = doc.name.split('/').pop();
+  return obj;
+}
+
+async function fsLoadLeads() {
+  try {
+    const res  = await fetch(`${FS_BASE}/leads?key=${FS_KEY}&pageSize=500`);
+    const data = await res.json();
+    return (data.documents || []).map(fromFsDoc);
+  } catch(e) { return []; }
+}
+
+async function fsSaveAll() {
+  if (!leads.length) return;
+  try {
+    const writes = leads.map(lead => ({
+      update: {
+        name: `projects/${FS_PROJECT}/databases/(default)/documents/leads/${lead.id}`,
+        ...toFsDoc(lead)
+      }
+    }));
+    await fetch(`${FS_BASE}:batchWrite?key=${FS_KEY}`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({writes})
+    });
+  } catch(e) { console.warn('Firestore save failed', e); }
+}
+
+async function fsDeleteLead(id) {
+  try {
+    await fetch(`${FS_BASE}/leads/${id}?key=${FS_KEY}`, {method: 'DELETE'});
+  } catch(e) {}
+}
+
+function saveLeads() {
+  localStorage.setItem('er_leads', JSON.stringify(leads));
+  fsSaveAll();
+}
 
 function toggleAccionMenu(event, leadId) {
   event.stopPropagation();
@@ -2162,6 +2234,20 @@ document.getElementById('user-avatar').textContent = currentUser.name[0];
 populatePipelineSelects();
 renderSidebar();
 selectPipeline('postulados-meta');
+
+// Cargar desde Firestore (si hay datos allá, reemplaza localStorage)
+(async () => {
+  const fsLeads = await fsLoadLeads();
+  if (fsLeads.length > 0) {
+    leads = fsLeads;
+    localStorage.setItem('er_leads', JSON.stringify(leads));
+    renderSidebar();
+    renderKanban();
+  } else if (leads.length > 0) {
+    // Primera vez: subir seed a Firestore
+    await fsSaveAll();
+  }
+})();
 
 // Close modals on overlay click
 document.getElementById('lead-modal').addEventListener('click', e => { if(e.target===document.getElementById('lead-modal')) closeLead(); });
