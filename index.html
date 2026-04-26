@@ -1685,6 +1685,7 @@ function sendToWebinar() {
     const prev = lead.etapa;
     lead.pipeline_id = 'en-webinar';
     lead.etapa       = 'Inscrito en Webinar';
+    lead.fecha_inscripcion_webinar = new Date().toISOString();
     addHistorial(lead.id, `Enviado a Webinar (desde ${prev})`, '🎥');
     saveLeads();
   }
