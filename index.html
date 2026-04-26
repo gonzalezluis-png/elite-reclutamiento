@@ -890,8 +890,10 @@ const USERS = JSON.parse(localStorage.getItem('er_users') || JSON.stringify([
   { email:'luis@grupoelitework.com', password:'elite2026', name:'Luis González', role:'Administrador' },
 ]));
 
-// Load some sample data if empty
-if (!leads.length) {
+// Load some sample data if empty or seed version changed
+const SEED_VERSION = '3';
+if (!leads.length || localStorage.getItem('er_seed_v') !== SEED_VERSION) {
+  leads = []; // reset for clean seed
   function d(daysAgo) { const dt = new Date(); dt.setDate(dt.getDate()-daysAgo); return dt.toISOString(); }
   const sample = [
     // ── POSTULADOS POR META (10) ──
@@ -936,6 +938,7 @@ if (!leads.length) {
   ].map((l,i) => ({ id: 'lead-s'+i, ...l }));
   leads = sample;
   localStorage.setItem('er_leads', JSON.stringify(leads));
+  localStorage.setItem('er_seed_v', SEED_VERSION);
 }
 
 // ════════════════════════════════════════════
