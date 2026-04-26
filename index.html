@@ -1120,7 +1120,7 @@ function renderUniversalTable(stageDefs, pipelineId, q, showEtapa) {
       (!q || [ld.nombre,ld.correo,ld.telefono,ld.fuente,ld.nombre_lead].join(' ').toLowerCase().includes(q))
     ).map(ld => ({...ld, _etapaLabel: label}))
   );
-  const cols = showEtapa ? 12 : 11;
+  const cols = showEtapa ? 11 : 10;
   document.getElementById('table-view-wrap').innerHTML = `
     <table class="leads-table">
       <thead><tr>
@@ -1134,13 +1134,11 @@ function renderUniversalTable(stageDefs, pipelineId, q, showEtapa) {
         <th>Ubicación</th>
         <th>Fecha</th>
         <th>Notas</th>
-        <th>Tareas</th>
         <th>Acciones</th>
       </tr></thead>
       <tbody>${rows.length ? rows.map((ld, i) => {
         const date = ld.created_at ? new Date(ld.created_at).toLocaleDateString('es-MX',{day:'2-digit',month:'short',year:'numeric'}) : '';
         const notasCnt = (ld.notas||[]).length;
-        const tareasCnt = (ld.tareas||[]).filter(t=>!t.done).length;
         const clr = stageColor(ld.etapa);
         return `<tr onclick="openLead('${ld.id}')">
           <td style="color:var(--text2)">${i+1}</td>
@@ -1153,7 +1151,6 @@ function renderUniversalTable(stageDefs, pipelineId, q, showEtapa) {
           <td style="color:var(--text2)">${esc(ld.ubicacion||'—')}</td>
           <td style="color:var(--text2);white-space:nowrap">${date}</td>
           <td>${notasCnt?`<span style="background:rgba(0,115,234,.18);color:#4da6ff;padding:2px 7px;border-radius:10px;font-size:10px;font-weight:600">${notasCnt}</span>`:'<span style="color:var(--text2);font-size:10px">—</span>'}</td>
-          <td>${tareasCnt?`<span style="background:rgba(253,171,61,.18);color:var(--yellow);padding:2px 7px;border-radius:10px;font-size:10px;font-weight:600">${tareasCnt}</span>`:'<span style="color:var(--text2);font-size:10px">—</span>'}</td>
           <td onclick="event.stopPropagation()">
             <div class="lt-actions">
               <button class="lt-btn" onclick="quickAction('call','${ld.id}')">📞</button>
