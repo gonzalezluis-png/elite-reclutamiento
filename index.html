@@ -725,6 +725,9 @@ const PIPELINES = [
   { id:'postulados-indeed', nombre:'POSTULADOS POR INDEED', icon:'📋', visible:true,
     tabs: makePostuladosTabs(),
     etapas:['New Lead','1er intento de contacto','2do intento de contacto','3er intento de contacto'] },
+  { id:'postulados-whatsapp-meta', nombre:'POSTULADOS POR WHATSAPP-META', icon:'💬', visible:true,
+    tabs: makePostuladosTabs(),
+    etapas:['New Lead','1er intento de contacto','2do intento de contacto','3er intento de contacto'] },
   { id:'en-webinar', nombre:'EN WEBINAR', icon:'🎥', visible:true,
     tabs: [
       { id:'inscrito', nombre:'Inscrito en Webinar', sidebar:false, tableView:true,
@@ -881,7 +884,7 @@ function renderSidebar() {
   const GROUPS = [
     {
       label: '📌 Postulados',
-      ids: ['postulados-meta','postulados-indeed']
+      ids: ['postulados-meta','postulados-indeed','postulados-whatsapp-meta']
     },
     {
       label: '🎥 Webinar',
