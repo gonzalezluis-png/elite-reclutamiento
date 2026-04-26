@@ -117,18 +117,26 @@ app.post('/registrar-webinar', async (req, res) => {
 
     // Enviar formulario
     const submitResult = await page.evaluate(() => {
-      const all = [...document.querySelectorAll('button, input[type="submit"], [role="button"], a')];
-      const candidates = [
-        ...document.querySelectorAll('button[type="submit"]'),
-        ...document.querySelectorAll('input[type="submit"]'),
-        ...all.filter(el => /registr|inscri|enviar|submit|sign.?up|apunt|register|join|attend/i.test(el.innerText || el.value || el.textContent || '')),
-        ...document.querySelectorAll('form button'),
-        ...all.filter(el => el.tagName === 'BUTTON'),
+      const isClose = el => {
+        const t = (el.innerText || el.value || el.textContent || '').trim();
+        return t.length <= 2 || /^(x|×|✕|✖|close|cerrar)$/i.test(t);
+      };
+      const all = [...document.querySelectorAll('button, input[type="submit"], [role="button"]')];
+      const pools = [
+        document.querySelectorAll('button[type="submit"]'),
+        document.querySelectorAll('input[type="submit"]'),
+        all.filter(el => /registr|inscri|enviar|submit|sign.?up|apunt|register|join|attend|continuar|siguiente|next/i.test(el.innerText || el.value || el.textContent || '')),
+        document.querySelectorAll('form button'),
+        all.filter(el => el.tagName === 'BUTTON'),
       ];
-      const unique = [...new Map(candidates.map(el => [el, el])).values()];
-      if (!unique.length) return null;
-      unique[0].click();
-      return unique[0].innerText || unique[0].value || unique[0].textContent || 'button';
+      for (const pool of pools) {
+        const visible = [...pool].filter(el => !isClose(el) && el.offsetParent !== null);
+        if (visible.length) {
+          visible[0].click();
+          return visible[0].innerText || visible[0].value || visible[0].textContent || 'button';
+        }
+      }
+      return null;
     });
 
     if (!submitResult) throw new Error('No se encontró el botón de envío en la página');
