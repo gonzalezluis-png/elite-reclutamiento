@@ -1390,7 +1390,7 @@ function renderKanban() {
         <thead><tr>
           <th>#</th><th>Nombre</th><th>Correo</th><th>Teléfono</th><th>Fuente</th>
           <th>Ubicación</th><th>Inscrito por</th><th>Fecha de inscripción</th>
-          <th>% Visto</th><th>Acciones</th>
+          <th>% Visto</th><th>Link Webinar</th><th>Acciones</th>
         </tr></thead>
 
         <tbody>${rows.length ? rows.map((ld, i) => {
@@ -1404,6 +1404,7 @@ function renderKanban() {
           const pctHtml = pct != null
             ? `<span style="font-weight:700;color:${pctColor}">${pct}%</span>`
             : `<span style="color:var(--text2)">—</span>`;
+          const wLink = `${location.origin}/webinar.html?id=${ld.id}&nombre=${encodeURIComponent(ld.nombre||'')}&correo=${encodeURIComponent(ld.correo||'')}`;
           return `<tr class="${resuelto}" onclick="${resuelto?'':` openLead('${ld.id}')`}">
             <td style="color:var(--text2);display:flex;align-items:center;gap:6px;min-height:36px">${icon}${i+1}</td>
             <td style="font-weight:600;color:#fff">${esc(ld.nombre)}</td>
@@ -1414,6 +1415,12 @@ function renderKanban() {
             <td style="color:#c4a8ff;font-weight:600">${esc(ld.inscrito_por||ld.propietario||'—')}</td>
             <td style="color:var(--text2);white-space:nowrap">${fechaIns}</td>
             <td>${pctHtml}</td>
+            <td onclick="event.stopPropagation()" style="white-space:nowrap">
+              <div style="display:flex;align-items:center;gap:6px">
+                <span style="color:var(--text2);font-size:11px">webinar/?id=${ld.id.slice(0,6)}…</span>
+                <button onclick="copyWebinarLink('${ld.id}','${encodeURIComponent(ld.nombre||'')}','${encodeURIComponent(ld.correo||'')}')" style="padding:3px 8px;background:rgba(0,115,234,.15);border:1px solid rgba(0,115,234,.3);color:#0073ea;border-radius:5px;font-size:11px;cursor:pointer;font-family:var(--font);">📋 Copiar</button>
+              </div>
+            </td>
             <td onclick="event.stopPropagation()">
               <div class="lt-accion-btn">
                 <button class="lt-accion-trigger ${accion}" onclick="toggleAccionMenu(event,'${ld.id}')">${accionLabel} ▾</button>
@@ -1425,7 +1432,7 @@ function renderKanban() {
               </div>
             </td>
           </tr>`;
-        }).join('') : `<tr><td colspan="10" style="text-align:center;padding:40px;color:var(--text2)">Sin leads${isVisto?' que hayan visto el webinar':' inscritos'}</td></tr>`}
+        }).join('') : `<tr><td colspan="11" style="text-align:center;padding:40px;color:var(--text2)">Sin leads inscritos</td></tr>`}
         </tbody>
       </table>`;
     initResizableCols('inscrito-webinar');
@@ -2501,6 +2508,11 @@ function toggleAccionMenu(event, leadId) {
   document.getElementById('accion-menu-'+leadId)?.classList.toggle('open');
 }
 document.addEventListener('click', () => document.querySelectorAll('.lt-accion-menu.open').forEach(m => m.classList.remove('open')));
+
+function copyWebinarLink(id, nombre, correo) {
+  const url = `${location.origin}/webinar.html?id=${id}&nombre=${nombre}&correo=${correo}`;
+  navigator.clipboard.writeText(url).then(() => showToast('📋 Link copiado al portapapeles'));
+}
 
 function setWebinarAccion(leadId, accion) {
   const lead = leads.find(l => l.id === leadId);
