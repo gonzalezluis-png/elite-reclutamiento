@@ -68,29 +68,44 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
   font-size: 10px; font-weight: 600; color: var(--text2);
   text-transform: uppercase; letter-spacing: 1.2px; margin-bottom: 14px;
 }
-.sponsor-row {
-  display: flex; gap: 8px; flex-wrap: wrap;
-  justify-content: center; align-items: flex-end;
+.sponsor-track-wrap {
+  width: 100%; overflow: hidden; position: relative;
 }
+.sponsor-track-wrap::before,
+.sponsor-track-wrap::after {
+  content: ''; position: absolute; top: 0; bottom: 0; width: 40px; z-index: 2; pointer-events: none;
+}
+.sponsor-track-wrap::before { left: 0; background: linear-gradient(90deg, var(--bg), transparent); }
+.sponsor-track-wrap::after  { right: 0; background: linear-gradient(-90deg, var(--bg), transparent); }
+.sponsor-row {
+  display: flex; gap: 10px; align-items: stretch;
+  overflow-x: auto; scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch; scrollbar-width: none;
+  padding: 4px 44px 8px;
+  justify-content: flex-start;
+}
+.sponsor-row::-webkit-scrollbar { display: none; }
 .sponsor-chip {
   display: flex; flex-direction: column; align-items: center; gap: 6px;
   background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.07);
-  border-radius: 10px; padding: 10px 11px;
+  border-radius: 10px; padding: 12px 14px;
+  flex: 1 0 auto;
+  scroll-snap-align: start;
   transition: background .15s, border-color .15s;
 }
 .sponsor-chip:hover { background: rgba(255,255,255,.08); border-color: rgba(255,255,255,.14); }
 .sponsor-logo {
-  width: 46px; height: 46px; object-fit: contain; display: block;
+  width: 50px; height: 50px; object-fit: contain; display: block;
   filter: drop-shadow(0 2px 6px rgba(0,0,0,.5));
 }
 .sponsor-avatar {
-  width: 46px; height: 46px; border-radius: 50%;
+  width: 50px; height: 50px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
   font-size: 13px; font-weight: 800; color: #fff;
 }
 .sponsor-name {
   font-size: 9px; color: var(--text3); text-align: center;
-  line-height: 1.35; font-weight: 600; max-width: 66px;
+  line-height: 1.35; font-weight: 600; white-space: nowrap;
 }
 
 /* ── PLAYER ── */
@@ -235,9 +250,6 @@ footer {
   .section-divider, .faq-section { padding-left: 16px; padding-right: 16px; }
   .cta-section { padding-left: 16px; padding-right: 16px; }
   .cta-card { padding: 28px 20px; }
-  .sponsor-chip { padding: 8px 9px; }
-  .sponsor-logo, .sponsor-avatar { width: 38px; height: 38px; }
-  .sponsor-name { font-size: 8.5px; }
 }
 </style>
 </head>
@@ -249,6 +261,7 @@ footer {
   <h1 class="hero-title">Descubre una <em>Oportunidad Laboral</em><br>que puede cambiar tu vida</h1>
   <p class="hero-sub">Mira el video completo y entérate de todo lo que necesitas saber antes de tu entrevista.</p>
   <div class="sponsor-label">Patrocinador oficial de</div>
+  <div class="sponsor-track-wrap">
   <div class="sponsor-row">
 
     <div class="sponsor-chip">
@@ -295,6 +308,7 @@ footer {
     </div>
 
   </div>
+  </div><!-- /sponsor-track-wrap -->
 </div>
 
 <!-- PLAYER -->
