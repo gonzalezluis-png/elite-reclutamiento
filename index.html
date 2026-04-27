@@ -1430,6 +1430,17 @@ function renderKanban() {
     return;
   }
 
+  // Aclaratoria para No Asistente
+  const noAsistenteNotice = document.getElementById('no-asistente-notice');
+  if (noAsistenteNotice) noAsistenteNotice.remove();
+  if (activePipelineId === 'en-webinar' && curTab.id === 'no-asistente') {
+    const notice = document.createElement('div');
+    notice.id = 'no-asistente-notice';
+    notice.style.cssText = 'margin:0 0 14px;padding:12px 16px;background:rgba(253,171,61,.08);border:1px solid rgba(253,171,61,.25);border-radius:10px;font-size:12.5px;color:#fdab3d;line-height:1.6;';
+    notice.innerHTML = `<strong>ℹ️ ¿Qué es No Asistente?</strong> Los candidatos aquí fueron inscritos en el webinar. Pasadas <strong>24 horas</strong> sin haber visto el video, entran automáticamente a esta sección.`;
+    tableWrap.parentNode.insertBefore(notice, tableWrap);
+  }
+
   // Sub-pestañas dentro de una pestaña (ej. No Asistente en Webinar)
   const subTabsEl = document.getElementById('pipeline-subtabs');
   if (curTab.subTabs) {
