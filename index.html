@@ -2699,6 +2699,20 @@ function autoMoverVistos() {
   }
 })();
 
+// Sync automático cada 2 minutos para detectar nuevas visualizaciones
+setInterval(async () => {
+  try {
+    const fsLeads = await fsLoadLeads();
+    if (fsLeads.length > 0) {
+      leads = fsLeads;
+      localStorage.setItem('er_leads', JSON.stringify(leads));
+      autoMoverVistos();
+      renderSidebar();
+      renderKanban();
+    }
+  } catch(e) {}
+}, 2 * 60 * 1000);
+
 // Close modals on overlay click
 document.getElementById('lead-modal').addEventListener('click', e => { if(e.target===document.getElementById('lead-modal')) closeLead(); });
 document.getElementById('new-modal').addEventListener('click', e => { if(e.target===document.getElementById('new-modal')) closeNewLead(); });
