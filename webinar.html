@@ -216,6 +216,11 @@ footer {
   background: rgba(255,255,255,.15);
   z-index: 10;
   pointer-events: none;
+  opacity: 1;
+  transition: opacity .3s ease;
+}
+.plyr--hide-controls .fake-progress-bar {
+  opacity: 0;
 }
 .fake-progress-fill {
   height: 100%;
@@ -223,7 +228,6 @@ footer {
   background: linear-gradient(90deg, #0073ea, #784bd1);
   transition: width 1s cubic-bezier(.25,.46,.45,.94);
 }
-/* en móvil los controles son más altos */
 @media (max-width: 600px) {
   .fake-progress-bar { bottom: 48px; }
 
@@ -333,10 +337,10 @@ async function saveProgress(final = false) {
   } catch(e) {}
 }
 
-// Curva agresiva: potencia 3 — 25% real → 58% visual, 50% real → 88% visual
+// Curva muy agresiva: potencia 5 — 10% real → 41% visual, 25% real → 76% visual
 function easedPct(real) {
   const r = real / 100;
-  return (1 - Math.pow(1 - r, 3)) * 100;
+  return (1 - Math.pow(1 - r, 5)) * 100;
 }
 
 function updateProgressBar(realPct) {
