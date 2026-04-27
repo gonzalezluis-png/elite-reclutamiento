@@ -69,30 +69,13 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
     <div id="watch-status" style="font-size:12px;color:var(--text2);"></div>
   </div>
 
-  <div class="progress-wrap">
-    <span class="progress-label">Progreso</span>
-    <div class="progress-bar-bg"><div class="progress-bar-fill" id="prog-fill"></div></div>
-    <span class="progress-pct" id="prog-pct">0%</span>
-  </div>
-
-  <div class="stats-grid">
-    <div class="stat-card">
-      <div class="stat-label">Tiempo visto</div>
-      <div class="stat-value" id="stat-watched">0:00</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-label">Duración total</div>
-      <div class="stat-value" id="stat-duration">–</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-label">Pausas</div>
-      <div class="stat-value" id="stat-pauses">0</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-label">Estado</div>
-      <div class="stat-value" id="stat-status">–</div>
-    </div>
-  </div>
+  <!-- tracking oculto -->
+  <span id="prog-fill" style="display:none"></span>
+  <span id="prog-pct" style="display:none"></span>
+  <span id="stat-watched" style="display:none"></span>
+  <span id="stat-duration" style="display:none"></span>
+  <span id="stat-pauses" style="display:none"></span>
+  <span id="stat-status" style="display:none"></span>
 
 </div>
 
