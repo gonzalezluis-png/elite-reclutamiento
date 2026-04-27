@@ -1131,6 +1131,8 @@ function selectPipelineTab(pipeId, tabId) {
   document.getElementById('calendar-view').classList.remove('active');
   document.getElementById('config-view').style.display = 'none';
   document.getElementById('search-input').style.display = '';
+  localStorage.setItem('er_active_pipeline', pipeId);
+  localStorage.setItem('er_active_tab', tabId);
   renderSidebar();
   renderKanban();
 }
