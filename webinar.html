@@ -103,9 +103,23 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
   display: flex; align-items: center; justify-content: center;
   font-size: 13px; font-weight: 800; color: #fff;
 }
-.sponsor-name {
-  font-size: 9px; color: var(--text3); text-align: center;
-  line-height: 1.35; font-weight: 600; white-space: nowrap;
+.sponsor-chip { position: relative; cursor: pointer; }
+.sponsor-tip {
+  position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%) scale(.85);
+  background: #1e2330; border: 1px solid rgba(255,255,255,.12);
+  color: #fff; font-size: 11px; font-weight: 600;
+  padding: 5px 10px; border-radius: 6px; white-space: nowrap;
+  opacity: 0; pointer-events: none;
+  transition: opacity .18s, transform .18s;
+  box-shadow: 0 4px 16px rgba(0,0,0,.5);
+  z-index: 10;
+}
+.sponsor-tip::after {
+  content: ''; position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
+  border: 5px solid transparent; border-top-color: #1e2330;
+}
+.sponsor-chip.tip-open .sponsor-tip {
+  opacity: 1; transform: translateX(-50%) scale(1);
 }
 
 /* ── PLAYER ── */
@@ -264,39 +278,46 @@ footer {
   <div class="sponsor-track-wrap">
   <div class="sponsor-row">
 
-    <div class="sponsor-chip">
+    <div class="sponsor-chip" onclick="toggleTip(this)">
+      <div class="sponsor-tip">Texas Rangers</div>
       <img class="sponsor-logo" src="https://a.espncdn.com/i/teamlogos/mlb/500/tex.png" alt="Texas Rangers"
            onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
       <div class="sponsor-avatar" style="display:none;background:#003278">TR</div>
     </div>
 
-    <div class="sponsor-chip">
+    <div class="sponsor-chip" onclick="toggleTip(this)">
+      <div class="sponsor-tip">Dallas Cowboys</div>
       <img class="sponsor-logo" src="https://a.espncdn.com/i/teamlogos/nfl/500/dal.png" alt="Dallas Cowboys"
            onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
       <div class="sponsor-avatar" style="display:none;background:#003594">DC</div>
     </div>
 
-    <div class="sponsor-chip">
+    <div class="sponsor-chip" onclick="toggleTip(this)">
+      <div class="sponsor-tip">LA Lakers</div>
       <img class="sponsor-logo" src="https://a.espncdn.com/i/teamlogos/nba/500/lal.png" alt="LA Lakers"
            onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
       <div class="sponsor-avatar" style="display:none;background:#552583">LAL</div>
     </div>
 
-    <div class="sponsor-chip">
+    <div class="sponsor-chip" onclick="toggleTip(this)">
+      <div class="sponsor-tip">FC Dallas</div>
       <img class="sponsor-logo" src="https://a.espncdn.com/i/teamlogos/soccer/500/272.png" alt="FC Dallas"
            onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
       <div class="sponsor-avatar" style="display:none;background:#BF0D3E">FCD</div>
     </div>
 
-    <div class="sponsor-chip">
+    <div class="sponsor-chip" onclick="toggleTip(this)">
+      <div class="sponsor-tip">Allen Americans</div>
       <div class="sponsor-avatar" style="background:#005596">AA</div>
     </div>
 
-    <div class="sponsor-chip">
+    <div class="sponsor-chip" onclick="toggleTip(this)">
+      <div class="sponsor-tip">Roush Fenway Racing</div>
       <div class="sponsor-avatar" style="background:#c8a100;font-size:10px">RFR</div>
     </div>
 
-    <div class="sponsor-chip">
+    <div class="sponsor-chip" onclick="toggleTip(this)">
+      <div class="sponsor-tip">Conference USA</div>
       <div class="sponsor-avatar" style="background:#003087;font-size:10px">CUSA</div>
     </div>
 
@@ -413,6 +434,18 @@ footer {
 
 <script src="https://cdn.plyr.io/3.7.8/plyr.polyfilled.js"></script>
 <script>
+// Sponsor tooltip
+function toggleTip(chip) {
+  const isOpen = chip.classList.contains('tip-open');
+  document.querySelectorAll('.sponsor-chip.tip-open').forEach(c => c.classList.remove('tip-open'));
+  if (!isOpen) chip.classList.add('tip-open');
+}
+document.addEventListener('click', e => {
+  if (!e.target.closest('.sponsor-chip')) {
+    document.querySelectorAll('.sponsor-chip.tip-open').forEach(c => c.classList.remove('tip-open'));
+  }
+});
+
 // FAQ
 function toggleFaq(btn) {
   const item = btn.closest('.faq-item');
