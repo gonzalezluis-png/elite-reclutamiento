@@ -4,245 +4,81 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Webinar — Elite Reclutamiento</title>
-<link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  --bg:      #0f1117;
-  --card:    #1a1d2e;
-  --border:  #252840;
-  --accent:  #0073ea;
-  --accent2: #784bd1;
-  --text:    #e8eaf6;
-  --text2:   #6b6f8c;
-  --font:    'Plus Jakarta Sans','Inter',system-ui,sans-serif;
+  --bg:     #0f1117;
+  --card:   #1a1d2e;
+  --border: #252840;
+  --accent: #0073ea;
+  --accent2:#784bd1;
+  --text:   #e8eaf6;
+  --text2:  #6b6f8c;
+  --font:   'Plus Jakarta Sans','Inter',system-ui,sans-serif;
 }
 
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap');
 
 html, body { height: 100%; }
+body { font-family: var(--font); background: var(--bg); color: var(--text); min-height: 100vh; display: flex; flex-direction: column; }
 
-body {
-  font-family: var(--font);
-  background: var(--bg);
-  color: var(--text);
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-}
-
-/* ── HEADER ── */
+/* HEADER */
 header {
-  width: 100%;
-  padding: 18px 24px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+  width: 100%; padding: 18px 24px;
+  display: flex; align-items: center; justify-content: space-between;
   border-bottom: 1px solid var(--border);
-  background: rgba(15,17,23,.95);
-  backdrop-filter: blur(12px);
-  position: sticky;
-  top: 0;
-  z-index: 10;
+  background: rgba(15,17,23,.95); backdrop-filter: blur(12px);
+  position: sticky; top: 0; z-index: 10;
 }
+.logo { display: flex; align-items: center; gap: 10px; }
+.logo-icon { width:32px;height:32px;background:linear-gradient(135deg,var(--accent),var(--accent2));border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px; }
+.logo-text { font-size:14px;font-weight:800;color:#fff;letter-spacing:-.3px; }
+.logo-text span { color:var(--accent); }
+.live-badge { display:flex;align-items:center;gap:6px;background:rgba(226,68,92,.12);border:1px solid rgba(226,68,92,.3);color:#e2445c;font-size:11px;font-weight:700;padding:4px 10px;border-radius:99px;letter-spacing:.5px; }
+.live-badge::before { content:'';width:6px;height:6px;background:#e2445c;border-radius:50%;animation:pulse 1.5s infinite; }
+@keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.5;transform:scale(.8)} }
 
-.logo {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
+/* HERO */
+.hero { width:100%;max-width:900px;margin:0 auto;padding:32px 20px 0; }
+.hero-label { display:inline-flex;align-items:center;gap:6px;background:rgba(0,115,234,.12);border:1px solid rgba(0,115,234,.25);color:var(--accent);font-size:11px;font-weight:700;padding:5px 12px;border-radius:99px;margin-bottom:14px;letter-spacing:.5px;text-transform:uppercase; }
+.hero-title { font-size:clamp(20px,4vw,30px);font-weight:800;color:#fff;line-height:1.25;margin-bottom:8px; }
+.hero-sub { font-size:14px;color:var(--text2);margin-bottom:24px;line-height:1.6; }
 
-.logo-icon {
-  width: 32px;
-  height: 32px;
-  background: linear-gradient(135deg, var(--accent), var(--accent2));
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 16px;
-}
-
-.logo-text {
-  font-size: 14px;
-  font-weight: 800;
-  color: #fff;
-  letter-spacing: -.3px;
-}
-
-.logo-text span { color: var(--accent); }
-
-.live-badge {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  background: rgba(226,68,92,.12);
-  border: 1px solid rgba(226,68,92,.3);
-  color: #e2445c;
-  font-size: 11px;
-  font-weight: 700;
-  padding: 4px 10px;
-  border-radius: 99px;
-  letter-spacing: .5px;
-}
-
-.live-badge::before {
-  content: '';
-  width: 6px;
-  height: 6px;
-  background: #e2445c;
-  border-radius: 50%;
-  animation: pulse 1.5s infinite;
-}
-
-@keyframes pulse {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50%       { opacity: .5; transform: scale(.8); }
-}
-
-/* ── HERO ── */
-.hero {
-  width: 100%;
-  max-width: 900px;
-  margin: 0 auto;
-  padding: 32px 20px 0;
-}
-
-.hero-label {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  background: rgba(0,115,234,.12);
-  border: 1px solid rgba(0,115,234,.25);
-  color: var(--accent);
-  font-size: 11px;
-  font-weight: 700;
-  padding: 5px 12px;
-  border-radius: 99px;
-  margin-bottom: 14px;
-  letter-spacing: .5px;
-  text-transform: uppercase;
-}
-
-.hero-title {
-  font-size: clamp(20px, 4vw, 30px);
-  font-weight: 800;
-  color: #fff;
-  line-height: 1.25;
-  margin-bottom: 8px;
-}
-
-.hero-sub {
-  font-size: 14px;
-  color: var(--text2);
-  margin-bottom: 24px;
-  line-height: 1.6;
-}
-
-/* ── PLAYER ── */
-.player-container {
-  width: 100%;
-  max-width: 900px;
-  margin: 0 auto;
-  padding: 0 20px 40px;
-}
-
+/* PLAYER */
+.player-container { width:100%;max-width:900px;margin:0 auto;padding:0 20px 16px; }
 .player-wrap {
-  border-radius: 14px;
-  overflow: hidden;
+  position: relative;
+  border-radius: 14px; overflow: hidden;
   box-shadow: 0 20px 60px rgba(0,0,0,.6), 0 0 0 1px var(--border);
   background: #000;
-  position: relative;
+  aspect-ratio: 16/9;
 }
+.player-wrap iframe { position:absolute;inset:0;width:100%;height:100%;border:none; }
 
-/* ── VIEWER INFO ── */
-.viewer-bar {
-  width: 100%;
-  max-width: 900px;
-  margin: 0 auto;
-  padding: 0 20px 16px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
+/* FAKE PROGRESS BAR */
+.fake-progress-wrap { width:100%;max-width:900px;margin:0 auto;padding:0 20px 16px; }
+.fake-progress-bg { width:100%;height:4px;background:var(--border);border-radius:99px;overflow:hidden; }
+.fake-progress-fill { height:100%;width:0%;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:99px;transition:width 1s cubic-bezier(.25,.46,.45,.94); }
+
+/* VIEWER BAR */
+.viewer-bar { width:100%;max-width:900px;margin:0 auto;padding:0 20px 16px;display:flex;align-items:center;gap:8px; }
+.viewer-avatar { width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff;flex-shrink:0; }
+.viewer-name { font-size:12.5px;color:var(--text2); }
+.viewer-name strong { color:var(--text);font-weight:600; }
+
+/* FOOTER */
+footer { margin-top:auto;text-align:center;padding:20px;font-size:11px;color:var(--text2);border-top:1px solid var(--border); }
+
+/* MOBILE */
+@media (max-width:600px) {
+  header { padding:14px 16px; }
+  .hero { padding:20px 16px 0; }
+  .player-container { padding:0 0 16px; }
+  .player-wrap { border-radius:0;box-shadow:none; }
+  .fake-progress-wrap { padding:0 16px 12px; }
+  .viewer-bar { padding:0 16px 12px; }
 }
-
-.viewer-avatar {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, var(--accent), var(--accent2));
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 12px;
-  font-weight: 700;
-  color: #fff;
-  flex-shrink: 0;
-}
-
-.viewer-name {
-  font-size: 12.5px;
-  color: var(--text2);
-}
-
-.viewer-name strong { color: var(--text); font-weight: 600; }
-
-/* ── FOOTER ── */
-footer {
-  margin-top: auto;
-  text-align: center;
-  padding: 20px;
-  font-size: 11px;
-  color: var(--text2);
-  border-top: 1px solid var(--border);
-}
-
-/* ── PLYR OVERRIDES ── */
-.plyr--video { border-radius: 14px; }
-.plyr__control--overlaid { background: var(--accent) !important; }
-.plyr--full-ui input[type=range] { color: var(--accent); }
-.plyr__poster { background-size: cover; }
-/* ocultar tiempo y barra nativa de Plyr */
-.plyr__time, .plyr__progress { display: none !important; }
-
-/* ── BARRA DENTRO DEL PLAYER ── */
-.fake-progress-bar {
-  position: absolute;
-  bottom: 52px;
-  left: 0;
-  right: 0;
-  height: 4px;
-  background: rgba(255,255,255,.15);
-  z-index: 10;
-  pointer-events: none;
-  opacity: 1;
-  transition: opacity .3s ease;
-}
-.plyr--hide-controls .fake-progress-bar {
-  opacity: 0;
-}
-.fake-progress-fill {
-  height: 100%;
-  width: 0%;
-  background: linear-gradient(90deg, #0073ea, #784bd1);
-  transition: width 1s cubic-bezier(.25,.46,.45,.94);
-}
-@media (max-width: 600px) {
-  .fake-progress-bar { bottom: 48px; }
-
-/* ── MOBILE ── */
-@media (max-width: 600px) {
-  header { padding: 14px 16px; }
-  .hero  { padding: 20px 16px 0; }
-  .hero-sub { font-size: 13px; }
-  .player-container { padding: 0 0 32px; }
-  .player-wrap { border-radius: 0; box-shadow: none; }
-  .viewer-bar { padding: 12px 16px; }
-}
-
-/* hidden tracking nodes */
-.tracking-hidden { display: none !important; }
 </style>
 </head>
 <body>
@@ -263,13 +99,13 @@ footer {
 
 <div class="player-container">
   <div class="player-wrap">
-    <video id="player" playsinline controls>
-      <source src="https://drive.google.com/uc?id=1_Hv3FxEmxO6DrKVy0zgfHGFkggbXdvNp&export=download&confirm=t" type="video/mp4" />
-    </video>
-    <!-- barra falsa dentro del player -->
-    <div class="fake-progress-bar">
-      <div class="fake-progress-fill" id="custom-fill"></div>
-    </div>
+    <div id="yt-player"></div>
+  </div>
+</div>
+
+<div class="fake-progress-wrap">
+  <div class="fake-progress-bg">
+    <div class="fake-progress-fill" id="custom-fill"></div>
   </div>
 </div>
 
@@ -278,17 +114,8 @@ footer {
   <div class="viewer-name" id="viewer-name"></div>
 </div>
 
-<!-- tracking nodes (hidden) -->
-<span id="prog-fill" class="tracking-hidden"></span>
-<span id="prog-pct" class="tracking-hidden"></span>
-<span id="stat-watched" class="tracking-hidden"></span>
-<span id="stat-duration" class="tracking-hidden"></span>
-<span id="stat-pauses" class="tracking-hidden"></span>
-<span id="stat-status" class="tracking-hidden"></span>
-
 <footer>© 2026 Elite Reclutamiento · Todos los derechos reservados</footer>
 
-<script src="https://cdn.plyr.io/3.7.8/plyr.polyfilled.js"></script>
 <script>
 const FS_PROJECT = 'elite-reclutamiento-crm';
 const FS_KEY     = 'AIzaSyCW2t1oHb7xc2Vi6vJROGRM7E7nu-CbU3s';
@@ -300,8 +127,7 @@ const nombre  = decodeURIComponent(params.get('nombre') || '');
 const correo  = decodeURIComponent(params.get('correo') || '');
 
 if (nombre) {
-  const bar = document.getElementById('viewer-bar');
-  bar.style.display = 'flex';
+  document.getElementById('viewer-bar').style.display = 'flex';
   document.getElementById('viewer-avatar').textContent = nombre[0].toUpperCase();
   document.getElementById('viewer-name').innerHTML = `Viendo como: <strong>${nombre}</strong>&nbsp;·&nbsp;${correo}`;
 }
@@ -313,6 +139,16 @@ let lastSave    = 0;
 let playing     = false;
 let completed   = false;
 let sessionStart = new Date().toISOString();
+let trackInterval = null;
+
+// Curva agresiva: 10% real → 41% visual, 25% real → 76% visual
+function easedPct(real) {
+  return (1 - Math.pow(1 - real / 100, 5)) * 100;
+}
+
+function updateBar(realPct) {
+  document.getElementById('custom-fill').style.width = easedPct(realPct).toFixed(1) + '%';
+}
 
 async function saveProgress(final = false) {
   if (!leadId) return;
@@ -338,42 +174,47 @@ async function saveProgress(final = false) {
   } catch(e) {}
 }
 
-// Curva muy agresiva: potencia 5 — 10% real → 41% visual, 25% real → 76% visual
-function easedPct(real) {
-  const r = real / 100;
-  return (1 - Math.pow(1 - r, 5)) * 100;
-}
+// YouTube IFrame API
+window.onYouTubeIframeAPIReady = function() {
+  new YT.Player('yt-player', {
+    videoId: 'rTYiBo0GHdQ',
+    playerVars: { rel: 0, modestbranding: 1, showinfo: 0, color: 'white' },
+    events: {
+      onStateChange: function(e) {
+        if (e.data === YT.PlayerState.PLAYING) {
+          playing = true;
+          if (!trackInterval) {
+            trackInterval = setInterval(() => {
+              const dur = e.target.getDuration();
+              const cur = e.target.getCurrentTime();
+              if (dur > 0) {
+                const pct = (cur / dur) * 100;
+                if (pct > maxPct) maxPct = pct;
+                watchedSecs += 1;
+                updateBar(maxPct);
+                saveProgress();
+              }
+            }, 1000);
+          }
+        } else {
+          if (playing) pauseCount++;
+          playing = false;
+          clearInterval(trackInterval);
+          trackInterval = null;
+          if (e.data === YT.PlayerState.ENDED) {
+            completed = true;
+            updateBar(100);
+          }
+          saveProgress(e.data === YT.PlayerState.ENDED);
+        }
+      }
+    }
+  });
+};
 
-function updateProgressBar(realPct) {
-  const visual = easedPct(realPct);
-  document.getElementById('custom-fill').style.width = visual.toFixed(1) + '%';
-}
-
-const player = new Plyr('#player', {
-  controls: ['play-large','play','mute','volume','fullscreen'],
-});
-
-player.on('play', () => { playing = true; });
-
-player.on('pause', () => {
-  if (playing) pauseCount++;
-  playing = false;
-  saveProgress();
-});
-
-player.on('timeupdate', () => {
-  const pct = player.duration ? (player.currentTime / player.duration) * 100 : 0;
-  if (pct > maxPct) maxPct = pct;
-  if (playing) watchedSecs += 0.25;
-  updateProgressBar(maxPct);
-  saveProgress();
-});
-
-player.on('ended', () => {
-  playing = false; completed = true;
-  updateProgressBar(100);
-  saveProgress(true);
-});
+const tag = document.createElement('script');
+tag.src = 'https://www.youtube.com/iframe_api';
+document.head.appendChild(tag);
 
 window.addEventListener('beforeunload', () => saveProgress(true));
 </script>
