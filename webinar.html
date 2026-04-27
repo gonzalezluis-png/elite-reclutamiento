@@ -467,7 +467,7 @@ const correo = decodeURIComponent(params.get('correo') || '');
 if (nombre) {
   document.getElementById('viewer-bar').style.display = 'block';
   document.getElementById('viewer-avatar').textContent = nombre[0].toUpperCase();
-  document.getElementById('viewer-name').innerHTML = `Viendo como: <strong>${nombre}</strong>`;
+  document.getElementById('viewer-name').innerHTML = `Hola <strong>${nombre}</strong> — este video fue preparado especialmente para ti ✨`;
 }
 
 let pauseCount = 0, watchedSecs = 0, maxPct = 0;
