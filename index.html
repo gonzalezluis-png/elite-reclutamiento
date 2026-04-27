@@ -839,7 +839,7 @@ const PIPELINES = [
     tabs: [
       { id:'inscrito', nombre:'Inscrito en Webinar', sidebar:false, tableView:true,
         etapas:[{v:'Inscrito en Webinar', l:'Inscrito en Webinar'}] },
-      { id:'no-asistente', nombre:'No Asistente', sidebar:true,
+      { id:'no-asistente', nombre:'No Asistente', sidebar:true, tableView:true,
         etapas:[
           {v:'NA - No Asistente',            l:'No Asistente'},
           {v:'NA - 1er intento de contacto', l:'1er intento de contacto'},
@@ -853,7 +853,7 @@ const PIPELINES = [
         ],
         subTabs: true,
         subTabVisible: ['NA - No Asistente','NA - 1er intento de contacto','NA - 2do intento de contacto','NA - 3er intento de contacto','NA - Reinscrito en Webinar'] },
-      { id:'asistente', nombre:'Asistente', sidebar:true,
+      { id:'asistente', nombre:'Asistente', sidebar:true, tableView:true,
         etapas:[
           {v:'AS - Asistente',               l:'Asistente'},
           {v:'AS - 1er intento de contacto', l:'1er intento de contacto'},
@@ -1381,24 +1381,58 @@ function renderKanban() {
   // Ocultar sub-pestañas salvo que la pestaña las tenga
   if (!curTab.subTabs) document.getElementById('pipeline-subtabs').className = '';
 
-  // Inscrito en Webinar → tabla especial con acciones ASISTENTE/NO ASISTENTE
+  // Webinar → tabla unificada para todas las sub-pestañas
   if (curTab.tableView) {
-    const tableEtapas = curTab.etapas.map(e => e.v);
+    const srcClass = s => ({'Meta / Facebook':'meta','Instagram':'ig','WhatsApp':'wa','Referido':'ref'}[s]||'otro');
+
+    // Renderizar sub-pestañas si las hay
+    const subTabsEl = document.getElementById('pipeline-subtabs');
+    let activeEtapas = curTab.etapas;
+    let showEtapaCol = false;
+    if (curTab.subTabs) {
+      const curSubId = getSubTab(activePipelineId, curTab.id);
+      const visibleEtapas = curTab.subTabVisible
+        ? curTab.etapas.filter(e => curTab.subTabVisible.includes(e.v))
+        : curTab.etapas;
+      const allSubs = [{id:'all', nombre:'Todos', etapas: curTab.etapas}]
+        .concat(visibleEtapas.map(e => ({id: e.v, nombre: e.l, etapas:[e]})));
+      subTabsEl.className = 'visible';
+      subTabsEl.innerHTML = allSubs.map(s => {
+        const cnt = leads.filter(l => l.pipeline_id === activePipelineId && s.etapas.some(e => e.v === l.etapa)).length;
+        const clr = stageColor(s.etapas[0]?.v || s.nombre);
+        const isActive = curSubId === s.id;
+        return `<div class="ptab2${isActive ? ' active' : ''}" style="${isActive ? `border-bottom-color:${clr};color:#fff;` : ''}" onclick="selectSubTab('${activePipelineId}','${curTab.id}','${s.id}')">
+          <span class="ptab2-dot" style="background:${clr}"></span>${esc(s.nombre)} <span style="font-size:10px;opacity:.6">(${cnt})</span>
+        </div>`;
+      }).join('');
+      const activeSub = allSubs.find(s => s.id === curSubId) || allSubs[0];
+      activeEtapas = activeSub.etapas;
+      showEtapaCol = activeSub.id === 'all';
+    } else {
+      subTabsEl.className = '';
+    }
+
+    const tableEtapas = activeEtapas.map(e => e.v);
     const rows = leads.filter(ld =>
       ld.pipeline_id === activePipelineId &&
       (tableEtapas.includes(ld.etapa) || (curTab.id === 'inscrito' && ld.inscrito_webinar)) &&
       (!q || [ld.nombre, ld.correo, ld.telefono, ld.fuente, ld.nombre_lead].join(' ').toLowerCase().includes(q))
-    );
-    const srcClass = s => ({'Meta / Facebook':'meta','Instagram':'ig','WhatsApp':'wa','Referido':'ref'}[s]||'otro');
-    const isVisto = curTab.id === 'visto';
-    tableWrap.innerHTML = `
+    ).map(ld => { const eo = curTab.etapas.find(e => e.v === ld.etapa); return {...ld, _etapaLabel: eo ? eo.l : ld.etapa}; });
+
+    const noticeHtml = curTab.id === 'no-asistente'
+      ? `<div style="margin-bottom:14px;padding:12px 16px;background:rgba(253,171,61,.08);border:1px solid rgba(253,171,61,.25);border-radius:10px;font-size:12.5px;color:#fdab3d;line-height:1.6;">
+          <strong>ℹ️ ¿Qué es No Asistente?</strong> Los candidatos aquí fueron inscritos en el webinar. Pasadas <strong>24 horas</strong> sin haber visto el video, entran automáticamente a esta sección.
+         </div>` : '';
+
+    const colSpan = showEtapaCol ? 13 : 12;
+    tableWrap.innerHTML = noticeHtml + `
       <table class="leads-table">
         <thead><tr>
           <th>#</th><th>Nombre</th><th>Correo</th><th>Teléfono</th><th>Fuente</th>
           <th>Ubicación</th><th>Inscrito por</th><th>Fecha de inscripción</th>
+          ${showEtapaCol ? '<th>Etapa</th>' : ''}
           <th>% Visto</th><th>Tiempo visto</th><th>Link Webinar</th><th>Acciones</th>
         </tr></thead>
-
         <tbody>${rows.length ? rows.map((ld, i) => {
           const accion = ld.webinar_accion || 'sin-registro';
           const accionLabel = accion==='asistente'?'ASISTENTE':accion==='no-asistente'?'NO ASISTENTE':'SIN REGISTRO';
@@ -1407,14 +1441,12 @@ function renderKanban() {
           const icon = accion==='asistente'?`<span class="lead-status-icon asistente">✓</span>`:accion==='no-asistente'?`<span class="lead-status-icon no-asistente">✗</span>`:'';
           const pct = ld.webinar_visto_pct != null ? Number(ld.webinar_visto_pct) : null;
           const pctColor = pct == null ? 'var(--text2)' : pct >= 50 ? '#00c875' : pct >= 25 ? '#0073ea' : '#e2445c';
-          const pctHtml = pct != null
-            ? `<span style="font-weight:700;color:${pctColor}">${pct}%</span>`
-            : `<span style="color:var(--text2)">—</span>`;
+          const pctHtml = pct != null ? `<span style="font-weight:700;color:${pctColor}">${pct}%</span>` : `<span style="color:var(--text2)">—</span>`;
           const segs = ld.webinar_tiempo_visto != null ? Number(ld.webinar_tiempo_visto) : null;
           const tiempoHtml = segs != null && segs > 0
             ? (() => { const m = Math.floor(segs/60), s = Math.round(segs%60); return `<span style="color:var(--text);font-weight:600">${m}m ${s.toString().padStart(2,'0')}s</span>`; })()
             : `<span style="color:var(--text2)">—</span>`;
-          const wLink = `${location.origin}/webinar.html?id=${ld.id}&nombre=${encodeURIComponent(ld.nombre||'')}&correo=${encodeURIComponent(ld.correo||'')}`;
+          const clr = stageColor(ld.etapa);
           return `<tr class="${resuelto}" onclick="${resuelto?'':` openLead('${ld.id}')`}">
             <td style="color:var(--text2);display:flex;align-items:center;gap:6px;min-height:36px">${icon}${i+1}</td>
             <td style="font-weight:600;color:#fff">${esc(ld.nombre)}</td>
@@ -1424,6 +1456,7 @@ function renderKanban() {
             <td style="color:var(--text2)">${esc(ld.ubicacion||'—')}</td>
             <td style="color:#c4a8ff;font-weight:600">${esc(ld.inscrito_por||ld.propietario||'—')}</td>
             <td style="color:var(--text2);white-space:nowrap">${fechaIns}</td>
+            ${showEtapaCol ? `<td><span style="display:inline-block;padding:2px 9px;border-radius:20px;font-size:10px;font-weight:600;background:${clr}22;color:${clr};border:1px solid ${clr}44">${esc(ld._etapaLabel)}</span></td>` : ''}
             <td>${pctHtml}</td>
             <td>${tiempoHtml}</td>
             <td onclick="event.stopPropagation()" style="white-space:nowrap">
@@ -1443,49 +1476,12 @@ function renderKanban() {
               </div>
             </td>
           </tr>`;
-        }).join('') : `<tr><td colspan="11" style="text-align:center;padding:40px;color:var(--text2)">Sin leads inscritos</td></tr>`}
+        }).join('') : `<tr><td colspan="${colSpan}" style="text-align:center;padding:40px;color:var(--text2)">Sin leads en esta sección</td></tr>`}
         </tbody>
       </table>`;
-    initResizableCols('inscrito-webinar');
+    initResizableCols('webinar-' + curTab.id);
     return;
   }
-
-  // Aclaratoria para No Asistente
-  const noAsistenteNotice = document.getElementById('no-asistente-notice');
-  if (noAsistenteNotice) noAsistenteNotice.remove();
-  if (activePipelineId === 'en-webinar' && curTab.id === 'no-asistente') {
-    const notice = document.createElement('div');
-    notice.id = 'no-asistente-notice';
-    notice.style.cssText = 'margin:0 0 14px;padding:12px 16px;background:rgba(253,171,61,.08);border:1px solid rgba(253,171,61,.25);border-radius:10px;font-size:12.5px;color:#fdab3d;line-height:1.6;';
-    notice.innerHTML = `<strong>ℹ️ ¿Qué es No Asistente?</strong> Los candidatos aquí fueron inscritos en el webinar. Pasadas <strong>24 horas</strong> sin haber visto el video, entran automáticamente a esta sección.`;
-    tableWrap.parentNode.insertBefore(notice, tableWrap);
-  }
-
-  // Sub-pestañas dentro de una pestaña (ej. No Asistente en Webinar)
-  const subTabsEl = document.getElementById('pipeline-subtabs');
-  if (curTab.subTabs) {
-    const curSubId = getSubTab(activePipelineId, curTab.id);
-    const visibleEtapas = curTab.subTabVisible
-      ? curTab.etapas.filter(e => curTab.subTabVisible.includes(e.v))
-      : curTab.etapas;
-    const allSubs = [{id:'all', nombre:'Todos', etapas: curTab.etapas}]
-      .concat(visibleEtapas.map(e => ({id: e.v, nombre: e.l, etapas:[e]})));
-    subTabsEl.className = 'visible';
-    subTabsEl.innerHTML = allSubs.map(s => {
-      const cnt = leads.filter(l => l.pipeline_id === activePipelineId && s.etapas.some(e => e.v === l.etapa)).length;
-      const clr = stageColor(s.etapas[0]?.v || s.nombre);
-      const isActive = curSubId === s.id;
-      return `<div class="ptab2${isActive ? ' active' : ''}" style="${isActive ? `border-bottom-color:${clr};color:#fff;` : ''}" onclick="selectSubTab('${activePipelineId}','${curTab.id}','${s.id}')">
-        <span class="ptab2-dot" style="background:${clr}"></span>${esc(s.nombre)} <span style="font-size:10px;opacity:.6">(${cnt})</span>
-      </div>`;
-    }).join('');
-    const activeSub = allSubs.find(s => s.id === curSubId) || allSubs[0];
-    renderUniversalTable(activeSub.etapas, activePipelineId, q, activeSub.etapas.length > 1);
-  } else {
-    subTabsEl.className = '';
-    renderUniversalTable(curTab.etapas, activePipelineId, q, curTab.etapas.length > 1);
-  }
-  initResizableCols(activePipelineId + ':' + curTabId);
 }
 
 function renderUniversalTable(stageDefs, pipelineId, q, showEtapa) {
