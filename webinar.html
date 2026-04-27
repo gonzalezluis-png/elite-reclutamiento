@@ -328,11 +328,12 @@ async function saveProgress(final = false) {
     webinar_ultimo_evento: { stringValue: new Date().toISOString() },
   };
   try {
-    const mask = Object.keys(fields).join(',');
+    const mask = Object.keys(fields).join('&updateMask.fieldPaths=');
     await fetch(`${FS_BASE}/leads/${leadId}?key=${FS_KEY}&updateMask.fieldPaths=${mask}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ fields }),
+      keepalive: true,
     });
   } catch(e) {}
 }
