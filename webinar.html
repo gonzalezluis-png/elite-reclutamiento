@@ -3,82 +3,199 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Webinar — Elite Reclutamiento</title>
+<title>Oportunidad Laboral — Webinar</title>
 <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
 :root {
-  --bg:#0f1117; --card:#1a1d2e; --border:#252840;
-  --accent:#0073ea; --accent2:#784bd1;
-  --text:#e8eaf6; --text2:#6b6f8c;
-  --font:'Plus Jakarta Sans','Inter',system-ui,sans-serif;
+  --bg:      #080a0f;
+  --surface: #0e1117;
+  --card:    #131720;
+  --border:  #1e2330;
+  --accent:  #4f7fff;
+  --gold:    #f5c842;
+  --text:    #f0f2ff;
+  --text2:   #5a6070;
+  --text3:   #8890a4;
+  --font:    'Inter', system-ui, sans-serif;
 }
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap');
-html,body{height:100%}
-body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column}
 
-header{width:100%;padding:18px 24px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);background:rgba(15,17,23,.95);backdrop-filter:blur(12px);position:sticky;top:0;z-index:10}
-.logo{display:flex;align-items:center;gap:10px}
-.logo-icon{width:32px;height:32px;background:linear-gradient(135deg,var(--accent),var(--accent2));border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px}
-.logo-text{font-size:14px;font-weight:800;color:#fff;letter-spacing:-.3px}
-.logo-text span{color:var(--accent)}
-.live-badge{display:flex;align-items:center;gap:6px;background:rgba(226,68,92,.12);border:1px solid rgba(226,68,92,.3);color:#e2445c;font-size:11px;font-weight:700;padding:4px 10px;border-radius:99px;letter-spacing:.5px}
-.live-badge::before{content:'';width:6px;height:6px;background:#e2445c;border-radius:50%;animation:pulse 1.5s infinite}
-@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.8)}}
+html, body { height: 100%; }
+body { font-family: var(--font); background: var(--bg); color: var(--text); min-height: 100vh; }
 
-.hero{width:100%;max-width:900px;margin:0 auto;padding:32px 20px 0}
-.hero-label{display:inline-flex;align-items:center;gap:6px;background:rgba(0,115,234,.12);border:1px solid rgba(0,115,234,.25);color:var(--accent);font-size:11px;font-weight:700;padding:5px 12px;border-radius:99px;margin-bottom:14px;letter-spacing:.5px;text-transform:uppercase}
-.hero-title{font-size:clamp(20px,4vw,30px);font-weight:800;color:#fff;line-height:1.25;margin-bottom:8px}
-.hero-sub{font-size:14px;color:var(--text2);margin-bottom:24px;line-height:1.6}
+/* ── HERO ── */
+.hero-section {
+  width: 100%;
+  background: linear-gradient(180deg, #0a0e1a 0%, var(--bg) 100%);
+  padding: 60px 20px 48px;
+  text-align: center;
+  border-bottom: 1px solid var(--border);
+  position: relative;
+  overflow: hidden;
+}
+.hero-section::before {
+  content: '';
+  position: absolute;
+  top: -120px; left: 50%; transform: translateX(-50%);
+  width: 600px; height: 300px;
+  background: radial-gradient(ellipse, rgba(79,127,255,.12) 0%, transparent 70%);
+  pointer-events: none;
+}
+.hero-tag {
+  display: inline-flex; align-items: center; gap: 7px;
+  background: rgba(79,127,255,.1); border: 1px solid rgba(79,127,255,.2);
+  color: var(--accent); font-size: 11px; font-weight: 600;
+  padding: 5px 14px; border-radius: 99px; margin-bottom: 20px;
+  letter-spacing: .8px; text-transform: uppercase;
+}
+.hero-tag::before { content: ''; width: 6px; height: 6px; background: var(--accent); border-radius: 50%; animation: blink 2s infinite; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.3} }
 
-.player-container{width:100%;max-width:900px;margin:0 auto;padding:0 20px 0}
-.player-wrap{position:relative;border-radius:14px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.6),0 0 0 1px var(--border);background:#000}
+.hero-title {
+  font-size: clamp(24px, 5vw, 42px);
+  font-weight: 800; color: #fff; line-height: 1.15;
+  letter-spacing: -.5px; margin-bottom: 16px;
+}
+.hero-title em { font-style: normal; color: var(--accent); }
+.hero-sub {
+  font-size: 15px; color: var(--text3); max-width: 520px;
+  margin: 0 auto 32px; line-height: 1.7;
+}
+.hero-stats {
+  display: inline-flex; gap: 32px; flex-wrap: wrap;
+  justify-content: center; margin-top: 8px;
+}
+.hero-stat { text-align: center; }
+.hero-stat-num { font-size: 22px; font-weight: 800; color: #fff; }
+.hero-stat-label { font-size: 11px; color: var(--text2); margin-top: 2px; text-transform: uppercase; letter-spacing: .5px; }
 
-/* barra falsa dentro del player */
-.fake-progress-bar{position:absolute;bottom:52px;left:0;right:0;height:4px;background:rgba(255,255,255,.15);z-index:10;pointer-events:none;opacity:1;transition:opacity .3s ease}
-.plyr--hide-controls .fake-progress-bar{opacity:0}
-.fake-progress-fill{height:100%;width:0%;background:linear-gradient(90deg,#0073ea,#784bd1);transition:width 1s cubic-bezier(.25,.46,.45,.94)}
+/* ── PLAYER ── */
+.player-section { width: 100%; max-width: 860px; margin: 0 auto; padding: 40px 20px 0; }
+.player-label { font-size: 11px; font-weight: 600; color: var(--text2); text-transform: uppercase; letter-spacing: .8px; margin-bottom: 12px; }
+.player-wrap {
+  position: relative; border-radius: 12px; overflow: hidden;
+  box-shadow: 0 0 0 1px var(--border), 0 32px 80px rgba(0,0,0,.8);
+  background: #000;
+}
+.fake-progress-bar {
+  position: absolute; bottom: 50px; left: 0; right: 0;
+  height: 3px; background: rgba(255,255,255,.1);
+  z-index: 10; pointer-events: none;
+  opacity: 1; transition: opacity .3s;
+}
+.plyr--hide-controls .fake-progress-bar { opacity: 0; }
+.fake-progress-fill {
+  height: 100%; width: 0%;
+  background: linear-gradient(90deg, var(--accent), #a78bfa);
+  transition: width 1s cubic-bezier(.25,.46,.45,.94);
+}
+.plyr--video { border-radius: 12px; }
+.plyr__control--overlaid { background: var(--accent) !important; }
+.plyr--full-ui input[type=range] { color: var(--accent); }
+.plyr__time, .plyr__progress { display: none !important; }
 
-/* plyr overrides */
-.plyr--video{border-radius:14px}
-.plyr__control--overlaid{background:var(--accent)!important}
-.plyr--full-ui input[type=range]{color:var(--accent)}
-.plyr__time,.plyr__progress{display:none!important}
+/* viewer pill */
+.viewer-pill {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 99px; padding: 6px 14px 6px 8px;
+  margin-top: 16px; font-size: 12px; color: var(--text3);
+}
+.viewer-pill-avatar {
+  width: 22px; height: 22px; border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent), #a78bfa);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10px; font-weight: 700; color: #fff;
+}
+.viewer-pill strong { color: var(--text); font-weight: 600; }
 
-.viewer-bar{width:100%;max-width:900px;margin:0 auto;padding:12px 20px 16px;display:flex;align-items:center;gap:8px}
-.viewer-avatar{width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff;flex-shrink:0}
-.viewer-name{font-size:12.5px;color:var(--text2)}
-.viewer-name strong{color:var(--text);font-weight:600}
+/* ── DIVIDER ── */
+.section-divider {
+  width: 100%; max-width: 860px; margin: 56px auto 0;
+  padding: 0 20px;
+  display: flex; align-items: center; gap: 16px;
+}
+.section-divider-line { flex: 1; height: 1px; background: var(--border); }
+.section-divider-label { font-size: 11px; font-weight: 600; color: var(--text2); text-transform: uppercase; letter-spacing: 1px; white-space: nowrap; }
 
-footer{margin-top:auto;text-align:center;padding:20px;font-size:11px;color:var(--text2);border-top:1px solid var(--border)}
+/* ── FAQ ── */
+.faq-section { width: 100%; max-width: 860px; margin: 0 auto; padding: 24px 20px 80px; }
+.faq-item {
+  border: 1px solid var(--border); border-radius: 10px;
+  margin-bottom: 10px; overflow: hidden;
+  background: var(--card); transition: border-color .2s;
+}
+.faq-item:hover { border-color: #2a3044; }
+.faq-item.open { border-color: rgba(79,127,255,.3); }
+.faq-q {
+  width: 100%; display: flex; align-items: center; justify-content: space-between;
+  gap: 16px; padding: 18px 20px; cursor: pointer;
+  background: none; border: none; color: var(--text);
+  font-family: var(--font); font-size: 14px; font-weight: 600;
+  text-align: left;
+}
+.faq-q:hover { color: #fff; }
+.faq-icon {
+  width: 22px; height: 22px; border-radius: 50%;
+  background: var(--border); display: flex; align-items: center;
+  justify-content: center; flex-shrink: 0;
+  font-size: 14px; color: var(--text3); transition: transform .3s, background .2s;
+}
+.faq-item.open .faq-icon { transform: rotate(45deg); background: rgba(79,127,255,.2); color: var(--accent); }
+.faq-a {
+  max-height: 0; overflow: hidden;
+  transition: max-height .35s ease, padding .35s ease;
+  padding: 0 20px; color: var(--text3); font-size: 13.5px; line-height: 1.75;
+}
+.faq-item.open .faq-a { max-height: 300px; padding: 0 20px 20px; }
 
-@media(max-width:600px){
-  header{padding:14px 16px}
-  .hero{padding:20px 16px 0}
-  .player-container{padding:0 0 0}
-  .player-wrap{border-radius:0;box-shadow:none}
-  .fake-progress-bar{bottom:48px}
-  .viewer-bar{padding:12px 16px}
+/* ── FOOTER ── */
+footer {
+  text-align: center; padding: 24px 20px;
+  font-size: 11px; color: var(--text2);
+  border-top: 1px solid var(--border);
+}
+
+/* MOBILE */
+@media (max-width: 600px) {
+  .hero-section { padding: 40px 16px 32px; }
+  .hero-stats { gap: 20px; }
+  .player-section { padding: 28px 0 0; }
+  .player-wrap { border-radius: 0; }
+  .fake-progress-bar { bottom: 48px; }
+  .section-divider, .faq-section { padding-left: 16px; padding-right: 16px; }
 }
 </style>
 </head>
 <body>
 
-<header>
-  <div class="logo">
-    <div class="logo-icon">🚀</div>
-    <div class="logo-text">Elite <span>Reclutamiento</span></div>
+<!-- HERO -->
+<div class="hero-section">
+  <div class="hero-tag">En vivo bajo demanda</div>
+  <h1 class="hero-title">Descubre una <em>Oportunidad Laboral</em><br>que puede cambiar tu vida</h1>
+  <p class="hero-sub">Mira el video completo y entérate de todo lo que necesitas saber antes de tu entrevista.</p>
+  <div class="hero-stats">
+    <div class="hero-stat">
+      <div class="hero-stat-num">27 min</div>
+      <div class="hero-stat-label">Duración</div>
+    </div>
+    <div class="hero-stat">
+      <div class="hero-stat-num">100%</div>
+      <div class="hero-stat-label">Gratuito</div>
+    </div>
+    <div class="hero-stat">
+      <div class="hero-stat-num">+500</div>
+      <div class="hero-stat-label">Personas contratadas</div>
+    </div>
   </div>
-  <div class="live-badge">ON DEMAND</div>
-</header>
-
-<div class="hero">
-  <div class="hero-label">🎥 Webinar exclusivo</div>
-  <h1 class="hero-title">Oportunidad Laboral —<br>Todo lo que necesitas saber</h1>
-  <p class="hero-sub">Descubre cómo unirte a nuestro equipo y transformar tu carrera profesional.</p>
 </div>
 
-<div class="player-container">
+<!-- PLAYER -->
+<div class="player-section">
+  <div class="player-label">▶ Reproducir webinar</div>
   <div class="player-wrap">
     <video id="player" playsinline controls>
       <source src="https://f005.backblazeb2.com/file/elite-webinar/Webinar+abril+2026.mp4" type="video/mp4" />
@@ -87,17 +204,86 @@ footer{margin-top:auto;text-align:center;padding:20px;font-size:11px;color:var(-
       <div class="fake-progress-fill" id="custom-fill"></div>
     </div>
   </div>
+  <div id="viewer-bar" style="display:none">
+    <div class="viewer-pill">
+      <div class="viewer-pill-avatar" id="viewer-avatar">?</div>
+      <span id="viewer-name"></span>
+    </div>
+  </div>
 </div>
 
-<div class="viewer-bar" id="viewer-bar" style="display:none">
-  <div class="viewer-avatar" id="viewer-avatar">?</div>
-  <div class="viewer-name" id="viewer-name"></div>
+<!-- FAQ -->
+<div class="section-divider">
+  <div class="section-divider-line"></div>
+  <div class="section-divider-label">Preguntas frecuentes</div>
+  <div class="section-divider-line"></div>
 </div>
 
-<footer>© 2026 Elite Reclutamiento · Todos los derechos reservados</footer>
+<div class="faq-section">
+
+  <div class="faq-item">
+    <button class="faq-q" onclick="toggleFaq(this)">
+      ¿Necesito experiencia previa para aplicar?
+      <span class="faq-icon">+</span>
+    </button>
+    <div class="faq-a">No es necesario tener experiencia previa. Contamos con un programa de formación completo donde te enseñamos todo lo que necesitas saber para tener éxito en el puesto desde el primer día.</div>
+  </div>
+
+  <div class="faq-item">
+    <button class="faq-q" onclick="toggleFaq(this)">
+      ¿Cuál es el horario de trabajo?
+      <span class="faq-icon">+</span>
+    </button>
+    <div class="faq-a">Ofrecemos horarios flexibles adaptados a tu estilo de vida. Puedes trabajar desde casa o desde cualquier lugar con conexión a internet, con total autonomía para organizar tu tiempo.</div>
+  </div>
+
+  <div class="faq-item">
+    <button class="faq-q" onclick="toggleFaq(this)">
+      ¿Cuánto puedo ganar?
+      <span class="faq-icon">+</span>
+    </button>
+    <div class="faq-a">Los ingresos dependen de tu desempeño y dedicación. En el webinar explicamos con detalle el plan de compensación, que incluye comisiones, bonos y beneficios adicionales. Muchos de nuestros colaboradores superan los $3,000 USD mensuales.</div>
+  </div>
+
+  <div class="faq-item">
+    <button class="faq-q" onclick="toggleFaq(this)">
+      ¿Es necesario invertir dinero para empezar?
+      <span class="faq-icon">+</span>
+    </button>
+    <div class="faq-a">No. Unirte a nuestro equipo es completamente gratuito. No hay cuotas de inscripción, ni compras obligatorias. Solo necesitas disposición y ganas de crecer.</div>
+  </div>
+
+  <div class="faq-item">
+    <button class="faq-q" onclick="toggleFaq(this)">
+      ¿Cuál es el siguiente paso después de ver el webinar?
+      <span class="faq-icon">+</span>
+    </button>
+    <div class="faq-a">Uno de nuestros coordinadores se pondrá en contacto contigo para agendar una entrevista personalizada. Asegúrate de tener tu teléfono disponible en las próximas 24 horas.</div>
+  </div>
+
+  <div class="faq-item">
+    <button class="faq-q" onclick="toggleFaq(this)">
+      ¿Puedo trabajar desde cualquier estado o país?
+      <span class="faq-icon">+</span>
+    </button>
+    <div class="faq-a">Sí. La posición es 100% remota, por lo que puedes trabajar desde cualquier lugar de Estados Unidos. Solo necesitas una computadora o teléfono inteligente y acceso a internet.</div>
+  </div>
+
+</div>
+
+<footer>© 2026 · Todos los derechos reservados</footer>
 
 <script src="https://cdn.plyr.io/3.7.8/plyr.polyfilled.js"></script>
 <script>
+// FAQ
+function toggleFaq(btn) {
+  const item = btn.closest('.faq-item');
+  const isOpen = item.classList.contains('open');
+  document.querySelectorAll('.faq-item.open').forEach(el => el.classList.remove('open'));
+  if (!isOpen) item.classList.add('open');
+}
+
+// TRACKING
 const FS_PROJECT = 'elite-reclutamiento-crm';
 const FS_KEY     = 'AIzaSyCW2t1oHb7xc2Vi6vJROGRM7E7nu-CbU3s';
 const FS_BASE    = `https://firestore.googleapis.com/v1/projects/${FS_PROJECT}/databases/(default)/documents`;
@@ -108,16 +294,16 @@ const nombre = decodeURIComponent(params.get('nombre') || '');
 const correo = decodeURIComponent(params.get('correo') || '');
 
 if (nombre) {
-  document.getElementById('viewer-bar').style.display = 'flex';
+  document.getElementById('viewer-bar').style.display = 'block';
   document.getElementById('viewer-avatar').textContent = nombre[0].toUpperCase();
-  document.getElementById('viewer-name').innerHTML = `Viendo como: <strong>${nombre}</strong>&nbsp;·&nbsp;${correo}`;
+  document.getElementById('viewer-name').innerHTML = `Viendo como: <strong>${nombre}</strong>`;
 }
 
 let pauseCount = 0, watchedSecs = 0, maxPct = 0;
 let lastSave = 0, playing = false, completed = false;
 let sessionStart = new Date().toISOString();
 
-function easedPct(real) { return (1 - Math.pow(1 - real / 100, 5)) * 100; }
+function easedPct(r) { return (1 - Math.pow(1 - r / 100, 5)) * 100; }
 function updateBar(p) { document.getElementById('custom-fill').style.width = easedPct(p).toFixed(1) + '%'; }
 
 async function saveProgress(final = false) {
@@ -146,7 +332,6 @@ async function saveProgress(final = false) {
 const player = new Plyr('#player', {
   controls: ['play-large','play','mute','volume','fullscreen'],
 });
-
 player.on('play',  () => { playing = true; });
 player.on('pause', () => { if (playing) pauseCount++; playing = false; saveProgress(); });
 player.on('timeupdate', () => {
