@@ -2585,11 +2585,12 @@ async function enviarLinkPorCorreo(leadId) {
   showToast('📧 Enviando correo…');
 
   try {
-    await fetch(MAILER_URL, {
-      method: 'POST',
-      mode: 'no-cors',
-      body: JSON.stringify({ nombre: lead.nombre || 'Candidato', to_email: lead.correo, link }),
+    const params = new URLSearchParams({
+      nombre: lead.nombre || 'Candidato',
+      to_email: lead.correo,
+      link,
     });
+    await fetch(MAILER_URL + '?' + params.toString(), { mode: 'no-cors' });
     showToast('✅ Correo enviado a ' + lead.correo);
     addHistorial(leadId, `Link del webinar enviado por correo a ${lead.correo}`, '📧');
     lead.webinar_email_enviado = new Date().toISOString();
