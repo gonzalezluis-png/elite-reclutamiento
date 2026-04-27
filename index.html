@@ -1396,7 +1396,7 @@ function renderKanban() {
         <thead><tr>
           <th>#</th><th>Nombre</th><th>Correo</th><th>Teléfono</th><th>Fuente</th>
           <th>Ubicación</th><th>Inscrito por</th><th>Fecha de inscripción</th>
-          <th>% Visto</th><th>Link Webinar</th><th>Acciones</th>
+          <th>% Visto</th><th>Tiempo visto</th><th>Link Webinar</th><th>Acciones</th>
         </tr></thead>
 
         <tbody>${rows.length ? rows.map((ld, i) => {
@@ -1410,6 +1410,10 @@ function renderKanban() {
           const pctHtml = pct != null
             ? `<span style="font-weight:700;color:${pctColor}">${pct}%</span>`
             : `<span style="color:var(--text2)">—</span>`;
+          const segs = ld.webinar_tiempo_visto != null ? Number(ld.webinar_tiempo_visto) : null;
+          const tiempoHtml = segs != null && segs > 0
+            ? (() => { const m = Math.floor(segs/60), s = Math.round(segs%60); return `<span style="color:var(--text);font-weight:600">${m}m ${s.toString().padStart(2,'0')}s</span>`; })()
+            : `<span style="color:var(--text2)">—</span>`;
           const wLink = `${location.origin}/webinar.html?id=${ld.id}&nombre=${encodeURIComponent(ld.nombre||'')}&correo=${encodeURIComponent(ld.correo||'')}`;
           return `<tr class="${resuelto}" onclick="${resuelto?'':` openLead('${ld.id}')`}">
             <td style="color:var(--text2);display:flex;align-items:center;gap:6px;min-height:36px">${icon}${i+1}</td>
@@ -1421,6 +1425,7 @@ function renderKanban() {
             <td style="color:#c4a8ff;font-weight:600">${esc(ld.inscrito_por||ld.propietario||'—')}</td>
             <td style="color:var(--text2);white-space:nowrap">${fechaIns}</td>
             <td>${pctHtml}</td>
+            <td>${tiempoHtml}</td>
             <td onclick="event.stopPropagation()" style="white-space:nowrap">
               <div style="display:flex;align-items:center;gap:6px">
                 <span style="color:var(--text2);font-size:11px">webinar/?id=${ld.id.slice(0,6)}…</span>
