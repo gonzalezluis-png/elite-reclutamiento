@@ -833,6 +833,8 @@ const PIPELINES = [
     tabs: [
       { id:'inscrito', nombre:'Inscrito en Webinar', sidebar:false, tableView:true,
         etapas:[{v:'Inscrito en Webinar', l:'Inscrito en Webinar'}] },
+      { id:'visto', nombre:'👁 Visto', sidebar:false, tableView:true,
+        etapas:[{v:'Visto el Webinar', l:'Visto el Webinar'}] },
       { id:'no-asistente', nombre:'No Asistente', sidebar:true,
         etapas:[
           {v:'NA - No Asistente',            l:'No Asistente'},
@@ -861,7 +863,7 @@ const PIPELINES = [
         subTabs: true,
         subTabVisible: ['AS - Asistente','AS - 1er intento de contacto','AS - 2do intento de contacto','AS - 3er intento de contacto'] },
     ],
-    etapas:['Inscrito en Webinar','NA - No Asistente','NA - 1er intento de contacto','NA - 2do intento de contacto','NA - 3er intento de contacto','NA - Reinscrito en Webinar','NA - No contactado','NA - No interesado','NA - No Califica','NA - Para Entrevista','AS - Asistente','AS - 1er intento de contacto','AS - 2do intento de contacto','AS - 3er intento de contacto','AS - No contactado','AS - No interesado','AS - No Califica','AS - Para Entrevista'] },
+    etapas:['Inscrito en Webinar','Visto el Webinar','NA - No Asistente','NA - 1er intento de contacto','NA - 2do intento de contacto','NA - 3er intento de contacto','NA - Reinscrito en Webinar','NA - No contactado','NA - No interesado','NA - No Califica','NA - Para Entrevista','AS - Asistente','AS - 1er intento de contacto','AS - 2do intento de contacto','AS - 3er intento de contacto','AS - No contactado','AS - No interesado','AS - No Califica','AS - Para Entrevista'] },
   { id:'entrevistas-generales', nombre:'ENTREVISTAS GENERALES', icon:'🤝', visible:true,
     etapas:['EN ENTREVISTA','NO SHOW','ENVIAR a Caritza Rojas','ENVIAR a Maria Lugo','ENVIAR a Bryan Palacios','Contratados Personales'] },
   { id:'maria-lugo', nombre:'ENTREVISTA: MARIA LUGO', icon:'👤', visible:false,
@@ -1369,27 +1371,33 @@ function renderKanban() {
 
   // Inscrito en Webinar → tabla especial con acciones ASISTENTE/NO ASISTENTE
   if (curTab.tableView) {
-    const tableEtapa = curTab.etapas[0]?.v || '';
+    const tableEtapas = curTab.etapas.map(e => e.v);
     const rows = leads.filter(ld =>
       ld.pipeline_id === activePipelineId &&
-      (ld.etapa === tableEtapa || ld.inscrito_webinar) &&
+      (tableEtapas.includes(ld.etapa) || (curTab.id === 'inscrito' && ld.inscrito_webinar)) &&
       (!q || [ld.nombre, ld.correo, ld.telefono, ld.fuente, ld.nombre_lead].join(' ').toLowerCase().includes(q))
     );
     const srcClass = s => ({'Meta / Facebook':'meta','Instagram':'ig','WhatsApp':'wa','Referido':'ref'}[s]||'otro');
+    const isVisto = curTab.id === 'visto';
     tableWrap.innerHTML = `
       <table class="leads-table">
         <thead><tr>
           <th>#</th><th>Nombre</th><th>Correo</th><th>Teléfono</th><th>Fuente</th>
-          <th>Ubicación</th><th>Inscrito por</th><th>Fecha de inscripción</th><th>Fecha</th><th>Acciones</th>
+          <th>Ubicación</th><th>Inscrito por</th><th>Fecha de inscripción</th>
+          <th>% Visto</th><th>Acciones</th>
         </tr></thead>
 
         <tbody>${rows.length ? rows.map((ld, i) => {
-          const date = ld.created_at ? new Date(ld.created_at).toLocaleDateString('es-MX',{day:'2-digit',month:'short',year:'numeric'}) : '';
           const accion = ld.webinar_accion || 'sin-registro';
           const accionLabel = accion==='asistente'?'ASISTENTE':accion==='no-asistente'?'NO ASISTENTE':'SIN REGISTRO';
           const resuelto = accion !== 'sin-registro' ? 'lead-resuelto' : '';
           const fechaIns = ld.fecha_inscripcion_webinar ? new Date(ld.fecha_inscripcion_webinar).toLocaleDateString('es-MX',{day:'2-digit',month:'short',year:'numeric'}) : '—';
           const icon = accion==='asistente'?`<span class="lead-status-icon asistente">✓</span>`:accion==='no-asistente'?`<span class="lead-status-icon no-asistente">✗</span>`:'';
+          const pct = ld.webinar_visto_pct != null ? Number(ld.webinar_visto_pct) : null;
+          const pctColor = pct == null ? 'var(--text2)' : pct >= 80 ? '#00c875' : pct >= 40 ? '#fdab3d' : '#e2445c';
+          const pctHtml = pct != null
+            ? `<span style="font-weight:700;color:${pctColor}">${pct}%</span>`
+            : `<span style="color:var(--text2)">—</span>`;
           return `<tr class="${resuelto}" onclick="${resuelto?'':` openLead('${ld.id}')`}">
             <td style="color:var(--text2);display:flex;align-items:center;gap:6px;min-height:36px">${icon}${i+1}</td>
             <td style="font-weight:600;color:#fff">${esc(ld.nombre)}</td>
@@ -1399,7 +1407,7 @@ function renderKanban() {
             <td style="color:var(--text2)">${esc(ld.ubicacion||'—')}</td>
             <td style="color:#c4a8ff;font-weight:600">${esc(ld.inscrito_por||ld.propietario||'—')}</td>
             <td style="color:var(--text2);white-space:nowrap">${fechaIns}</td>
-            <td style="color:var(--text2);white-space:nowrap">${date}</td>
+            <td>${pctHtml}</td>
             <td onclick="event.stopPropagation()">
               <div class="lt-accion-btn">
                 <button class="lt-accion-trigger ${accion}" onclick="toggleAccionMenu(event,'${ld.id}')">${accionLabel} ▾</button>
@@ -1411,7 +1419,7 @@ function renderKanban() {
               </div>
             </td>
           </tr>`;
-        }).join('') : `<tr><td colspan="10" style="text-align:center;padding:40px;color:var(--text2)">Sin leads inscritos</td></tr>`}
+        }).join('') : `<tr><td colspan="10" style="text-align:center;padding:40px;color:var(--text2)">Sin leads${isVisto?' que hayan visto el webinar':' inscritos'}</td></tr>`}
         </tbody>
       </table>`;
     initResizableCols('inscrito-webinar');
@@ -2610,6 +2618,22 @@ populatePipelineSelects();
 renderSidebar();
 selectPipeline('postulados-meta');
 
+function autoMoverVistos() {
+  let changed = false;
+  leads.forEach(ld => {
+    if (ld.pipeline_id === 'en-webinar' && ld.etapa === 'Inscrito en Webinar') {
+      const pct = Number(ld.webinar_visto_pct || 0);
+      if (pct >= 40) {
+        ld.etapa = 'Visto el Webinar';
+        addHistorial(ld.id, `Movido a "Visto el Webinar" automáticamente (${pct}% visto)`, '👁');
+        fsSaveLead(ld);
+        changed = true;
+      }
+    }
+  });
+  if (changed) { renderKanban(); renderSidebar(); }
+}
+
 // Cargar desde Firestore
 (async () => {
   try {
@@ -2617,6 +2641,7 @@ selectPipeline('postulados-meta');
     if (fsLeads.length > 0) {
       leads = fsLeads;
       localStorage.setItem('er_leads', JSON.stringify(leads));
+      autoMoverVistos();
       renderSidebar();
       renderKanban();
       showToast(`☁️ ${fsLeads.length} leads cargados desde Firestore`);
