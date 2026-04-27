@@ -1012,7 +1012,10 @@ function doLogin() {
     document.getElementById('user-role').textContent = user.role;
     document.getElementById('user-avatar').textContent = user.name[0];
     renderSidebar();
-    selectPipeline('postulados-meta');
+    const _lp = localStorage.getItem('er_active_pipeline') || 'postulados-meta';
+    const _lt = localStorage.getItem('er_active_tab');
+    if (_lt) setPipeTab(_lp, _lt);
+    selectPipeline(_lp);
     populatePipelineSelects();
   } else {
     errEl.textContent = 'Correo o contraseña incorrectos.';
@@ -1104,12 +1107,15 @@ function selectPipeline(id) {
   document.getElementById('calendar-view').classList.remove('active');
   document.getElementById('config-view').style.display = 'none';
   document.getElementById('search-input').style.display = '';
+  localStorage.setItem('er_active_pipeline', id);
+  localStorage.setItem('er_active_tab', getPipeTab(id));
   renderSidebar();
   renderKanban();
 }
 
 function selectWebinarTab(tabId) {
   setPipeTab(activePipelineId, tabId);
+  localStorage.setItem('er_active_tab', tabId);
   renderSidebar();
   renderKanban();
 }
@@ -2614,7 +2620,10 @@ document.getElementById('user-role').textContent = currentUser.role;
 document.getElementById('user-avatar').textContent = currentUser.name[0];
 populatePipelineSelects();
 renderSidebar();
-selectPipeline('postulados-meta');
+const _savedPipeline = localStorage.getItem('er_active_pipeline') || 'postulados-meta';
+const _savedTab      = localStorage.getItem('er_active_tab');
+if (_savedTab) setPipeTab(_savedPipeline, _savedTab);
+selectPipeline(_savedPipeline);
 
 function autoMoverVistos() {
   let changed = false;
