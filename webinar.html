@@ -64,13 +64,34 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
   font-size: 15px; color: var(--text3); max-width: 520px;
   margin: 0 auto 32px; line-height: 1.7;
 }
-.hero-stats {
-  display: inline-flex; gap: 32px; flex-wrap: wrap;
-  justify-content: center; margin-top: 8px;
+.sponsor-label {
+  font-size: 10px; font-weight: 600; color: var(--text2);
+  text-transform: uppercase; letter-spacing: 1.2px; margin-bottom: 14px;
 }
-.hero-stat { text-align: center; }
-.hero-stat-num { font-size: 22px; font-weight: 800; color: #fff; }
-.hero-stat-label { font-size: 11px; color: var(--text2); margin-top: 2px; text-transform: uppercase; letter-spacing: .5px; }
+.sponsor-row {
+  display: flex; gap: 8px; flex-wrap: wrap;
+  justify-content: center; align-items: flex-end;
+}
+.sponsor-chip {
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.07);
+  border-radius: 10px; padding: 10px 11px;
+  transition: background .15s, border-color .15s;
+}
+.sponsor-chip:hover { background: rgba(255,255,255,.08); border-color: rgba(255,255,255,.14); }
+.sponsor-logo {
+  width: 46px; height: 46px; object-fit: contain; display: block;
+  filter: drop-shadow(0 2px 6px rgba(0,0,0,.5));
+}
+.sponsor-avatar {
+  width: 46px; height: 46px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 800; color: #fff;
+}
+.sponsor-name {
+  font-size: 9px; color: var(--text3); text-align: center;
+  line-height: 1.35; font-weight: 600; max-width: 66px;
+}
 
 /* ── PLAYER ── */
 .player-section { width: 100%; max-width: 860px; margin: 0 auto; padding: 40px 20px 0; }
@@ -214,6 +235,9 @@ footer {
   .section-divider, .faq-section { padding-left: 16px; padding-right: 16px; }
   .cta-section { padding-left: 16px; padding-right: 16px; }
   .cta-card { padding: 28px 20px; }
+  .sponsor-chip { padding: 8px 9px; }
+  .sponsor-logo, .sponsor-avatar { width: 38px; height: 38px; }
+  .sponsor-name { font-size: 8.5px; }
 }
 </style>
 </head>
@@ -224,19 +248,52 @@ footer {
   <div class="hero-tag">En vivo bajo demanda</div>
   <h1 class="hero-title">Descubre una <em>Oportunidad Laboral</em><br>que puede cambiar tu vida</h1>
   <p class="hero-sub">Mira el video completo y entérate de todo lo que necesitas saber antes de tu entrevista.</p>
-  <div class="hero-stats">
-    <div class="hero-stat">
-      <div class="hero-stat-num">27 min</div>
-      <div class="hero-stat-label">Duración</div>
+  <div class="sponsor-label">Patrocinador oficial de</div>
+  <div class="sponsor-row">
+
+    <div class="sponsor-chip">
+      <img class="sponsor-logo" src="https://a.espncdn.com/i/teamlogos/mlb/500/tex.png" alt="Texas Rangers"
+           onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+      <div class="sponsor-avatar" style="display:none;background:#003278">TR</div>
+      <div class="sponsor-name">Texas<br>Rangers</div>
     </div>
-    <div class="hero-stat">
-      <div class="hero-stat-num">100%</div>
-      <div class="hero-stat-label">Gratuito</div>
+
+    <div class="sponsor-chip">
+      <img class="sponsor-logo" src="https://a.espncdn.com/i/teamlogos/nfl/500/dal.png" alt="Dallas Cowboys"
+           onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+      <div class="sponsor-avatar" style="display:none;background:#003594">DC</div>
+      <div class="sponsor-name">Dallas<br>Cowboys</div>
     </div>
-    <div class="hero-stat">
-      <div class="hero-stat-num">+500</div>
-      <div class="hero-stat-label">Personas contratadas</div>
+
+    <div class="sponsor-chip">
+      <img class="sponsor-logo" src="https://a.espncdn.com/i/teamlogos/nba/500/lal.png" alt="LA Lakers"
+           onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+      <div class="sponsor-avatar" style="display:none;background:#552583">LAL</div>
+      <div class="sponsor-name">LA<br>Lakers</div>
     </div>
+
+    <div class="sponsor-chip">
+      <img class="sponsor-logo" src="https://a.espncdn.com/i/teamlogos/soccer/500/272.png" alt="FC Dallas"
+           onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+      <div class="sponsor-avatar" style="display:none;background:#BF0D3E">FCD</div>
+      <div class="sponsor-name">FC<br>Dallas</div>
+    </div>
+
+    <div class="sponsor-chip">
+      <div class="sponsor-avatar" style="background:#005596">AA</div>
+      <div class="sponsor-name">Allen<br>Americans</div>
+    </div>
+
+    <div class="sponsor-chip">
+      <div class="sponsor-avatar" style="background:#c8a100;font-size:10px">RFR</div>
+      <div class="sponsor-name">Roush Fenway<br>Racing</div>
+    </div>
+
+    <div class="sponsor-chip">
+      <div class="sponsor-avatar" style="background:#003087;font-size:10px">CUSA</div>
+      <div class="sponsor-name">Conference<br>USA</div>
+    </div>
+
   </div>
 </div>
 
