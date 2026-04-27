@@ -833,8 +833,6 @@ const PIPELINES = [
     tabs: [
       { id:'inscrito', nombre:'Inscrito en Webinar', sidebar:false, tableView:true,
         etapas:[{v:'Inscrito en Webinar', l:'Inscrito en Webinar'}] },
-      { id:'visto', nombre:'👁 Visto', sidebar:false, tableView:true,
-        etapas:[{v:'Visto el Webinar', l:'Visto el Webinar'}] },
       { id:'no-asistente', nombre:'No Asistente', sidebar:true,
         etapas:[
           {v:'NA - No Asistente',            l:'No Asistente'},
@@ -863,7 +861,7 @@ const PIPELINES = [
         subTabs: true,
         subTabVisible: ['AS - Asistente','AS - 1er intento de contacto','AS - 2do intento de contacto','AS - 3er intento de contacto'] },
     ],
-    etapas:['Inscrito en Webinar','Visto el Webinar','NA - No Asistente','NA - 1er intento de contacto','NA - 2do intento de contacto','NA - 3er intento de contacto','NA - Reinscrito en Webinar','NA - No contactado','NA - No interesado','NA - No Califica','NA - Para Entrevista','AS - Asistente','AS - 1er intento de contacto','AS - 2do intento de contacto','AS - 3er intento de contacto','AS - No contactado','AS - No interesado','AS - No Califica','AS - Para Entrevista'] },
+    etapas:['Inscrito en Webinar','NA - No Asistente','NA - 1er intento de contacto','NA - 2do intento de contacto','NA - 3er intento de contacto','NA - Reinscrito en Webinar','NA - No contactado','NA - No interesado','NA - No Califica','NA - Para Entrevista','AS - Asistente','AS - 1er intento de contacto','AS - 2do intento de contacto','AS - 3er intento de contacto','AS - No contactado','AS - No interesado','AS - No Califica','AS - Para Entrevista'] },
   { id:'entrevistas-generales', nombre:'ENTREVISTAS GENERALES', icon:'🤝', visible:true,
     etapas:['EN ENTREVISTA','NO SHOW','ENVIAR a Caritza Rojas','ENVIAR a Maria Lugo','ENVIAR a Bryan Palacios','Contratados Personales'] },
   { id:'maria-lugo', nombre:'ENTREVISTA: MARIA LUGO', icon:'👤', visible:false,
@@ -2624,8 +2622,8 @@ function autoMoverVistos() {
     if (ld.pipeline_id === 'en-webinar' && ld.etapa === 'Inscrito en Webinar') {
       const pct = Number(ld.webinar_visto_pct || 0);
       if (pct >= 40) {
-        ld.etapa = 'Visto el Webinar';
-        addHistorial(ld.id, `Movido a "Visto el Webinar" automáticamente (${pct}% visto)`, '👁');
+        ld.etapa = 'AS - Asistente';
+        addHistorial(ld.id, `Movido a Asistente automáticamente (${pct}% del webinar visto)`, '✅');
         fsSaveLead(ld);
         changed = true;
       }
