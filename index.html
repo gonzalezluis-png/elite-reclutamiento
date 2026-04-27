@@ -1881,7 +1881,8 @@ function sendToWebinar() {
     addHistorial(lead.id, `Enviado a Webinar (desde ${prev})`, '🎥');
     saveLeads(lead.id);
     const wUrl = `/webinar.html?id=${lead.id}&nombre=${encodeURIComponent(lead.nombre||'')}&correo=${encodeURIComponent(lead.correo||'')}`;
-    window.open(wUrl, '_blank');
+    const _a = Object.assign(document.createElement('a'), { href: wUrl, target: '_blank', rel: 'noopener' });
+    document.body.appendChild(_a); _a.click(); document.body.removeChild(_a);
   }
   celebrateWebinar();
   renderKanban();
