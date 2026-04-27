@@ -1,9 +1,11 @@
 {
   "version": 2,
   "builds": [
-    { "src": "index.html", "use": "@vercel/static" }
+    { "src": "index.html",   "use": "@vercel/static" },
+    { "src": "webinar.html", "use": "@vercel/static" }
   ],
   "routes": [
-    { "src": "/(.*)", "dest": "/index.html" }
+    { "src": "/webinar.html", "dest": "/webinar.html" },
+    { "src": "/(.*)",         "dest": "/index.html"   }
   ]
 }
