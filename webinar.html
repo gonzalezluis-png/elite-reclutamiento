@@ -3,201 +3,328 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Elite Reclutamiento — Webinar</title>
+<title>Webinar — Elite Reclutamiento</title>
 <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
 :root {
-  --bg:     #1b1e2e; --card: #22253a; --card2: #191c2d;
-  --border: #2a2e46; --accent: #0073ea; --green: #00c875;
-  --text:   #d0d3e8; --text2: #6b6f8c;
-  --font:   'Plus Jakarta Sans','Inter',system-ui,sans-serif;
+  --bg:      #0f1117;
+  --card:    #1a1d2e;
+  --border:  #252840;
+  --accent:  #0073ea;
+  --accent2: #784bd1;
+  --text:    #e8eaf6;
+  --text2:   #6b6f8c;
+  --font:    'Plus Jakarta Sans','Inter',system-ui,sans-serif;
 }
-body { font-family: var(--font); background: var(--bg); color: var(--text); min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; padding: 32px 16px 60px; }
 
-.logo { font-size: 15px; font-weight: 800; color: #fff; margin-bottom: 6px; letter-spacing: -.3px; }
-.logo span { color: var(--accent); }
-.subtitle { font-size: 12px; color: var(--text2); margin-bottom: 28px; }
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap');
 
-.player-wrap { width: 100%; max-width: 860px; border-radius: 12px; overflow: hidden; box-shadow: 0 8px 40px rgba(0,0,0,.5); background: #000; }
+html, body { height: 100%; }
 
-.info-bar { width: 100%; max-width: 860px; margin-top: 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-.info-lead { font-size: 13px; color: var(--text2); }
-.info-lead strong { color: var(--text); }
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
 
-.progress-wrap { width: 100%; max-width: 860px; margin-top: 14px; background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 14px 18px; display: flex; align-items: center; gap: 16px; }
-.progress-label { font-size: 12px; color: var(--text2); white-space: nowrap; }
-.progress-bar-bg { flex: 1; height: 6px; background: var(--border); border-radius: 99px; overflow: hidden; }
-.progress-bar-fill { height: 100%; background: var(--accent); border-radius: 99px; transition: width .5s; width: 0%; }
-.progress-pct { font-size: 13px; font-weight: 700; color: var(--accent); min-width: 36px; text-align: right; }
+/* ── HEADER ── */
+header {
+  width: 100%;
+  padding: 18px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border);
+  background: rgba(15,17,23,.95);
+  backdrop-filter: blur(12px);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
 
-.stats-grid { width: 100%; max-width: 860px; margin-top: 12px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
-.stat-card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; }
-.stat-label { font-size: 10px; color: var(--text2); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 4px; }
-.stat-value { font-size: 16px; font-weight: 700; color: var(--text); }
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
 
-/* plyr overrides */
-.plyr--video { border-radius: 12px; }
+.logo-icon {
+  width: 32px;
+  height: 32px;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+}
+
+.logo-text {
+  font-size: 14px;
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: -.3px;
+}
+
+.logo-text span { color: var(--accent); }
+
+.live-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(226,68,92,.12);
+  border: 1px solid rgba(226,68,92,.3);
+  color: #e2445c;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 99px;
+  letter-spacing: .5px;
+}
+
+.live-badge::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  background: #e2445c;
+  border-radius: 50%;
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: .5; transform: scale(.8); }
+}
+
+/* ── HERO ── */
+.hero {
+  width: 100%;
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 32px 20px 0;
+}
+
+.hero-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(0,115,234,.12);
+  border: 1px solid rgba(0,115,234,.25);
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 5px 12px;
+  border-radius: 99px;
+  margin-bottom: 14px;
+  letter-spacing: .5px;
+  text-transform: uppercase;
+}
+
+.hero-title {
+  font-size: clamp(20px, 4vw, 30px);
+  font-weight: 800;
+  color: #fff;
+  line-height: 1.25;
+  margin-bottom: 8px;
+}
+
+.hero-sub {
+  font-size: 14px;
+  color: var(--text2);
+  margin-bottom: 24px;
+  line-height: 1.6;
+}
+
+/* ── PLAYER ── */
+.player-container {
+  width: 100%;
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 0 20px 40px;
+}
+
+.player-wrap {
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0,0,0,.6), 0 0 0 1px var(--border);
+  background: #000;
+  position: relative;
+}
+
+/* ── VIEWER INFO ── */
+.viewer-bar {
+  width: 100%;
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 0 20px 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.viewer-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.viewer-name {
+  font-size: 12.5px;
+  color: var(--text2);
+}
+
+.viewer-name strong { color: var(--text); font-weight: 600; }
+
+/* ── FOOTER ── */
+footer {
+  margin-top: auto;
+  text-align: center;
+  padding: 20px;
+  font-size: 11px;
+  color: var(--text2);
+  border-top: 1px solid var(--border);
+}
+
+/* ── PLYR OVERRIDES ── */
+.plyr--video { border-radius: 14px; }
 .plyr__control--overlaid { background: var(--accent) !important; }
 .plyr--full-ui input[type=range] { color: var(--accent); }
+.plyr__poster { background-size: cover; }
 
-/* not-found */
-.not-found { text-align: center; padding: 60px 20px; }
-.not-found h2 { font-size: 20px; margin-bottom: 10px; }
-.not-found p  { font-size: 14px; color: var(--text2); }
-
+/* ── MOBILE ── */
 @media (max-width: 600px) {
-  .stats-grid { grid-template-columns: repeat(2, 1fr); }
+  header { padding: 14px 16px; }
+  .hero  { padding: 20px 16px 0; }
+  .hero-sub { font-size: 13px; }
+  .player-container { padding: 0 0 32px; }
+  .player-wrap { border-radius: 0; box-shadow: none; }
+  .viewer-bar { padding: 12px 16px; }
 }
+
+/* hidden tracking nodes */
+.tracking-hidden { display: none !important; }
 </style>
 </head>
 <body>
 
-<div class="logo">Elite <span>Reclutamiento</span></div>
-<div class="subtitle">Webinar On-Demand</div>
+<header>
+  <div class="logo">
+    <div class="logo-icon">🚀</div>
+    <div class="logo-text">Elite <span>Reclutamiento</span></div>
+  </div>
+  <div class="live-badge">ON DEMAND</div>
+</header>
 
-<div id="main-content" style="width:100%;max-width:860px;display:flex;flex-direction:column;align-items:stretch;">
+<div class="hero">
+  <div class="hero-label">🎥 Webinar exclusivo</div>
+  <h1 class="hero-title">Oportunidad Laboral —<br>Todo lo que necesitas saber</h1>
+  <p class="hero-sub">Descubre cómo unirte a nuestro equipo y transformar tu carrera profesional.</p>
+</div>
 
+<div class="player-container">
   <div class="player-wrap">
     <video id="player" playsinline controls>
       <source src="https://f005.backblazeb2.com/file/elite-webinar/Webinar+abril+2026.mp4" type="video/mp4" />
     </video>
   </div>
-
-  <div class="info-bar">
-    <div class="info-lead" id="info-lead">Cargando...</div>
-    <div id="watch-status" style="font-size:12px;color:var(--text2);"></div>
-  </div>
-
-  <!-- tracking oculto -->
-  <span id="prog-fill" style="display:none"></span>
-  <span id="prog-pct" style="display:none"></span>
-  <span id="stat-watched" style="display:none"></span>
-  <span id="stat-duration" style="display:none"></span>
-  <span id="stat-pauses" style="display:none"></span>
-  <span id="stat-status" style="display:none"></span>
-
 </div>
+
+<div class="viewer-bar" id="viewer-bar" style="display:none">
+  <div class="viewer-avatar" id="viewer-avatar">?</div>
+  <div class="viewer-name" id="viewer-name"></div>
+</div>
+
+<!-- tracking nodes (hidden) -->
+<span id="prog-fill" class="tracking-hidden"></span>
+<span id="prog-pct" class="tracking-hidden"></span>
+<span id="stat-watched" class="tracking-hidden"></span>
+<span id="stat-duration" class="tracking-hidden"></span>
+<span id="stat-pauses" class="tracking-hidden"></span>
+<span id="stat-status" class="tracking-hidden"></span>
+
+<footer>© 2026 Elite Reclutamiento · Todos los derechos reservados</footer>
 
 <script src="https://cdn.plyr.io/3.7.8/plyr.polyfilled.js"></script>
 <script>
-// ── CONFIG ────────────────────────────────────────────────────────────────────
 const FS_PROJECT = 'elite-reclutamiento-crm';
 const FS_KEY     = 'AIzaSyCW2t1oHb7xc2Vi6vJROGRM7E7nu-CbU3s';
 const FS_BASE    = `https://firestore.googleapis.com/v1/projects/${FS_PROJECT}/databases/(default)/documents`;
 
-// ── PARAMS ────────────────────────────────────────────────────────────────────
 const params  = new URLSearchParams(location.search);
 const leadId  = params.get('id');
 const nombre  = decodeURIComponent(params.get('nombre') || '');
 const correo  = decodeURIComponent(params.get('correo') || '');
 
-document.getElementById('info-lead').innerHTML = nombre
-  ? `Viendo como: <strong>${nombre}</strong> &nbsp;·&nbsp; ${correo}`
-  : 'Sesión de webinar';
-
-// ── TRACKING STATE ────────────────────────────────────────────────────────────
-let pauseCount   = 0;
-let watchedSecs  = 0;
-let maxPct       = 0;
-let lastSaveTime = 0;
-let playing      = false;
-let startedAt    = null;
-let completed    = false;
-let sessionStart = new Date().toISOString();
-
-// ── HELPERS ───────────────────────────────────────────────────────────────────
-function fmt(secs) {
-  const m = Math.floor(secs / 60);
-  const s = Math.floor(secs % 60);
-  return `${m}:${s.toString().padStart(2,'0')}`;
+if (nombre) {
+  const bar = document.getElementById('viewer-bar');
+  bar.style.display = 'flex';
+  document.getElementById('viewer-avatar').textContent = nombre[0].toUpperCase();
+  document.getElementById('viewer-name').innerHTML = `Viendo como: <strong>${nombre}</strong>&nbsp;·&nbsp;${correo}`;
 }
 
-// ── FIRESTORE SAVE ────────────────────────────────────────────────────────────
+let pauseCount  = 0;
+let watchedSecs = 0;
+let maxPct      = 0;
+let lastSave    = 0;
+let playing     = false;
+let completed   = false;
+let sessionStart = new Date().toISOString();
+
 async function saveProgress(final = false) {
   if (!leadId) return;
   const now = Date.now();
-  if (!final && now - lastSaveTime < 15000) return;
-  lastSaveTime = now;
-
-  const pct = Math.round(maxPct);
+  if (!final && now - lastSave < 15000) return;
+  lastSave = now;
   const fields = {
-    webinar_visto_pct:      { integerValue: String(pct) },
-    webinar_tiempo_visto:   { integerValue: String(Math.round(watchedSecs)) },
-    webinar_pausas:         { integerValue: String(pauseCount) },
-    webinar_completado:     { booleanValue: completed },
-    webinar_ultima_sesion:  { stringValue: sessionStart },
-    webinar_ultimo_evento:  { stringValue: new Date().toISOString() },
+    webinar_visto_pct:     { integerValue: String(Math.round(maxPct)) },
+    webinar_tiempo_visto:  { integerValue: String(Math.round(watchedSecs)) },
+    webinar_pausas:        { integerValue: String(pauseCount) },
+    webinar_completado:    { booleanValue: completed },
+    webinar_ultima_sesion: { stringValue: sessionStart },
+    webinar_ultimo_evento: { stringValue: new Date().toISOString() },
   };
-
   try {
-    const updateFields = Object.keys(fields).join(',');
-    await fetch(`${FS_BASE}/leads/${leadId}?key=${FS_KEY}&updateMask.fieldPaths=${updateFields}`, {
+    const mask = Object.keys(fields).join(',');
+    await fetch(`${FS_BASE}/leads/${leadId}?key=${FS_KEY}&updateMask.fieldPaths=${mask}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ fields }),
     });
-  } catch(e) { console.warn('Firestore save failed', e); }
+  } catch(e) {}
 }
 
-// ── PLAYER ────────────────────────────────────────────────────────────────────
 const player = new Plyr('#player', {
   controls: ['play-large','play','progress','current-time','duration','mute','volume','fullscreen'],
-  hideControls: false,
-  resetOnEnd: false,
 });
 
-player.on('ready', () => {
-  const dur = player.duration;
-  if (dur) document.getElementById('stat-duration').textContent = fmt(dur);
-  document.getElementById('stat-status').textContent = 'Listo';
-});
-
-player.on('durationchange', () => {
-  document.getElementById('stat-duration').textContent = fmt(player.duration);
-});
-
-player.on('play', () => {
-  playing = true;
-  if (!startedAt) startedAt = Date.now();
-  document.getElementById('stat-status').textContent = '▶ Reproduciendo';
-  document.getElementById('watch-status').textContent = '';
-});
-
-player.on('pause', () => {
-  if (playing) pauseCount++;
-  playing = false;
-  document.getElementById('stat-status').textContent = '⏸ Pausado';
-  document.getElementById('stat-pauses').textContent = pauseCount;
-  saveProgress();
-});
+player.on('play',  () => { playing = true; });
+player.on('pause', () => { if (playing) pauseCount++; playing = false; saveProgress(); });
 
 player.on('timeupdate', () => {
-  const cur = player.currentTime;
-  const dur = player.duration || 1;
-  const pct = (cur / dur) * 100;
-
+  const pct = player.duration ? (player.currentTime / player.duration) * 100 : 0;
   if (pct > maxPct) maxPct = pct;
   if (playing) watchedSecs += 0.25;
-
-  // UI
-  document.getElementById('prog-fill').style.width = maxPct.toFixed(1) + '%';
-  document.getElementById('prog-pct').textContent   = Math.round(maxPct) + '%';
-  document.getElementById('stat-watched').textContent = fmt(watchedSecs);
-
-  // auto-save cada 15s
   saveProgress();
 });
 
 player.on('ended', () => {
-  playing = false;
-  completed = true;
-  document.getElementById('stat-status').textContent = '✅ Completado';
-  document.getElementById('watch-status').textContent = '¡Webinar completado!';
+  playing = false; completed = true;
   saveProgress(true);
 });
 
-// save on page close
 window.addEventListener('beforeunload', () => saveProgress(true));
 </script>
 </body>
