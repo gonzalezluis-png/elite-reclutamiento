@@ -203,6 +203,38 @@ footer {
 .plyr__control--overlaid { background: var(--accent) !important; }
 .plyr--full-ui input[type=range] { color: var(--accent); }
 .plyr__poster { background-size: cover; }
+/* ocultar tiempo y barra nativa de Plyr */
+.plyr__time, .plyr__progress { display: none !important; }
+
+/* ── BARRA DE PROGRESO PERSONALIZADA ── */
+.custom-progress-wrap {
+  width: 100%;
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 0 20px 8px;
+}
+.custom-progress-bg {
+  width: 100%;
+  height: 4px;
+  background: var(--border);
+  border-radius: 99px;
+  overflow: hidden;
+}
+.custom-progress-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, var(--accent), var(--accent2));
+  border-radius: 99px;
+  transition: width .8s cubic-bezier(.25,.46,.45,.94);
+}
+.custom-progress-label {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--text2);
+}
+.custom-progress-label span { font-weight: 600; color: var(--text); }
 
 /* ── MOBILE ── */
 @media (max-width: 600px) {
@@ -239,6 +271,16 @@ footer {
     <video id="player" playsinline controls>
       <source src="https://f005.backblazeb2.com/file/elite-webinar/Webinar+abril+2026.mp4" type="video/mp4" />
     </video>
+  </div>
+</div>
+
+<div class="custom-progress-wrap" id="progress-section" style="display:none">
+  <div class="custom-progress-bg">
+    <div class="custom-progress-fill" id="custom-fill"></div>
+  </div>
+  <div class="custom-progress-label">
+    <span id="custom-label">Reproduciendo...</span>
+    <span id="custom-pct">0%</span>
   </div>
 </div>
 
@@ -306,22 +348,52 @@ async function saveProgress(final = false) {
   } catch(e) {}
 }
 
+// Curva: avanza rápido al inicio, lento al final
+// real 50% → visual 75%, real 100% → visual 100%
+function easedPct(real) {
+  const r = real / 100;
+  return (1 - Math.pow(1 - r, 2)) * 100;
+}
+
+function updateProgressBar(realPct) {
+  const visual = easedPct(realPct);
+  document.getElementById('custom-fill').style.width = visual.toFixed(1) + '%';
+  document.getElementById('custom-pct').textContent  = Math.round(visual) + '%';
+}
+
 const player = new Plyr('#player', {
-  controls: ['play-large','play','progress','current-time','duration','mute','volume','fullscreen'],
+  controls: ['play-large','play','mute','volume','fullscreen'],
 });
 
-player.on('play',  () => { playing = true; });
-player.on('pause', () => { if (playing) pauseCount++; playing = false; saveProgress(); });
+player.on('ready', () => {
+  document.getElementById('progress-section').style.display = 'block';
+});
+
+player.on('play', () => {
+  playing = true;
+  document.getElementById('custom-label').textContent = 'Reproduciendo...';
+});
+
+player.on('pause', () => {
+  if (playing) pauseCount++;
+  playing = false;
+  document.getElementById('custom-label').textContent = 'En pausa';
+  saveProgress();
+});
 
 player.on('timeupdate', () => {
   const pct = player.duration ? (player.currentTime / player.duration) * 100 : 0;
   if (pct > maxPct) maxPct = pct;
   if (playing) watchedSecs += 0.25;
+  updateProgressBar(maxPct);
   saveProgress();
 });
 
 player.on('ended', () => {
   playing = false; completed = true;
+  updateProgressBar(100);
+  document.getElementById('custom-label').textContent = '¡Completado!';
+  document.getElementById('custom-pct').textContent = '100%';
   saveProgress(true);
 });
 
