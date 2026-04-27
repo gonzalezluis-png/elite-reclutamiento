@@ -1460,9 +1460,9 @@ function renderKanban() {
             <td>${pctHtml}</td>
             <td>${tiempoHtml}</td>
             <td onclick="event.stopPropagation()" style="white-space:nowrap">
-              <div style="display:flex;align-items:center;gap:6px">
-                <span style="color:var(--text2);font-size:11px">webinar/?id=${ld.id.slice(0,6)}…</span>
+              <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap">
                 <button onclick="copyWebinarLink('${ld.id}','${encodeURIComponent(ld.nombre||'')}','${encodeURIComponent(ld.correo||'')}')" style="padding:3px 8px;background:rgba(0,115,234,.15);border:1px solid rgba(0,115,234,.3);color:#0073ea;border-radius:5px;font-size:11px;cursor:pointer;font-family:var(--font);">📋 Copiar</button>
+                <button onclick="enviarLinkPorCorreo('${ld.id}')" title="${ld.webinar_email_enviado ? 'Enviado el '+new Date(ld.webinar_email_enviado).toLocaleDateString('es-MX',{day:'2-digit',month:'short'}) : 'Enviar link por correo'}" style="padding:3px 8px;background:${ld.webinar_email_enviado ? 'rgba(0,200,117,.15)' : 'rgba(120,75,209,.15)'};border:1px solid ${ld.webinar_email_enviado ? 'rgba(0,200,117,.3)' : 'rgba(120,75,209,.3)'};color:${ld.webinar_email_enviado ? '#00c875' : '#a78bfa'};border-radius:5px;font-size:11px;cursor:pointer;font-family:var(--font);">${ld.webinar_email_enviado ? '✅ Enviado' : '📧 Enviar'}</button>
               </div>
             </td>
             <td onclick="event.stopPropagation()">
@@ -1931,6 +1931,7 @@ function sendToWebinar() {
     const wUrl = `/webinar.html?id=${lead.id}&nombre=${encodeURIComponent(lead.nombre||'')}&correo=${encodeURIComponent(lead.correo||'')}`;
     const _a = Object.assign(document.createElement('a'), { href: wUrl, target: '_blank', rel: 'noopener' });
     document.body.appendChild(_a); _a.click(); document.body.removeChild(_a);
+    if (lead.correo) enviarLinkPorCorreo(lead.id);
   }
   celebrateWebinar();
   renderKanban();
@@ -2542,9 +2543,38 @@ function toggleAccionMenu(event, leadId) {
 }
 document.addEventListener('click', () => document.querySelectorAll('.lt-accion-menu.open').forEach(m => m.classList.remove('open')));
 
+const MAILER_URL = 'https://script.google.com/macros/s/AKfycbzU2_ZaSRlfWI2g8EPESYXw4EqJwPPgMndXmFn-E_yA6_VHGtIiwz-3FXFGQK97lWLs/exec';
+
 function copyWebinarLink(id, nombre, correo) {
   const url = `${location.origin}/webinar.html?id=${id}&nombre=${nombre}&correo=${correo}`;
   navigator.clipboard.writeText(url).then(() => showToast('📋 Link copiado al portapapeles'));
+}
+
+async function enviarLinkPorCorreo(leadId) {
+  const lead = leads.find(l => l.id === leadId);
+  if (!lead) return;
+  if (!lead.correo) { showToast('⚠️ Este lead no tiene correo registrado'); return; }
+
+  const link = `${location.origin}/webinar.html?id=${lead.id}&nombre=${encodeURIComponent(lead.nombre||'')}&correo=${encodeURIComponent(lead.correo||'')}`;
+  showToast('📧 Enviando correo…');
+
+  try {
+    const res = await fetch(MAILER_URL, {
+      method: 'POST',
+      body: JSON.stringify({ nombre: lead.nombre || 'Candidato', to_email: lead.correo, link }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      showToast('✅ Correo enviado a ' + lead.correo);
+      addHistorial(leadId, `Link del webinar enviado por correo a ${lead.correo}`, '📧');
+      lead.webinar_email_enviado = new Date().toISOString();
+      saveLeads(lead.id);
+    } else {
+      showToast('❌ Error al enviar: ' + (data.error || 'desconocido'));
+    }
+  } catch(e) {
+    showToast('❌ No se pudo conectar con el servidor de correo');
+  }
 }
 
 function setWebinarAccion(leadId, accion) {
