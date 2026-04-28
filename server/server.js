@@ -29,8 +29,10 @@ app.get('/twilio/token', (req, res) => {
   try {
     const { AccessToken } = twilio.jwt;
     const { VoiceGrant } = AccessToken;
+    const rawId = req.query.identity || 'agent';
+    const identity = rawId.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9_\-]/g, '_').slice(0, 121) || 'agent';
     const token = new AccessToken(TWILIO_ACCOUNT_SID, TWILIO_API_KEY, TWILIO_API_SECRET, {
-      identity: req.query.identity || 'agent',
+      identity,
       ttl: 3600,
     });
     token.addGrant(new VoiceGrant({ outgoingApplicationSid: TWILIO_APP_SID, incomingAllow: false }));
