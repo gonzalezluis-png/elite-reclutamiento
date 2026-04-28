@@ -239,6 +239,56 @@ app.post('/twilio/voice', (req, res) => {
   res.send(twiml.toString());
 });
 
+// ── SMS: Send outbound SMS ────────────────────────────────────────────────────
+app.post('/twilio/sms', async (req, res) => {
+  const { to, body, leadId } = req.body;
+  if (!to || !body) return res.status(400).json({ ok: false, error: 'to y body son requeridos' });
+  if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN) return res.status(500).json({ ok: false, error: 'Twilio no configurado' });
+  try {
+    const client  = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
+    const message = await client.messages.create({
+      body,
+      to,
+      messagingServiceSid: 'MG4a6b48ece18b09631e7a1aa5ecf48446',
+    });
+    console.log(`[SMS] → ${to} | ${message.sid} | leadId:${leadId||'?'}`);
+    res.json({ ok: true, sid: message.sid });
+  } catch (e) {
+    console.error('[SMS] Error:', e.message);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// ── SMS: Fetch inbox (inbound messages for a phone number) ────────────────────
+app.get('/twilio/sms-inbox', async (req, res) => {
+  const { phone } = req.query;
+  if (!phone) return res.status(400).json({ ok: false, error: 'phone requerido' });
+  if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN) return res.status(500).json({ ok: false, error: 'Twilio no configurado' });
+  try {
+    const client   = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
+    const messages = await client.messages.list({ to: TWILIO_PHONE_NUMBER, from: phone, limit: 50 });
+    res.json({
+      ok: true,
+      messages: messages.map(m => ({
+        sid:       m.sid,
+        body:      m.body,
+        direction: 'inbound',
+        date:      m.dateSent?.toISOString() || new Date().toISOString(),
+      }))
+    });
+  } catch (e) {
+    console.error('[SMS-Inbox] Error:', e.message);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// ── SMS: Incoming webhook (Twilio calls this when a message is received) ──────
+app.post('/twilio/sms-incoming', (req, res) => {
+  const { From, Body, MessageSid } = req.body;
+  console.log(`[SMS-IN] ${From}: ${Body} (${MessageSid})`);
+  res.type('text/xml').send('<Response></Response>');
+});
+
 // ── Twilio: Call status callback (optional logging) ───────────────────────────
 app.post('/twilio/status', (req, res) => {
   const { CallSid, CallStatus, To, Duration } = req.body;

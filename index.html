@@ -315,6 +315,13 @@ tr.lead-resuelto td:last-child { pointer-events:none;opacity:.4; }
 .req { color:var(--red); }
 .field-hint { font-size:10.5px;color:var(--text2);margin-top:3px; }
 
+/* sms bubbles */
+.sms-bubble { max-width:80%;padding:7px 11px;border-radius:12px;font-size:12.5px;line-height:1.4;word-break:break-word; }
+.sms-out { align-self:flex-end;background:#0073ea;color:#fff;border-bottom-right-radius:3px; }
+.sms-in  { align-self:flex-start;background:rgba(255,255,255,.1);color:rgba(255,255,255,.9);border-bottom-left-radius:3px; }
+.sms-meta { font-size:10px;color:rgba(255,255,255,.35);margin-top:2px; }
+.sms-out-wrap { display:flex;flex-direction:column;align-items:flex-end; }
+.sms-in-wrap  { display:flex;flex-direction:column;align-items:flex-start; }
 /* phone extra */
 .phones-list { display:flex;flex-direction:column;gap:6px; }
 .phone-row { display:flex;gap:6px;align-items:center; }
@@ -625,6 +632,7 @@ tr.lead-resuelto td:last-child { pointer-events:none;opacity:.4; }
                 <div class="phone-row">
                   <input id="ml-telefono" placeholder="+1 555 000 0000" />
                   <button onclick="cpOpen()" title="Llamar" style="flex-shrink:0;background:#00c875;border:none;border-radius:6px;color:#fff;font-size:13px;cursor:pointer;padding:0 10px;height:32px;display:flex;align-items:center;gap:4px;font-family:var(--font)">📞</button>
+                  <button onclick="smsOpen()" title="Enviar SMS" style="flex-shrink:0;background:#0073ea;border:none;border-radius:6px;color:#fff;font-size:13px;cursor:pointer;padding:0 10px;height:32px;display:flex;align-items:center;gap:4px;font-family:var(--font)">💬</button>
                 </div>
               </div>
               <button class="add-phone-btn" onclick="addPhone()">+ Agregar teléfono</button>
@@ -796,6 +804,24 @@ tr.lead-resuelto td:last-child { pointer-events:none;opacity:.4; }
     </div>
     <button id="cp-call-btn" onclick="cpDial()" style="width:100%;padding:9px;border-radius:8px;background:#00c875;border:none;color:#fff;font-size:13px;font-weight:700;cursor:pointer;font-family:var(--font);display:flex;align-items:center;justify-content:center;gap:6px;transition:background .15s">📞 Llamar</button>
   </div>
+</div>
+
+<!-- SMS PANEL -->
+<div id="sms-panel" style="display:none;position:fixed;bottom:24px;right:24px;z-index:9998;background:#1a1d2e;border:1px solid rgba(0,115,234,.35);border-radius:16px;box-shadow:0 8px 40px rgba(0,0,0,.7);width:340px;font-family:var(--font);overflow:hidden;display:none;flex-direction:column;">
+  <div style="background:linear-gradient(135deg,#0d2a4a,#0a1d35);padding:12px 16px;display:flex;align-items:center;gap:10px;">
+    <div id="sms-avatar" style="width:36px;height:36px;border-radius:50%;background:#0073ea;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#fff;flex-shrink:0">?</div>
+    <div style="flex:1;min-width:0">
+      <div id="sms-name" style="font-size:13px;font-weight:700;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">—</div>
+      <div id="sms-number" style="font-size:11px;color:rgba(255,255,255,.5);margin-top:1px">—</div>
+    </div>
+    <button onclick="smsClose()" style="background:none;border:none;color:rgba(255,255,255,.5);font-size:18px;cursor:pointer;padding:0 4px;line-height:1">✕</button>
+  </div>
+  <div id="sms-thread" style="flex:1;height:280px;overflow-y:auto;padding:12px 14px;display:flex;flex-direction:column;gap:8px;scroll-behavior:smooth;"></div>
+  <div style="padding:10px 12px;border-top:1px solid rgba(255,255,255,.07);display:flex;gap:8px;align-items:flex-end;">
+    <textarea id="sms-inp" placeholder="Escribe tu mensaje…" rows="2" onkeydown="if(event.ctrlKey&&event.key==='Enter')smsSend()" style="flex:1;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:8px;color:#fff;font-size:12.5px;font-family:var(--font);padding:8px 10px;resize:none;outline:none;line-height:1.4;"></textarea>
+    <button onclick="smsSend()" id="sms-send-btn" style="flex-shrink:0;background:#0073ea;border:none;border-radius:8px;color:#fff;font-size:18px;cursor:pointer;padding:0;width:38px;height:38px;display:flex;align-items:center;justify-content:center;">➤</button>
+  </div>
+  <div style="padding:4px 14px 8px;font-size:10px;color:rgba(255,255,255,.25);text-align:center;">Ctrl+Enter para enviar · los mensajes recibidos aparecen automáticamente</div>
 </div>
 
 <!-- MODAL APLICANTES EXTERNOS -->
@@ -3164,6 +3190,108 @@ function cpToggleMute() {
 function cpSetStatus(text, color) {
   document.getElementById('cp-status').textContent = text;
   document.getElementById('cp-status').style.color = color || 'rgba(255,255,255,.6)';
+}
+
+// ── SMS Module ────────────────────────────────────────────────────────────────
+let _smsLeadId = null;
+let _smsPollInt = null;
+
+function smsOpen() {
+  const lead = leads.find(l => l.id === currentLeadId);
+  if (!lead) return;
+  const phone = document.getElementById('ml-telefono')?.value?.trim() || lead.telefono || '';
+  if (!phone) { showToast('Este lead no tiene teléfono'); return; }
+  _smsLeadId = lead.id;
+  if (!lead.sms) lead.sms = [];
+  const panel = document.getElementById('sms-panel');
+  const initials = (lead.nombre||'?').split(' ').map(w=>w[0]||'').join('').slice(0,2).toUpperCase();
+  document.getElementById('sms-avatar').textContent = initials;
+  document.getElementById('sms-name').textContent   = lead.nombre || 'Desconocido';
+  document.getElementById('sms-number').textContent = phone;
+  panel.style.display = 'flex';
+  // if call panel open, offset
+  const callPanel = document.getElementById('call-panel');
+  if (callPanel.style.display !== 'none') panel.style.right = '340px';
+  else panel.style.right = '24px';
+  smsRenderThread(lead.sms);
+  clearInterval(_smsPollInt);
+  _smsPollInt = setInterval(() => smsPoll(phone), 8000);
+}
+
+function smsClose() {
+  document.getElementById('sms-panel').style.display = 'none';
+  clearInterval(_smsPollInt);
+  _smsPollInt = null;
+}
+
+function smsRenderThread(messages) {
+  const thread = document.getElementById('sms-thread');
+  if (!messages || !messages.length) {
+    thread.innerHTML = '<div style="text-align:center;color:rgba(255,255,255,.25);font-size:12px;margin-top:40px">Sin mensajes aún</div>';
+    return;
+  }
+  thread.innerHTML = messages.map(m => {
+    const out = m.direction === 'outbound';
+    const time = m.date ? fmtDateTime(m.date) : '';
+    return `<div class="${out?'sms-out-wrap':'sms-in-wrap'}">
+      <div class="sms-bubble ${out?'sms-out':'sms-in'}">${esc(m.body)}</div>
+      <div class="sms-meta">${time}${m.autor ? ' · ' + esc(m.autor) : ''}</div>
+    </div>`;
+  }).join('');
+  thread.scrollTop = thread.scrollHeight;
+}
+
+async function smsSend() {
+  const inp  = document.getElementById('sms-inp');
+  const body = inp.value.trim();
+  if (!body) return;
+  const lead = leads.find(l => l.id === _smsLeadId);
+  if (!lead) return;
+  const phone = document.getElementById('sms-number').textContent;
+  const btn   = document.getElementById('sms-send-btn');
+  btn.disabled = true;
+  btn.style.opacity = '.5';
+  try {
+    const res  = await fetch(`${SERVER_URL}/twilio/sms`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ to: phone, body, leadId: lead.id })
+    });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || 'Error al enviar');
+    if (!lead.sms) lead.sms = [];
+    lead.sms.push({ direction: 'outbound', body, date: new Date().toISOString(), autor: currentUser?.name || 'Agente', sid: data.sid });
+    addHistorial(lead.id, `SMS enviado: "${body.slice(0,50)}${body.length>50?'…':''}"`, '💬');
+    saveLeads();
+    inp.value = '';
+    smsRenderThread(lead.sms);
+  } catch (e) {
+    showToast('Error al enviar SMS: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.style.opacity = '1';
+  }
+}
+
+async function smsPoll(phone) {
+  if (!_smsLeadId) return;
+  const lead = leads.find(l => l.id === _smsLeadId);
+  if (!lead) return;
+  try {
+    const res  = await fetch(`${SERVER_URL}/twilio/sms-inbox?phone=${encodeURIComponent(phone)}`);
+    const data = await res.json();
+    if (!data.messages) return;
+    if (!lead.sms) lead.sms = [];
+    let updated = false;
+    for (const msg of data.messages) {
+      if (msg.direction === 'inbound' && !lead.sms.find(s => s.sid === msg.sid)) {
+        lead.sms.push(msg);
+        addHistorial(lead.id, `SMS recibido: "${msg.body.slice(0,50)}${msg.body.length>50?'…':''}"`, '📩');
+        updated = true;
+      }
+    }
+    if (updated) { saveLeads(); smsRenderThread(lead.sms); }
+  } catch {}
 }
 </script>
 </body>
