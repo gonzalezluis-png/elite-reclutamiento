@@ -239,36 +239,72 @@ tr.lead-resuelto td:last-child { pointer-events:none;opacity:.4; }
 /* ── MODAL LEAD DETAIL ── */
 .modal-overlay { position:fixed;inset:0;background:rgba(0,0,0,.65);display:flex;align-items:center;justify-content:center;z-index:500; }
 .modal-overlay.hidden { display:none; }
-.modal-lead { background:var(--card);border:1px solid var(--border);border-radius:14px;width:1080px;max-width:97vw;height:90vh;max-height:90vh;display:flex;flex-direction:column;box-shadow:var(--shadow); }
+.modal-lead { background:var(--card);border:1px solid rgba(255,255,255,.08);border-radius:18px;width:1100px;max-width:97vw;height:91vh;max-height:91vh;display:flex;flex-direction:column;box-shadow:0 32px 80px rgba(0,0,0,.8),0 0 0 1px rgba(255,255,255,.04); }
 
-/* modal header */
-.mlh { padding:14px 18px;background:var(--card2);border-bottom:1px solid var(--border);border-radius:14px 14px 0 0;display:flex;align-items:flex-start;gap:12px; }
+/* ── Modal header ── */
+.mlh { padding:16px 20px;background:linear-gradient(135deg,var(--card2),rgba(30,33,50,1));border-bottom:1px solid rgba(255,255,255,.07);border-radius:18px 18px 0 0;display:flex;align-items:center;gap:14px; }
+.mlh-avatar { width:46px;height:46px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:800;color:#fff;flex-shrink:0;background:linear-gradient(135deg,#6366f1,#4f46e5); }
 .mlh-left { flex:1;min-width:0; }
-.mlh-name { font-size:16px;font-weight:700;color:#fff;margin-bottom:6px; }
-.mlh-name-inp { font-size:15px;font-weight:700;color:#fff;background:transparent;border:none;outline:none;font-family:var(--font);width:100%;padding:2px 0; }
-.mlh-name-inp:focus { border-bottom:1px solid var(--accent); }
-/* ── Notes feed ── */
-.notes-feed-section { margin-top:16px;border-top:1px solid var(--border);padding-top:14px; }
-.notes-feed-header { font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text2);margin-bottom:10px; }
-.notes-compose { display:flex;gap:8px;margin-bottom:12px;align-items:flex-end; }
-.notes-compose textarea { flex:1;background:var(--card2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--font);font-size:12.5px;padding:8px 10px;outline:none;resize:none;min-height:58px;transition:border-color .15s; }
-.notes-compose textarea:focus { border-color:var(--accent); }
-.notes-send-btn { flex-shrink:0;align-self:flex-end; }
-.note-entry { display:flex;gap:9px;margin-bottom:10px;animation:noteIn .18s ease; }
+.mlh-name-inp { font-size:16px;font-weight:700;color:#fff;background:transparent;border:none;outline:none;font-family:var(--font);width:100%;padding:0;letter-spacing:-.2px; }
+.mlh-name-inp:focus { border-bottom:1px solid rgba(99,102,241,.6); }
+.mlh-meta { display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:5px; }
+.mlh-sel { padding:3px 9px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.1);border-radius:20px;color:rgba(255,255,255,.75);font-size:11px;font-family:var(--font);outline:none;cursor:pointer;transition:background .12s; }
+.mlh-sel:hover { background:rgba(255,255,255,.12); }
+.mlh-close { background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);color:rgba(255,255,255,.5);font-size:16px;cursor:pointer;padding:0;border-radius:8px;line-height:1;width:30px;height:30px;display:flex;align-items:center;justify-content:center;transition:all .12s; }
+.mlh-close:hover { background:rgba(226,68,92,.2);border-color:rgba(226,68,92,.3);color:#e2445c; }
+
+/* ── Split body ── */
+.ml-body { display:flex;flex:1;overflow:hidden; }
+.ml-left-col { width:340px;min-width:280px;border-right:1px solid rgba(255,255,255,.06);display:flex;flex-direction:column;overflow-y:auto;flex-shrink:0;background:rgba(17,20,34,.4); }
+.ml-left-col::-webkit-scrollbar { width:4px; }
+.ml-left-col::-webkit-scrollbar-thumb { background:rgba(255,255,255,.1);border-radius:4px; }
+.ml-left-inner { padding:18px 16px;display:flex;flex-direction:column;gap:0; }
+.ml-right-col { flex:1;display:flex;flex-direction:column;overflow:hidden;background:var(--bg); }
+
+/* ── Left section labels ── */
+.ml-section-label { font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:rgba(255,255,255,.3);margin:14px 0 8px;display:flex;align-items:center;gap:8px; }
+.ml-section-label::after { content:'';flex:1;height:1px;background:rgba(255,255,255,.06); }
+
+/* ── Info fields (compact) ── */
+.info-compact .field { margin-bottom:9px; }
+.info-compact .field label { font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:rgba(255,255,255,.35);margin-bottom:3px;display:block; }
+.info-compact .field input,.info-compact .field select { padding:7px 10px;font-size:12.5px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:8px;color:var(--text);font-family:var(--font);width:100%;box-sizing:border-box;outline:none;transition:border-color .15s,background .15s; }
+.info-compact .field input:focus,.info-compact .field select:focus { border-color:rgba(99,102,241,.5);background:rgba(99,102,241,.06); }
+.info-compact .field-row { display:grid;grid-template-columns:1fr 1fr;gap:8px; }
+.info-compact .add-phone-btn { font-size:10.5px;color:rgba(99,102,241,.8);cursor:pointer;display:inline-flex;align-items:center;gap:4px;margin-top:3px;background:none;border:none;font-family:var(--font);padding:0; }
+.info-compact .add-phone-btn:hover { color:#6366f1; }
+.phone-row { display:flex;gap:6px;align-items:center;margin-bottom:6px; }
+.phone-row input { flex:1;padding:7px 10px;font-size:12.5px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:8px;color:var(--text);font-family:var(--font);outline:none; }
+.phone-del { background:none;border:none;color:rgba(226,68,92,.6);cursor:pointer;font-size:13px;padding:0 4px; }
+
+/* ── Notes in left col ── */
+.notes-feed-section { margin-top:4px;padding-top:0; }
+.notes-feed-header { font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:rgba(255,255,255,.3);margin-bottom:8px;display:flex;align-items:center;gap:8px; }
+.notes-feed-header::after { content:'';flex:1;height:1px;background:rgba(255,255,255,.06); }
+.notes-compose { display:flex;flex-direction:column;gap:6px;margin-bottom:10px; }
+.notes-compose textarea { background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:9px;color:var(--text);font-family:var(--font);font-size:12px;padding:8px 10px;outline:none;resize:none;min-height:52px;transition:border-color .15s; }
+.notes-compose textarea:focus { border-color:rgba(99,102,241,.5); }
+.notes-send-btn { align-self:flex-end;padding:5px 14px;font-size:11.5px; }
+.note-entry { display:flex;gap:8px;margin-bottom:9px;animation:noteIn .18s ease; }
 @keyframes noteIn { from{opacity:0;transform:translateY(-3px)} to{opacity:1;transform:none} }
-.note-avatar { width:28px;height:28px;border-radius:50%;background:var(--accent);color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px; }
-.note-bubble { flex:1;background:var(--card2);border:1px solid var(--border);border-radius:0 8px 8px 8px;padding:8px 11px; }
-.note-meta { font-size:10px;margin-bottom:4px;display:flex;align-items:center;gap:6px; }
-.note-author { font-weight:700;color:var(--text); }
-.note-time { color:var(--text2); }
-.note-text { font-size:12.5px;color:var(--text);line-height:1.55;white-space:pre-wrap;word-break:break-word; }
-/* ── Compact info fields ── */
-.info-compact .field { margin-bottom:8px; }
-.info-compact .field label { font-size:10.5px;margin-bottom:3px; }
-.info-compact .field input,.info-compact .field select { padding:5px 8px;font-size:12px; }
-.info-compact .field-row { gap:8px; }
-.info-compact .add-phone-btn { font-size:10px;padding:2px 7px;margin-top:3px; }
-/* ── View mode (locked) ── */
+.note-avatar { width:26px;height:26px;border-radius:8px;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px; }
+.note-bubble { flex:1;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);border-radius:4px 10px 10px 10px;padding:7px 10px; }
+.note-meta { font-size:9.5px;margin-bottom:3px;display:flex;align-items:center;gap:5px; }
+.note-author { font-weight:700;color:rgba(255,255,255,.7); }
+.note-time { color:rgba(255,255,255,.3); }
+.note-text { font-size:12px;color:rgba(255,255,255,.8);line-height:1.55;white-space:pre-wrap;word-break:break-word; }
+
+/* ── Cita collapsible ── */
+.ml-cita-hdr { display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-top:1px solid rgba(255,255,255,.06);cursor:pointer;font-size:11.5px;font-weight:600;color:rgba(255,255,255,.4);background:rgba(255,255,255,.02);user-select:none;transition:color .12s; }
+.ml-cita-hdr:hover { color:rgba(255,255,255,.7); }
+.ml-cita-body { padding:14px 16px;border-top:1px solid rgba(255,255,255,.06);display:none;background:rgba(99,102,241,.03); }
+.ml-cita-body.open { display:block; }
+.ml-cita-body .field { margin-bottom:9px; }
+.ml-cita-body .field label { font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:rgba(255,255,255,.35);margin-bottom:3px;display:block; }
+.ml-cita-body .field input,.ml-cita-body .field select,.ml-cita-body .field textarea { padding:7px 10px;font-size:12.5px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:8px;color:var(--text);font-family:var(--font);width:100%;box-sizing:border-box;outline:none;transition:border-color .15s; }
+.ml-cita-body .field input:focus,.ml-cita-body .field select:focus,.ml-cita-body .field textarea:focus { border-color:rgba(99,102,241,.5); }
+
+/* ── View mode ── */
 .modal-lead.ml-view-mode .mlh-name-inp,
 .modal-lead.ml-view-mode .mlh-sel,
 .modal-lead.ml-view-mode .info-compact input,
@@ -279,24 +315,43 @@ tr.lead-resuelto td:last-child { pointer-events:none;opacity:.4; }
 .modal-lead.ml-view-mode .mlh-name-inp:focus { border-bottom:none; }
 .modal-lead.ml-view-mode .info-compact .add-phone-btn,
 .modal-lead.ml-view-mode .ml-cita-body .btn-primary { display:none !important; }
-.mlh-meta { display:flex;align-items:center;gap:8px;flex-wrap:wrap; }
-.mlh-sel { padding:3px 8px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-size:11.5px;font-family:var(--font);outline:none;cursor:pointer; }
-.mlh-close { background:none;border:none;color:var(--text2);font-size:20px;cursor:pointer;padding:2px 6px;border-radius:4px;line-height:1; }
-.mlh-close:hover { background:var(--border);color:var(--text); }
 
-/* modal body — split layout */
-.ml-body { display:flex;flex:1;overflow:hidden; }
-.ml-left-col { width:360px;min-width:300px;border-right:1px solid var(--border);display:flex;flex-direction:column;overflow-y:auto;flex-shrink:0; }
-.ml-left-inner { padding:16px 18px;display:flex;flex-direction:column;gap:0; }
-.ml-right-col { flex:1;display:flex;flex-direction:column;overflow:hidden; }
-/* cita section collapsible */
-.ml-cita-hdr { display:flex;align-items:center;justify-content:space-between;padding:10px 18px;border-top:1px solid var(--border);cursor:pointer;font-size:12px;color:var(--text2);background:var(--card2);user-select:none; }
-.ml-cita-hdr:hover { color:var(--text); }
-.ml-cita-body { padding:14px 18px;border-top:1px solid var(--border);display:none; }
-.ml-cita-body.open { display:block; }
-/* view mode updated selectors */
+/* ── Conversation right col ── */
+.lc-actions { display:flex;align-items:center;gap:10px;padding:12px 18px;border-bottom:1px solid rgba(255,255,255,.06);flex-shrink:0;background:rgba(17,20,34,.6);backdrop-filter:blur(8px); }
+.lc-call-btn { background:linear-gradient(135deg,#00c875,#00a865);border:none;border-radius:10px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;padding:8px 18px;font-family:var(--font);display:flex;align-items:center;gap:6px;box-shadow:0 2px 12px rgba(0,200,117,.3);transition:all .15s; }
+.lc-call-btn:hover { transform:translateY(-1px);box-shadow:0 4px 16px rgba(0,200,117,.4); }
+.lc-timeline { flex:1;overflow-y:auto;padding:16px 20px;display:flex;flex-direction:column;gap:6px;scroll-behavior:smooth; }
+.lc-timeline::-webkit-scrollbar { width:4px; }
+.lc-timeline::-webkit-scrollbar-thumb { background:rgba(255,255,255,.1);border-radius:4px; }
+.lc-loading { text-align:center;padding:30px;color:rgba(255,255,255,.3);font-size:12.5px;line-height:1.7; }
+.lc-bubble-wrap { display:flex;flex-direction:column;margin:2px 0; }
+.lc-bubble-wrap.out { align-items:flex-end; }
+.lc-bubble-wrap.in  { align-items:flex-start; }
+.lc-bubble { max-width:68%;padding:9px 13px;border-radius:14px;font-size:13px;line-height:1.5;word-break:break-word;box-shadow:0 1px 4px rgba(0,0,0,.3); }
+.lc-bubble.out.sms  { background:linear-gradient(135deg,#0073ea,#0059b3);color:#fff;border-bottom-right-radius:4px; }
+.lc-bubble.in.sms   { background:rgba(255,255,255,.08);color:var(--text);border:1px solid rgba(255,255,255,.08);border-bottom-left-radius:4px; }
+.lc-bubble.out.wa   { background:linear-gradient(135deg,#128c7e,#075e54);color:#fff;border-bottom-right-radius:4px; }
+.lc-bubble.in.wa    { background:rgba(37,211,102,.1);color:#e8fff2;border:1px solid rgba(37,211,102,.15);border-bottom-left-radius:4px; }
+.lc-bubble.call     { background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:12px;display:flex;align-items:center;gap:10px;padding:10px 16px;max-width:100%;backdrop-filter:blur(4px); }
+.lc-bubble-meta { font-size:10px;color:rgba(255,255,255,.3);margin-top:3px;padding:0 2px; }
+.lc-call-pill { display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600; }
+.lc-call-pill.out  { background:rgba(0,200,117,.12);color:#00c875; }
+.lc-call-pill.in   { background:rgba(96,165,250,.12);color:#60a5fa; }
+.lc-call-pill.miss { background:rgba(226,68,92,.12);color:#e2445c; }
+.lc-compose { border-top:1px solid rgba(255,255,255,.06);padding:12px 16px;flex-shrink:0;background:rgba(17,20,34,.7);backdrop-filter:blur(8px);display:flex;flex-direction:column;gap:8px; }
+.lc-channel-row { display:flex;align-items:center;gap:6px; }
+.lc-ch-btn { font-size:11px;padding:5px 12px;border-radius:20px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);color:rgba(255,255,255,.45);cursor:pointer;font-family:var(--font);transition:all .12s;font-weight:600; }
+.lc-ch-btn.active.sms { background:rgba(0,115,234,.2);border-color:rgba(0,115,234,.4);color:#60a5fa; }
+.lc-ch-btn.active.wa  { background:rgba(18,140,126,.2);border-color:rgba(18,140,126,.4);color:#25d366; }
+.lc-tpl-select { flex:1;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:8px;color:rgba(255,255,255,.6);font-size:11px;font-family:var(--font);padding:5px 8px;outline:none; }
+.lc-input-row { display:flex;gap:8px;align-items:flex-end; }
+.lc-textarea { flex:1;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.09);border-radius:12px;color:var(--text);font-size:13px;font-family:var(--font);padding:9px 13px;resize:none;outline:none;line-height:1.45;min-height:38px;max-height:110px;transition:border-color .15s; }
+.lc-textarea:focus { border-color:rgba(99,102,241,.4);background:rgba(99,102,241,.04); }
+.lc-send-btn { flex-shrink:0;width:40px;height:40px;border-radius:12px;border:none;color:#fff;font-size:17px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s;box-shadow:0 2px 8px rgba(0,0,0,.3); }
+.lc-send-btn:hover { transform:translateY(-1px); }
+
+/* view mode + tab compat */
 .tab-pane { display:none; }
-.tab-pane.active { display:block; }
 .tab-pane.active { display:block; }
 
 /* form sections */
@@ -539,9 +594,9 @@ tr.lead-resuelto td:last-child { pointer-events:none;opacity:.4; }
 .empty-tab p { font-size:12.5px; }
 
 /* modal footer */
-.ml-footer { padding:12px 18px;background:var(--card2);border-top:1px solid var(--border);border-radius:0 0 14px 14px;display:flex;align-items:center;gap:8px; }
-.btn-danger { padding:7px 12px;background:rgba(226,68,92,.12);color:var(--red);border:1px solid rgba(226,68,92,.25);border-radius:var(--radius);font-size:12px;cursor:pointer;font-family:var(--font); }
-.btn-danger:hover { background:rgba(226,68,92,.22); }
+.ml-footer { padding:11px 18px;background:linear-gradient(135deg,var(--card2),rgba(17,20,34,.9));border-top:1px solid rgba(255,255,255,.06);border-radius:0 0 18px 18px;display:flex;align-items:center;gap:8px; }
+.btn-danger { padding:7px 14px;background:rgba(226,68,92,.1);color:rgba(226,68,92,.8);border:1px solid rgba(226,68,92,.2);border-radius:8px;font-size:12px;cursor:pointer;font-family:var(--font);transition:all .12s; }
+.btn-danger:hover { background:rgba(226,68,92,.2);color:#e2445c; }
 
 /* ── QUICK MODAL (new lead) ── */
 .qmodal { background:var(--card);border:1px solid var(--border);border-radius:14px;width:480px;max-width:95vw;box-shadow:var(--shadow); }
@@ -733,11 +788,12 @@ tr.lead-resuelto td:last-child { pointer-events:none;opacity:.4; }
   <div class="modal-lead">
     <!-- header -->
     <div class="mlh">
+      <div class="mlh-avatar" id="ml-avatar">?</div>
       <div class="mlh-left">
-        <input class="mlh-name-inp" id="ml-nombre" placeholder="Nombre del postulado" />
+        <input class="mlh-name-inp" id="ml-nombre" placeholder="Nombre del postulado" oninput="_mlUpdateAvatar()" />
         <div class="mlh-meta">
-          <select class="mlh-sel" id="ml-pipeline" onchange="updateEtapasSelect()">
-          </select>
+          <select class="mlh-sel" id="ml-pipeline" onchange="updateEtapasSelect()"></select>
+          <span style="color:rgba(255,255,255,.2);font-size:10px">›</span>
           <select class="mlh-sel" id="ml-etapa"></select>
         </div>
       </div>
@@ -750,6 +806,7 @@ tr.lead-resuelto td:last-child { pointer-events:none;opacity:.4; }
       <div class="ml-left-col">
         <div class="ml-left-inner">
           <div class="info-compact">
+            <div class="ml-section-label">Contacto</div>
             <div class="field-row">
               <div class="field"><label>Nombre</label><input id="ml-contacto" placeholder="Juan Pérez" /></div>
               <div class="field"><label>Correo</label><input type="email" id="ml-correo" placeholder="juan@email.com" /></div>
@@ -757,12 +814,12 @@ tr.lead-resuelto td:last-child { pointer-events:none;opacity:.4; }
             <div class="field">
               <label>Teléfono</label>
               <div class="phones-list" id="phones-list">
-                <div class="phone-row">
-                  <input id="ml-telefono" placeholder="+1 555 000 0000" />
-                </div>
+                <div class="phone-row"><input id="ml-telefono" placeholder="+1 555 000 0000" /></div>
               </div>
               <button class="add-phone-btn" onclick="addPhone()">+ Agregar teléfono</button>
             </div>
+
+            <div class="ml-section-label">Reclutamiento</div>
             <div class="field-row">
               <div class="field"><label>Fuente</label>
                 <select id="ml-fuente">
@@ -791,16 +848,16 @@ tr.lead-resuelto td:last-child { pointer-events:none;opacity:.4; }
             </div>
             <div class="field-row">
               <div class="field"><label>Fecha Webinar</label><input type="date" id="ml-fecha-inscripcion-webinar" /></div>
-              <div class="field"><label>Seguidores</label><input id="ml-seguidores" placeholder="Nombres separados por coma" /></div>
+              <div class="field"><label>Seguidores</label><input id="ml-seguidores" placeholder="Nombres" /></div>
             </div>
           </div>
 
           <!-- Notes -->
-          <div class="notes-feed-section">
-            <div class="notes-feed-header">📝 Notas</div>
+          <div class="notes-feed-section" style="margin-top:12px;">
+            <div class="notes-feed-header">Notas</div>
             <div class="notes-compose">
-              <textarea id="nota-inp" placeholder="Escribe una nota… (Ctrl+Enter para enviar)" onkeydown="if(event.ctrlKey&&event.key==='Enter')addNota()"></textarea>
-              <button class="btn-primary notes-send-btn" onclick="addNota()">Enviar</button>
+              <textarea id="nota-inp" placeholder="Agrega una nota…" onkeydown="if(event.ctrlKey&&event.key==='Enter')addNota()" rows="2"></textarea>
+              <button class="btn-primary notes-send-btn" onclick="addNota()" style="font-size:11px;padding:5px 12px;">Guardar</button>
             </div>
             <div id="notas-list"></div>
           </div>
@@ -833,7 +890,10 @@ tr.lead-resuelto td:last-child { pointer-events:none;opacity:.4; }
           <!-- Action bar -->
           <div class="lc-actions">
             <button class="lc-call-btn" onclick="cpOpen()">📞 Llamar</button>
-            <span style="font-size:11px;color:var(--text2);margin-left:4px" id="lc-contact-num">—</span>
+            <div style="flex:1;min-width:0">
+              <div id="lc-contact-num" style="font-size:12px;color:rgba(255,255,255,.5);font-weight:500">—</div>
+            </div>
+            <div style="font-size:10px;color:rgba(255,255,255,.2);background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);border-radius:6px;padding:4px 10px;font-weight:600">Conversación</div>
           </div>
           <!-- Timeline -->
           <div class="lc-timeline" id="lc-timeline"><div class="lc-loading">Abriendo conversación…</div></div>
@@ -2418,6 +2478,13 @@ function handleDrop(event, etapa) {
 // ════════════════════════════════════════════
 let _mlSnapshot = null;
 
+function _mlUpdateAvatar() {
+  const name = document.getElementById('ml-nombre')?.value || '';
+  const initials = name.split(' ').filter(Boolean).map(w => w[0].toUpperCase()).slice(0,2).join('') || '?';
+  const av = document.getElementById('ml-avatar');
+  if (av) av.textContent = initials;
+}
+
 function _mlSetMode(editing) {
   const modal = document.querySelector('.modal-lead');
   modal.classList.toggle('ml-view-mode', !editing);
@@ -2450,6 +2517,7 @@ function openLead(id, tabName) {
 
   // populate header
   document.getElementById('ml-nombre').value = lead.nombre || '';
+  _mlUpdateAvatar();
 
   // populate pipeline/etapa selects
   const pSel = document.getElementById('ml-pipeline');
