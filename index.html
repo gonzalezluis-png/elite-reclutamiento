@@ -1434,8 +1434,9 @@ function doLogin() {
 }
 function resetAllLeads() {
   if (!confirm('¿Seguro que quieres borrar TODOS los leads? Esta acción no se puede deshacer.')) return;
-  localStorage.removeItem('er_leads');
   leads = [];
+  localStorage.setItem('er_leads', '[]');
+  localStorage.setItem('er_seed_v', SEED_VERSION);
   renderKanban();
   renderSidebar();
   alert('Todos los leads han sido eliminados.');
