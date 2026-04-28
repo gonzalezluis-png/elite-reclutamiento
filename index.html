@@ -495,6 +495,7 @@ tr.lead-resuelto td:last-child { pointer-events:none;opacity:.4; }
       <div id="pipe-list"></div>
     </div>
     <div class="sidebar-bottom">
+      <div class="sidebar-item" onclick="openExternalApplicant()" style="color:#60a5fa;">📥 &nbsp;Aplicantes Externos</div>
       <a id="sidebar-webinar-link" class="sidebar-item sidebar-webinar-link" href="https://quintero-partners.webinargeek.com/oportunidad-laboral-webinar-on-demand-q-p" target="_blank" rel="noopener">🔗 &nbsp;Link de Webinar</a>
       <div class="sidebar-item sidebar-config-btn" id="sidebar-config-btn" onclick="showConfig()">⚙️ &nbsp;Configuraciones</div>
       <div class="sidebar-item" onclick="doLogout()" style="color:var(--red);">🚪 &nbsp;Cerrar sesión</div>
@@ -745,6 +746,48 @@ tr.lead-resuelto td:last-child { pointer-events:none;opacity:.4; }
 </div>
 
 <div id="toast"></div>
+
+<!-- MODAL APLICANTES EXTERNOS -->
+<div class="modal-overlay hidden" id="ext-modal" onclick="if(event.target===this)closeExternalApplicant()">
+  <div class="qmodal" style="width:520px">
+    <div class="qm-header" style="background:linear-gradient(135deg,rgba(96,165,250,.15),rgba(0,115,234,.1));border-bottom-color:rgba(96,165,250,.25)">
+      <h2 style="color:#93c5fd">📥 Aplicante Externo</h2>
+      <button class="mlh-close" onclick="closeExternalApplicant()">✕</button>
+    </div>
+    <div class="qm-body" style="display:flex;flex-direction:column;gap:14px">
+      <div class="field-row">
+        <div class="field"><label>Nombre <span class="req">*</span></label><input id="ext-nombre" placeholder="Juan Pérez" /></div>
+        <div class="field"><label>Teléfono <span class="req">*</span></label><input id="ext-tel" placeholder="+1 555 000 0000" /></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Email</label><input type="email" id="ext-correo" placeholder="juan@email.com" /></div>
+        <div class="field"><label>Fuente <span class="req">*</span></label>
+          <select id="ext-fuente" onchange="_extUpdatePreview()">
+            <option value="Indeed">Indeed</option>
+            <option value="Glassdoor">Glassdoor</option>
+            <option value="Instagram">Instagram</option>
+            <option value="Facebook">Facebook</option>
+          </select>
+        </div>
+      </div>
+      <div class="field">
+        <label>Ubicación</label>
+        <input id="ext-ubicacion" placeholder="Ciudad, Estado" />
+      </div>
+      <div class="field">
+        <label>Notas Adicionales</label>
+        <textarea id="ext-notas" rows="3" placeholder="Cualquier información relevante sobre el aplicante..." style="resize:vertical;min-height:70px"></textarea>
+      </div>
+      <div id="ext-pipeline-preview" style="font-size:11px;color:var(--text2);background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:8px;padding:8px 12px;display:flex;align-items:center;gap:8px">
+        <span>📋</span><span id="ext-pipeline-label">Indeed / Glassdoor → Postulados por Indeed · New Lead</span>
+      </div>
+    </div>
+    <div class="qm-footer">
+      <button class="btn-secondary" onclick="closeExternalApplicant()">Cancelar</button>
+      <button class="btn-primary" onclick="submitExternalApplicant()">Agregar aplicante</button>
+    </div>
+  </div>
+</div>
 
 <!-- MODAL NO CALIFICA -->
 <div id="no-califica-overlay" class="hidden">
@@ -2274,6 +2317,80 @@ function saveNewLead() {
   renderKanban();
   renderSidebar();
   showToast('🌟 Aplicante creado', true);
+}
+
+// ════════════════════════════════════════════
+//  APLICANTES EXTERNOS
+// ════════════════════════════════════════════
+function openExternalApplicant() {
+  document.getElementById('ext-nombre').value = '';
+  document.getElementById('ext-tel').value = '';
+  document.getElementById('ext-correo').value = '';
+  document.getElementById('ext-ubicacion').value = '';
+  document.getElementById('ext-notas').value = '';
+  document.getElementById('ext-fuente').value = 'Indeed';
+  _extUpdatePreview();
+  document.getElementById('ext-modal').classList.remove('hidden');
+  setTimeout(() => document.getElementById('ext-nombre').focus(), 50);
+}
+
+function closeExternalApplicant() {
+  document.getElementById('ext-modal').classList.add('hidden');
+}
+
+function _extUpdatePreview() {
+  const fuente = document.getElementById('ext-fuente').value;
+  const isIndeed = fuente === 'Indeed' || fuente === 'Glassdoor';
+  const pipeName = isIndeed ? 'Postulados por Indeed' : 'Postulados por Meta';
+  const lbl = document.getElementById('ext-pipeline-label');
+  if (lbl) lbl.textContent = `${fuente} → ${pipeName} · New Lead`;
+}
+
+// wired via onchange in HTML
+
+function submitExternalApplicant() {
+  const nombre = document.getElementById('ext-nombre').value.trim();
+  const tel    = document.getElementById('ext-tel').value.trim();
+  if (!nombre) { showToast('El nombre es obligatorio'); return; }
+  if (!tel)    { showToast('El teléfono es obligatorio'); return; }
+
+  const fuente = document.getElementById('ext-fuente').value;
+  const isIndeed = fuente === 'Indeed' || fuente === 'Glassdoor';
+  const pipeline_id = isIndeed ? 'postulados-indeed' : 'postulados-meta';
+
+  const notasTxt = document.getElementById('ext-notas').value.trim();
+  const notas = notasTxt
+    ? [{ texto: notasTxt, fecha: new Date().toISOString(), autor: currentUser?.name || 'Sistema' }]
+    : [];
+
+  const numero = (leads.length > 0 ? Math.max(...leads.map(l => l.numero || 0)) : 0) + 1;
+  const lead = {
+    id:          'lead-' + Date.now(),
+    numero,
+    nombre,
+    telefono:    tel,
+    correo:      document.getElementById('ext-correo').value.trim(),
+    fuente,
+    ubicacion:   document.getElementById('ext-ubicacion').value.trim(),
+    pipeline_id,
+    etapa:       'New Lead',
+    propietario: currentUser?.name || '',
+    estado:      'abierto',
+    notas,
+    tareas:      [],
+    historial:   [],
+    created_at:  new Date().toISOString(),
+  };
+
+  const pipeName = PIPELINES.find(p => p.id === pipeline_id)?.nombre || pipeline_id;
+  addHistorial(lead.id, `Aplicante externo creado en ${pipeName} · Fuente: ${fuente}`, '📥');
+  leads.unshift(lead);
+  pushUndo('lead_create', lead.id);
+  saveLeads();
+  closeExternalApplicant();
+  renderKanban();
+  renderSidebar();
+  showToast('📥 Aplicante externo agregado', true);
 }
 
 // ════════════════════════════════════════════
