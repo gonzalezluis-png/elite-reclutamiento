@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Elite Reclutamiento — CRM</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="https://sdk.twilio.com/js/voice/2.9.2/twilio.min.js"></script>
+<script src="https://sdk.twilio.com/js/voice/releases/2.9.0/twilio.min.js"></script>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 :root {
@@ -3205,17 +3205,18 @@ async function cpInit() {
     const data = await res.json();
     if (!data.token) throw new Error(data.error || 'Sin token');
     _twilioDevice = new Twilio.Device(data.token, { codecPreferences: ['opus','pcmu'], logLevel: 1 });
-    _twilioDevice.on('registered',  () => { _cpReady = true; cpSetStatus('Listo ✓', '#00c875'); document.getElementById('cp-status-dot').style.background = '#00c875'; });
-    _twilioDevice.on('error',       e  => { cpSetStatus('Error: ' + (e.message||e), '#e2445c'); console.error('Twilio:', e); });
-    _twilioDevice.on('tokenWillExpire', async () => {
-      const r = await fetch(`${SERVER_URL}/twilio/token?identity=${encodeURIComponent(currentUser?.name||'agent')}`);
-      const d = await r.json();
-      if (d.token) _twilioDevice.updateToken(d.token);
+    _twilioDevice.on('error', e => {
+      const msg = e?.message || String(e);
+      cpSetStatus('Error: ' + msg, '#e2445c');
+      console.error('Twilio error:', e);
     });
-    await _twilioDevice.register();
+    // Mark ready immediately — register() only needed for inbound calls
+    _cpReady = true;
+    cpSetStatus('Listo ✓', '#00c875');
+    document.getElementById('cp-status-dot').style.background = '#00c875';
     return true;
   } catch (e) {
-    cpSetStatus('No conectado — revisa config', '#e2445c');
+    cpSetStatus('Error: ' + (e?.message || String(e)), '#e2445c');
     console.error('cpInit:', e);
     return false;
   }
