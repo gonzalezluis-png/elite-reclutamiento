@@ -342,17 +342,23 @@ app.get('/twilio/sms-inbox', async (req, res) => {
   if (!phone) return res.status(400).json({ ok: false, error: 'phone requerido' });
   if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN) return res.status(500).json({ ok: false, error: 'Twilio no configurado' });
   try {
-    const client   = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
-    const messages = await client.messages.list({ to: TWILIO_PHONE_NUMBER, from: phone, limit: 50 });
-    res.json({
-      ok: true,
-      messages: messages.map(m => ({
-        sid:       m.sid,
-        body:      m.body,
-        direction: 'inbound',
-        date:      m.dateSent?.toISOString() || new Date().toISOString(),
-      }))
+    const client = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
+    const [inbound, outbound] = await Promise.all([
+      client.messages.list({ to: TWILIO_PHONE_NUMBER, from: phone, limit: 50 }),
+      client.messages.list({ from: TWILIO_PHONE_NUMBER, to: phone, limit: 50 }),
+    ]);
+    const fmt = (m, dir) => ({
+      sid:       m.sid,
+      body:      m.body,
+      direction: dir,
+      status:    m.status,
+      dateSent:  m.dateSent?.toISOString() || m.dateCreated?.toISOString() || new Date().toISOString(),
     });
+    const messages = [
+      ...inbound.map(m => fmt(m, 'inbound')),
+      ...outbound.map(m => fmt(m, 'outbound')),
+    ].sort((a, b) => new Date(a.dateSent) - new Date(b.dateSent));
+    res.json({ ok: true, messages });
   } catch (e) {
     console.error('[SMS-Inbox] Error:', e.message);
     res.status(500).json({ ok: false, error: e.message });
@@ -390,19 +396,24 @@ app.get('/twilio/whatsapp-inbox', async (req, res) => {
   if (!phone) return res.status(400).json({ ok: false, error: 'phone requerido' });
   if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN) return res.status(500).json({ ok: false, error: 'Twilio no configurado' });
   try {
-    const client   = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
-    const fromWa   = phone.startsWith('whatsapp:') ? phone : `whatsapp:${phone}`;
-    const messages = await client.messages.list({ to: TWILIO_WA_FROM, from: fromWa, limit: 50 });
-    res.json({
-      ok: true,
-      messages: messages.map(m => ({
-        sid:       m.sid,
-        body:      m.body,
-        direction: 'inbound',
-        status:    m.status,
-        date:      m.dateSent?.toISOString() || new Date().toISOString(),
-      }))
+    const client = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
+    const contactWa = phone.startsWith('whatsapp:') ? phone : `whatsapp:${phone}`;
+    const [inbound, outbound] = await Promise.all([
+      client.messages.list({ to: TWILIO_WA_FROM, from: contactWa, limit: 50 }),
+      client.messages.list({ from: TWILIO_WA_FROM, to: contactWa, limit: 50 }),
+    ]);
+    const fmt = (m, dir) => ({
+      sid:       m.sid,
+      body:      m.body,
+      direction: dir,
+      status:    m.status,
+      dateSent:  m.dateSent?.toISOString() || m.dateCreated?.toISOString() || new Date().toISOString(),
     });
+    const messages = [
+      ...inbound.map(m => fmt(m, 'inbound')),
+      ...outbound.map(m => fmt(m, 'outbound')),
+    ].sort((a, b) => new Date(a.dateSent) - new Date(b.dateSent));
+    res.json({ ok: true, messages });
   } catch (e) {
     console.error('[WA-Inbox] Error:', e.message);
     res.status(500).json({ ok: false, error: e.message });
