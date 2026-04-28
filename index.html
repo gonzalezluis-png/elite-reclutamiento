@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Elite Reclutamiento — CRM</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="https://sdk.twilio.com/js/client/v1.14/twilio.js"></script>
+<script src="https://sdk.twilio.com/js/voice/2.9.2/twilio.min.js"></script>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 :root {
@@ -3204,11 +3204,15 @@ async function cpInit() {
     const res  = await fetch(`${SERVER_URL}/twilio/token?identity=${encodeURIComponent(currentUser?.name||'agent')}`);
     const data = await res.json();
     if (!data.token) throw new Error(data.error || 'Sin token');
-    _twilioDevice = new Twilio.Device(data.token, { codecPreferences: ['opus','pcmu'], fakeLocalDTMF: true, enableRingingState: true });
-    _twilioDevice.on('ready',      () => { _cpReady = true; cpSetStatus('Listo', '#00c875'); });
-    _twilioDevice.on('error',      e  => { cpSetStatus('Error: ' + e.message, '#e2445c'); console.error('Twilio:', e); });
-    _twilioDevice.on('disconnect', () => { cpOnHangup(); });
-    _twilioDevice.on('connect',    () => { cpOnConnect(); });
+    _twilioDevice = new Twilio.Device(data.token, { codecPreferences: ['opus','pcmu'], logLevel: 1 });
+    _twilioDevice.on('registered',  () => { _cpReady = true; cpSetStatus('Listo ✓', '#00c875'); document.getElementById('cp-status-dot').style.background = '#00c875'; });
+    _twilioDevice.on('error',       e  => { cpSetStatus('Error: ' + (e.message||e), '#e2445c'); console.error('Twilio:', e); });
+    _twilioDevice.on('tokenWillExpire', async () => {
+      const r = await fetch(`${SERVER_URL}/twilio/token?identity=${encodeURIComponent(currentUser?.name||'agent')}`);
+      const d = await r.json();
+      if (d.token) _twilioDevice.updateToken(d.token);
+    });
+    await _twilioDevice.register();
     return true;
   } catch (e) {
     cpSetStatus('No conectado — revisa config', '#e2445c');
@@ -3277,7 +3281,10 @@ async function cpDial() {
   _cpMuted = false;
   document.getElementById('cp-mute-btn').textContent = '🎤';
   try {
-    _twilioConn = _twilioDevice.connect({ To: phone });
+    _twilioConn = await _twilioDevice.connect({ params: { To: phone } });
+    _twilioConn.on('accept',     () => cpOnConnect());
+    _twilioConn.on('disconnect', () => cpOnHangup());
+    _twilioConn.on('error',      e  => { cpSetStatus('Error en llamada', '#e2445c'); console.error(e); });
   } catch (e) {
     cpSetStatus('Error al marcar', '#e2445c');
     document.getElementById('cp-call-btn').style.display = 'flex';
@@ -3318,8 +3325,8 @@ function cpOnHangup() {
 }
 
 function cpHangup() {
-  if (_twilioConn) _twilioConn.disconnect();
-  else { clearInterval(_cpTimerInt); document.getElementById('call-panel').style.display = 'none'; }
+  if (_twilioConn) { _twilioConn.disconnect(); }
+  else { clearInterval(_cpTimerInt); document.getElementById('call-panel').style.display = 'none'; document.getElementById('phone-fab').style.background = '#00c875'; }
 }
 
 function cpToggleMute() {
