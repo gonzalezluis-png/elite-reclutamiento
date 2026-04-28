@@ -1358,7 +1358,7 @@ const USERS = JSON.parse(localStorage.getItem('er_users') || JSON.stringify([
 // Load some sample data if empty or seed version changed
 const SEED_VERSION = '4';
 const _d = daysAgo => { const dt = new Date(); dt.setDate(dt.getDate()-daysAgo); return dt.toISOString(); };
-if (!leads.length || localStorage.getItem('er_seed_v') !== SEED_VERSION) {
+if (localStorage.getItem('er_seed_v') !== SEED_VERSION) {
   leads = [];
   const sample = [
     // ── POSTULADOS POR META (10) ──
