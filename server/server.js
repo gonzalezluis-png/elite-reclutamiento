@@ -40,13 +40,43 @@ app.get('/twilio/token', (req, res) => {
   }
 });
 
+// ── Caller ID routing: pick the number closest to the destination area code ───
+const CALLER_NUMBERS = {
+  // Fort Worth / Dallas-Metroplex
+  '214': '+18176352794', '972': '+18176352794', '469': '+18176352794',
+  '817': '+18176352794', '682': '+18176352794', '945': '+18176352794',
+  // Austin
+  '512': '+17377779159', '737': '+17377779159',
+  // El Paso
+  '915': '+19152217062',
+  // San Antonio (closest: El Paso or Austin — use Austin)
+  '210': '+17377779159', '726': '+17377779159',
+  // Houston (no local number yet — use Dallas)
+  '713': '+18176352794', '832': '+18176352794', '281': '+18176352794', '346': '+18176352794',
+  // Miami / South Florida
+  '305': '+17864605438', '786': '+17864605438', '954': '+17864605438',
+  '561': '+17864605438', '239': '+17864605438',
+};
+const DEFAULT_CALLER = '+18176352794'; // Dallas como default
+
+function pickCallerId(toNumber) {
+  const digits = (toNumber || '').replace(/\D/g, '');
+  // E.164 US: +1AAANNNNNNN → area code starts at index 1 (after country code 1)
+  const areaCode = digits.length === 11 && digits[0] === '1'
+    ? digits.slice(1, 4)
+    : digits.slice(0, 3);
+  return CALLER_NUMBERS[areaCode] || DEFAULT_CALLER;
+}
+
 // ── Twilio: TwiML — called by Twilio when agent dials ─────────────────────────
 app.post('/twilio/voice', (req, res) => {
   const { VoiceResponse } = twilio.twiml;
   const twiml = new VoiceResponse();
   const to = req.body.To;
   if (to) {
-    const dial = twiml.dial({ callerId: TWILIO_PHONE_NUMBER, timeout: 30, record: 'do-not-record' });
+    const callerId = pickCallerId(to);
+    console.log(`[Twilio] Llamando a ${to} → caller ID: ${callerId}`);
+    const dial = twiml.dial({ callerId, timeout: 30, record: 'do-not-record' });
     dial.number(to);
   } else {
     twiml.say({ language: 'es-MX' }, 'No se especificó un número de destino.');
