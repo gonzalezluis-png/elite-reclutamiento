@@ -3795,11 +3795,12 @@ function _msgRenderThread() {
   const msgs = [
     ...(lead.sms||[]).map(m => ({...m, ch:'sms'})),
     ...(lead.whatsapp||[]).map(m => ({...m, ch:'wa'})),
-  ].sort((a,b) => new Date(a.date) - new Date(b.date));
+  ].sort((a,b) => new Date(a.dateSent||a.date||0) - new Date(b.dateSent||b.date||0));
 
   const threadHtml = msgs.length ? msgs.map(m => {
     const out  = m.direction === 'outbound';
-    const time = m.date ? fmtDateTime(m.date) : '';
+    const _d   = m.dateSent || m.date;
+    const time = _d ? fmtDateTime(_d) : '';
     const ch   = m.ch;
     const tick = out && ch==='wa' ? (m.status==='read'?'✓✓':'✓') : '';
     return `<div class="msg-bubble-wrap ${out?'out':'in'}">
@@ -3953,14 +3954,18 @@ async function _msgPollActive() {
     const d1   = await r1.json();
     if (d1.messages) for (const m of d1.messages) {
       if (!lead.sms) lead.sms = [];
-      if (!lead.sms.find(s => s.sid === m.sid)) { lead.sms.push(m); updated = true; }
+      const ex1 = lead.sms.find(s => s.sid === m.sid);
+      if (!ex1) { lead.sms.push(m); updated = true; }
+      else if (!ex1.dateSent && m.dateSent) { Object.assign(ex1, m); updated = true; }
     }
     // Poll WA
     const r2   = await fetch(`${SERVER_URL}/twilio/whatsapp-inbox?phone=${encodeURIComponent(phone)}`);
     const d2   = await r2.json();
     if (d2.messages) for (const m of d2.messages) {
       if (!lead.whatsapp) lead.whatsapp = [];
-      if (!lead.whatsapp.find(s => s.sid === m.sid)) { lead.whatsapp.push(m); updated = true; }
+      const ex2 = lead.whatsapp.find(s => s.sid === m.sid);
+      if (!ex2) { lead.whatsapp.push(m); updated = true; }
+      else if (!ex2.dateSent && m.dateSent) { Object.assign(ex2, m); updated = true; }
     }
     if (updated) { saveLeads(); _msgRenderList(); _msgRenderThread(); }
   } catch {}
@@ -4091,12 +4096,20 @@ async function lcFetchMessages(lead) {
     const d1 = await r1.json();
     if (d1.messages) {
       if (!lead.sms) lead.sms = [];
-      for (const m of d1.messages) if (!lead.sms.find(s => s.sid === m.sid)) { lead.sms.push(m); updated = true; }
+      for (const m of d1.messages) {
+        const ex = lead.sms.find(s => s.sid === m.sid);
+        if (!ex) { lead.sms.push(m); updated = true; }
+        else if (!ex.dateSent && m.dateSent) { Object.assign(ex, m); updated = true; }
+      }
     }
     const d2 = await r2.json();
     if (d2.messages) {
       if (!lead.whatsapp) lead.whatsapp = [];
-      for (const m of d2.messages) if (!lead.whatsapp.find(s => s.sid === m.sid)) { lead.whatsapp.push(m); updated = true; }
+      for (const m of d2.messages) {
+        const ex = lead.whatsapp.find(s => s.sid === m.sid);
+        if (!ex) { lead.whatsapp.push(m); updated = true; }
+        else if (!ex.dateSent && m.dateSent) { Object.assign(ex, m); updated = true; }
+      }
     }
     if (updated) { saveLeads(); lcRenderTimeline(lead); }
   } catch {}
@@ -4147,11 +4160,11 @@ function lcRenderTimeline(lead) {
   const items = [];
   // SMS
   for (const m of (lead.sms || [])) {
-    items.push({ type:'sms', out: m.direction?.startsWith('outbound'), body: m.body, date: new Date(m.dateSent || m.dateCreated || 0) });
+    items.push({ type:'sms', out: m.direction?.startsWith('outbound'), body: m.body, date: new Date(m.dateSent || m.dateCreated || m.date || 0) });
   }
   // WhatsApp
   for (const m of (lead.whatsapp || [])) {
-    items.push({ type:'wa', out: m.direction?.startsWith('outbound'), body: m.body, date: new Date(m.dateSent || m.dateCreated || 0) });
+    items.push({ type:'wa', out: m.direction?.startsWith('outbound'), body: m.body, date: new Date(m.dateSent || m.dateCreated || m.date || 0) });
   }
   // Calls from Twilio
   for (const c of (lead.calls || [])) {
