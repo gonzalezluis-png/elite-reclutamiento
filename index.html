@@ -838,13 +838,30 @@ tr.lead-resuelto td:last-child { pointer-events:none;opacity:.4; }
     <span style="font-size:10px;background:rgba(255,255,255,.15);color:#fff;padding:2px 7px;border-radius:20px;font-weight:600">WhatsApp</span>
     <button onclick="waClose()" style="background:none;border:none;color:rgba(255,255,255,.6);font-size:18px;cursor:pointer;padding:0 4px;line-height:1">✕</button>
   </div>
-  <div id="wa-thread" style="flex:1;height:280px;overflow-y:auto;padding:12px 14px;display:flex;flex-direction:column;gap:8px;scroll-behavior:smooth;background:#0b1f17;"></div>
-  <div style="padding:10px 12px;border-top:1px solid rgba(37,211,102,.15);display:flex;gap:8px;align-items:flex-end;background:#0d1f17;">
-    <textarea id="wa-inp" placeholder="Escribe tu mensaje…" rows="2" onkeydown="if(event.ctrlKey&&event.key==='Enter')waSend()" style="flex:1;background:rgba(255,255,255,.06);border:1px solid rgba(37,211,102,.2);border-radius:8px;color:#fff;font-size:12.5px;font-family:var(--font);padding:8px 10px;resize:none;outline:none;line-height:1.4;"></textarea>
-    <button onclick="waSend()" id="wa-send-btn" style="flex-shrink:0;background:#25d366;border:none;border-radius:8px;color:#fff;font-size:18px;cursor:pointer;padding:0;width:38px;height:38px;display:flex;align-items:center;justify-content:center;">➤</button>
+  <!-- Template selector -->
+  <div style="padding:8px 12px 0;background:#0d1f17;">
+    <select id="wa-tpl-select" onchange="waLoadTemplate()" style="width:100%;background:rgba(255,255,255,.06);border:1px solid rgba(37,211,102,.2);border-radius:7px;color:rgba(255,255,255,.7);font-size:11.5px;font-family:var(--font);padding:5px 8px;outline:none;">
+      <option value="">📋 Seleccionar plantilla…</option>
+      <option value="aplicacante_registrado" data-vars="nombre,fuente">✅ Aplicante registrado</option>
+      <option value="webinar_con_video" data-vars="nombre">🎥 Webinar con video</option>
+      <option value="en_webinar_aplicantes" data-vars="nombre,correo">📩 En webinar — confirmación</option>
+      <option value="en_webinar_webinar_visto" data-vars="nombre">👀 Webinar visto</option>
+      <option value="no_visto_webinar" data-vars="nombre">⚠️ No vio el webinar</option>
+      <option value="registrado_en_una_entrevista" data-vars="nombre,fecha">📅 Registrado en entrevista</option>
+      <option value="link_de_entrevista_con_globe_life" data-vars="nombre,hora,link">🔗 Link de entrevista (5 min antes)</option>
+      <option value="aviso_entrevista_con_manager_30_minutos_antes" data-vars="nombre,hora,link_zoom">⏰ Aviso entrevista 30 min antes</option>
+      <option value="agenda_de_cita_para_manager" data-vars="nombre_candidato,dia,hora">🗓️ Cita para manager</option>
+      <option value="3er_intento_de_contacto" data-vars="nombre">📵 3er intento de contacto</option>
+      <option value="2do_intento_de_contacto_webinar_no_visto_eliminacion" data-vars="nombre">🚫 2do intento — eliminación</option>
+      <option value="eliminacion_por_webinar_visto" data-vars="nombre">❌ Eliminación (webinar visto)</option>
+    </select>
   </div>
-  <div id="wa-sandbox-tip" style="padding:6px 14px 8px;font-size:10px;color:rgba(255,255,255,.3);text-align:center;background:#0d1f17;display:none;">
-    Sandbox activo — el candidato debe enviar primero: <strong style="color:#25d366">join [código]</strong> al +14155238886
+  <!-- Dynamic variable inputs -->
+  <div id="wa-tpl-vars" style="padding:0 12px;background:#0d1f17;display:none;flex-direction:column;gap:4px;margin-top:6px;"></div>
+  <div id="wa-thread" style="flex:1;height:240px;overflow-y:auto;padding:12px 14px;display:flex;flex-direction:column;gap:8px;scroll-behavior:smooth;background:#0b1f17;"></div>
+  <div style="padding:10px 12px;border-top:1px solid rgba(37,211,102,.15);display:flex;gap:8px;align-items:flex-end;background:#0d1f17;">
+    <textarea id="wa-inp" placeholder="Escribe tu mensaje o usa una plantilla…" rows="2" onkeydown="if(event.ctrlKey&&event.key==='Enter')waSend()" style="flex:1;background:rgba(255,255,255,.06);border:1px solid rgba(37,211,102,.2);border-radius:8px;color:#fff;font-size:12.5px;font-family:var(--font);padding:8px 10px;resize:none;outline:none;line-height:1.4;"></textarea>
+    <button onclick="waSend()" id="wa-send-btn" style="flex-shrink:0;background:#25d366;border:none;border-radius:8px;color:#fff;font-size:18px;cursor:pointer;padding:0;width:38px;height:38px;display:flex;align-items:center;justify-content:center;">➤</button>
   </div>
 </div>
 
@@ -3268,28 +3285,100 @@ function waRenderThread(messages) {
   thread.scrollTop = thread.scrollHeight;
 }
 
-async function waSend() {
-  const inp  = document.getElementById('wa-inp');
-  const body = inp.value.trim();
-  if (!body) return;
+const WA_TEMPLATES = {
+  'aplicacante_registrado':                               { sid:'HXa9fe464baefe349f755700e56ba26848', vars:['nombre','fuente'] },
+  'link_de_entrevista_con_globe_life':                    { sid:'HXc1541737ff6cdd2907d6b371e751d1f9', vars:['nombre','hora','link'] },
+  'registrado_en_una_entrevista':                         { sid:'HXa6d83e7faa46a987cd82239b997381b9', vars:['nombre','fecha'] },
+  '2do_intento_de_contacto_webinar_no_visto_eliminacion': { sid:'HXa2f618ca272a83b16c56404ec34cd6f6', vars:['nombre'] },
+  '3er_intento_de_contacto':                             { sid:'HX175470685668cd261272511c80c7788a', vars:['nombre'] },
+  'en_webinar_webinar_visto':                            { sid:'HX2dec739e597fea20d78cfeddf2d20aef', vars:['nombre'] },
+  'webinar_con_video':                                    { sid:'HXa2e2aa6c119a9cb0efde545427681f1c', vars:['nombre'] },
+  'en_webinar_aplicantes':                               { sid:'HXca9415a238db82176a342470128892e8', vars:['nombre','correo'] },
+  'no_visto_webinar':                                    { sid:'HX981dc91dfdd54bdb7d44abf125639ec5', vars:['nombre'] },
+  'eliminacion_por_webinar_visto':                       { sid:'HXba2e7a22108e977fd04b9fc1423e7b3b', vars:['nombre'] },
+  'agenda_de_cita_para_manager':                         { sid:'HX2c89da1a9a1df9d8fa355f27045513ce', vars:['nombre_candidato','dia','hora'] },
+  'aviso_entrevista_con_manager_30_minutos_antes':        { sid:'HX073dda6f00a00001908811fe37978c41', vars:['nombre','hora','link_zoom'] },
+};
+
+function waLoadTemplate() {
+  const sel   = document.getElementById('wa-tpl-select');
+  const key   = sel.value;
+  const tpl   = WA_TEMPLATES[key];
+  const varsEl = document.getElementById('wa-tpl-vars');
+  const inp   = document.getElementById('wa-inp');
+  if (!key || !tpl) {
+    varsEl.style.display = 'none';
+    varsEl.innerHTML = '';
+    inp.value = '';
+    return;
+  }
   const lead = leads.find(l => l.id === _waLeadId);
+  // Auto-fill known values
+  const autoFill = {
+    nombre:           lead?.nombre || '',
+    fuente:           lead?.fuente || '',
+    correo:           lead?.correo || '',
+    nombre_candidato: lead?.nombre || '',
+  };
+  varsEl.style.display = 'flex';
+  varsEl.innerHTML = tpl.vars.map((v,i) =>
+    `<div style="display:flex;gap:6px;align-items:center;margin-bottom:3px;">
+      <label style="color:rgba(255,255,255,.5);font-size:10.5px;min-width:90px;">{{${i+1}}} ${v}</label>
+      <input id="wa-var-${i}" value="${esc(autoFill[v]||'')}" placeholder="${v}" style="flex:1;background:rgba(255,255,255,.06);border:1px solid rgba(37,211,102,.15);border-radius:5px;color:#fff;font-size:11.5px;font-family:var(--font);padding:4px 7px;outline:none;" />
+    </div>`
+  ).join('');
+  inp.value = '← Usando plantilla: ' + key.replace(/_/g,' ');
+  inp.style.opacity = '.4';
+}
+
+async function waSend() {
+  const sel   = document.getElementById('wa-tpl-select');
+  const tplKey = sel.value;
+  const inp   = document.getElementById('wa-inp');
+  const lead  = leads.find(l => l.id === _waLeadId);
   if (!lead) return;
   const phone = document.getElementById('wa-number').textContent;
   const btn   = document.getElementById('wa-send-btn');
   btn.disabled = true; btn.style.opacity = '.5';
+
   try {
+    let payload, displayBody;
+
+    if (tplKey && WA_TEMPLATES[tplKey]) {
+      // Template send
+      const tpl  = WA_TEMPLATES[tplKey];
+      const vars = {};
+      tpl.vars.forEach((v,i) => {
+        const el = document.getElementById(`wa-var-${i}`);
+        vars[(i+1).toString()] = el ? el.value.trim() : '';
+      });
+      payload = { to: phone, contentSid: tpl.sid, contentVariables: vars, leadId: lead.id };
+      displayBody = `[Plantilla: ${tplKey.replace(/_/g,' ')}] ${Object.values(vars).join(' · ')}`;
+    } else {
+      // Free text send
+      const body = inp.value.trim();
+      if (!body) { btn.disabled=false; btn.style.opacity='1'; return; }
+      payload = { to: phone, body, leadId: lead.id };
+      displayBody = body;
+    }
+
     const res  = await fetch(`${SERVER_URL}/twilio/whatsapp`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ to: phone, body, leadId: lead.id })
+      body: JSON.stringify(payload)
     });
     const data = await res.json();
     if (!data.ok) throw new Error(data.error || 'Error al enviar');
+
     if (!lead.whatsapp) lead.whatsapp = [];
-    lead.whatsapp.push({ direction:'outbound', body, date: new Date().toISOString(), autor: currentUser?.name||'Agente', sid: data.sid, status:'sent' });
-    addHistorial(lead.id, `WhatsApp enviado: "${body.slice(0,50)}${body.length>50?'…':''}"`, '📱');
+    lead.whatsapp.push({ direction:'outbound', body: displayBody, date: new Date().toISOString(), autor: currentUser?.name||'Agente', sid: data.sid, status:'sent' });
+    addHistorial(lead.id, `WhatsApp enviado: "${displayBody.slice(0,60)}${displayBody.length>60?'…':''}"`, '📱');
     saveLeads();
-    inp.value = '';
+    // Reset
+    inp.value = ''; inp.style.opacity = '1';
+    sel.value = '';
+    document.getElementById('wa-tpl-vars').style.display = 'none';
+    document.getElementById('wa-tpl-vars').innerHTML = '';
     waRenderThread(lead.whatsapp);
   } catch (e) {
     showToast('Error: ' + e.message);

@@ -283,16 +283,24 @@ app.get('/twilio/sms-inbox', async (req, res) => {
   }
 });
 
-// ── WhatsApp: Send outbound message ──────────────────────────────────────────
+// ── WhatsApp: Send outbound message (free text or approved template) ──────────
 app.post('/twilio/whatsapp', async (req, res) => {
-  const { to, body, leadId } = req.body;
-  if (!to || !body) return res.status(400).json({ ok: false, error: 'to y body requeridos' });
+  const { to, body, contentSid, contentVariables, leadId } = req.body;
+  if (!to) return res.status(400).json({ ok: false, error: 'to requerido' });
   if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN) return res.status(500).json({ ok: false, error: 'Twilio no configurado' });
   try {
-    const client  = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
-    const toWa    = to.startsWith('whatsapp:') ? to : `whatsapp:${to}`;
-    const message = await client.messages.create({ body, to: toWa, from: TWILIO_WA_FROM });
-    console.log(`[WA] → ${to} | ${message.sid} | leadId:${leadId||'?'}`);
+    const client = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
+    const toWa   = to.startsWith('whatsapp:') ? to : `whatsapp:${to}`;
+    const params = { to: toWa, from: TWILIO_WA_FROM };
+    if (contentSid) {
+      params.contentSid = contentSid;
+      if (contentVariables) params.contentVariables = JSON.stringify(contentVariables);
+    } else {
+      if (!body) return res.status(400).json({ ok: false, error: 'body o contentSid requerido' });
+      params.body = body;
+    }
+    const message = await client.messages.create(params);
+    console.log(`[WA] → ${to} | ${message.sid} | template:${contentSid||'none'} | leadId:${leadId||'?'}`);
     res.json({ ok: true, sid: message.sid });
   } catch (e) {
     console.error('[WA] Error:', e.message);
