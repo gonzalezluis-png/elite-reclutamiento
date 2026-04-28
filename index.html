@@ -246,6 +246,18 @@ tr.lead-resuelto td:last-child { pointer-events:none;opacity:.4; }
 .mlh-name { font-size:16px;font-weight:700;color:#fff;margin-bottom:6px; }
 .mlh-name-inp { font-size:15px;font-weight:700;color:#fff;background:transparent;border:none;outline:none;font-family:var(--font);width:100%;padding:2px 0; }
 .mlh-name-inp:focus { border-bottom:1px solid var(--accent); }
+/* ── View mode (locked) ── */
+.modal-lead.ml-view-mode .mlh-name-inp,
+.modal-lead.ml-view-mode .mlh-sel,
+.modal-lead.ml-view-mode #tab-info input,
+.modal-lead.ml-view-mode #tab-info select,
+.modal-lead.ml-view-mode #tab-info textarea,
+.modal-lead.ml-view-mode #tab-cita input,
+.modal-lead.ml-view-mode #tab-cita select,
+.modal-lead.ml-view-mode #tab-cita textarea { pointer-events:none !important;background:transparent !important;border-color:transparent !important;-webkit-appearance:none;appearance:none;cursor:default; }
+.modal-lead.ml-view-mode .mlh-name-inp:focus { border-bottom:none; }
+.modal-lead.ml-view-mode .add-phone-btn,
+.modal-lead.ml-view-mode #tab-cita .btn-primary { display:none !important; }
 .mlh-meta { display:flex;align-items:center;gap:8px;flex-wrap:wrap; }
 .mlh-sel { padding:3px 8px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-size:11.5px;font-family:var(--font);outline:none;cursor:pointer; }
 .mlh-close { background:none;border:none;color:var(--text2);font-size:20px;cursor:pointer;padding:2px 6px;border-radius:4px;line-height:1; }
@@ -608,11 +620,14 @@ tr.lead-resuelto td:last-child { pointer-events:none;opacity:.4; }
               <div class="field"><label>Fuente</label>
                 <select id="ml-fuente">
                   <option>Meta / Facebook</option>
+                  <option>Facebook</option>
                   <option>Instagram</option>
                   <option>WhatsApp</option>
+                  <option>Indeed</option>
+                  <option>Glassdoor</option>
+                  <option>OCC / Indeed</option>
                   <option>Referido</option>
                   <option>LinkedIn</option>
-                  <option>OCC / Indeed</option>
                   <option>Otro</option>
                 </select>
               </div>
@@ -698,8 +713,9 @@ tr.lead-resuelto td:last-child { pointer-events:none;opacity:.4; }
     <div class="ml-footer">
       <button class="btn-danger" onclick="deleteLead()">🗑 Eliminar</button>
       <div style="flex:1"></div>
-      <button class="btn-secondary" onclick="closeLead()">Cancelar</button>
-      <button class="btn-primary" onclick="saveLead()">Guardar cambios</button>
+      <button class="btn-secondary" id="ml-btn-cancel-edit" style="display:none" onclick="_mlCancelEdit()">Cancelar edición</button>
+      <button class="btn-primary" id="ml-btn-save" style="display:none" onclick="saveLead()">Guardar cambios</button>
+      <button class="btn-secondary" id="ml-btn-edit" onclick="_mlEdit()">✏️ Editar</button>
     </div>
   </div>
 </div>
@@ -2149,6 +2165,33 @@ function handleDrop(event, etapa) {
 // ════════════════════════════════════════════
 //  OPEN / CLOSE LEAD MODAL
 // ════════════════════════════════════════════
+let _mlSnapshot = null;
+
+function _mlSetMode(editing) {
+  const modal = document.querySelector('.modal-lead');
+  modal.classList.toggle('ml-view-mode', !editing);
+  document.getElementById('ml-btn-edit').style.display        = editing ? 'none' : '';
+  document.getElementById('ml-btn-save').style.display        = editing ? '' : 'none';
+  document.getElementById('ml-btn-cancel-edit').style.display = editing ? '' : 'none';
+}
+
+function _mlEdit() {
+  const lead = leads.find(l => l.id === currentLeadId);
+  if (lead) _mlSnapshot = JSON.parse(JSON.stringify(lead));
+  _mlSetMode(true);
+}
+
+function _mlCancelEdit() {
+  if (_mlSnapshot) {
+    const idx = leads.findIndex(l => l.id === currentLeadId);
+    if (idx !== -1) leads[idx] = _mlSnapshot;
+    _mlSnapshot = null;
+    openLead(currentLeadId);
+    return;
+  }
+  _mlSetMode(false);
+}
+
 function openLead(id, tabName) {
   const lead = leads.find(l => l.id === id);
   if (!lead) return;
@@ -2193,6 +2236,7 @@ function openLead(id, tabName) {
 
   showTab(tabName || 'info');
   document.getElementById('lead-modal').classList.remove('hidden');
+  _mlSetMode(false); // start in view (locked) mode
 }
 
 function closeLead() {
@@ -2231,7 +2275,8 @@ function saveLead() {
     addHistorial(lead.id, 'Información actualizada', '✏️');
   }
   saveLeads();
-  closeLead();
+  _mlSnapshot = null;
+  _mlSetMode(false); // return to view (locked) mode
   renderKanban();
   renderSidebar();
   showToast('✏️ Aplicante guardado', true);
