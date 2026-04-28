@@ -1308,6 +1308,10 @@ let currentUser = { name:'Luis González', role:'Administrador' };
 let activePipelineId = 'postulados-meta';
 let webinarLink = localStorage.getItem('er_webinar_link') || 'https://quintero-partners.webinargeek.com/oportunidad-laboral-webinar-on-demand-q-p';
 let activeView = 'kanban'; // 'kanban' | 'calendario'
+if (new URLSearchParams(location.search).get('reset') === 'leads') {
+  localStorage.removeItem('er_leads');
+  location.replace(location.pathname);
+}
 let leads = JSON.parse(localStorage.getItem('er_leads') || '[]');
 let currentLeadId = null;
 let currentTags = [];
