@@ -8,6 +8,7 @@
     "install-browser": "npx playwright install chromium"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.24.0",
     "cors": "^2.8.5",
     "express": "^4.18.2",
     "playwright": "^1.44.0",

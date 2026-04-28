@@ -4,6 +4,7 @@ const express  = require('express');
 const cors     = require('cors');
 const { chromium } = require('playwright');
 const twilio   = require('twilio');
+const { askClaude, textToSpeech, loadKnowledge, saveKnowledge, conversationHistory, aiEnabled } = require('./ai');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -226,10 +227,47 @@ function pickCallerId(toNumber) {
 }
 
 // ── Twilio: TwiML — called by Twilio when agent dials ─────────────────────────
-app.post('/twilio/voice', (req, res) => {
+// TTS audio cache (id → Buffer, auto-expires in 3 min)
+const _ttsCache = new Map();
+async function _genTTS(text) {
+  const id = Date.now().toString(36) + Math.random().toString(36).slice(2);
+  const buf = await textToSpeech(text);
+  _ttsCache.set(id, buf);
+  setTimeout(() => _ttsCache.delete(id), 180000);
+  return id;
+}
+const SERVER_URL = process.env.SERVER_URL || 'https://elite-reclutamiento.onrender.com';
+const OUR_NUMBERS = new Set(['+18176352794', '+17377779159', '+19152217062', '+17864605438']);
+
+// Serve TTS audio for Twilio <Play>
+app.get('/ai/tts/:id', (req, res) => {
+  const buf = _ttsCache.get(req.params.id);
+  if (!buf) return res.status(404).send('Audio not found');
+  res.type('audio/mpeg').send(buf);
+});
+
+app.post('/twilio/voice', async (req, res) => {
   const { VoiceResponse } = twilio.twiml;
   const twiml = new VoiceResponse();
   const to = req.body.To;
+
+  // Inbound call → AI assistant (To is one of our numbers or empty)
+  if (aiEnabled.voice && (!to || OUR_NUMBERS.has(to))) {
+    const greeting = 'Hola, gracias por llamar a Grupo Elite Work. Soy Ana, tu asistente virtual. ¿En qué puedo ayudarte hoy?';
+    try {
+      const id  = await _genTTS(greeting);
+      const gather = twiml.gather({ input: 'speech', action: '/twilio/voice/respond', speechTimeout: 'auto', language: 'es-MX', speechModel: 'phone_call' });
+      gather.play(`${SERVER_URL}/ai/tts/${id}`);
+    } catch {
+      const gather = twiml.gather({ input: 'speech', action: '/twilio/voice/respond', speechTimeout: 'auto', language: 'es-MX' });
+      gather.say({ language: 'es-MX' }, greeting);
+    }
+    twiml.redirect('/twilio/voice/no-input');
+    res.type('text/xml').send(twiml.toString());
+    return;
+  }
+
+  // Outbound call (TwiML App) → dial the lead
   if (to) {
     const callerId = pickCallerId(to);
     console.log(`[Twilio] Llamando a ${to} → caller ID: ${callerId}`);
@@ -238,8 +276,44 @@ app.post('/twilio/voice', (req, res) => {
   } else {
     twiml.say({ language: 'es-MX' }, 'No se especificó un número de destino.');
   }
-  res.type('text/xml');
-  res.send(twiml.toString());
+  res.type('text/xml').send(twiml.toString());
+});
+
+// AI voice response turn
+app.post('/twilio/voice/respond', async (req, res) => {
+  const { VoiceResponse } = twilio.twiml;
+  const twiml = new VoiceResponse();
+  const { SpeechResult, From } = req.body;
+
+  if (!SpeechResult?.trim()) {
+    twiml.redirect('/twilio/voice/no-input');
+    res.type('text/xml').send(twiml.toString());
+    return;
+  }
+
+  console.log(`[Voice-AI] ${From}: "${SpeechResult}"`);
+  try {
+    const reply = await askClaude(From, SpeechResult, 'voice');
+    console.log(`[Voice-AI] Ana: "${reply}"`);
+    const id = await _genTTS(reply);
+    const gather = twiml.gather({ input: 'speech', action: '/twilio/voice/respond', speechTimeout: 'auto', language: 'es-MX', speechModel: 'phone_call' });
+    gather.play(`${SERVER_URL}/ai/tts/${id}`);
+    twiml.redirect('/twilio/voice/no-input');
+  } catch (e) {
+    console.error('[Voice-AI] Error:', e.message);
+    twiml.say({ language: 'es-MX' }, 'Disculpa, tuve un problema técnico. Un reclutador te llamará en breve. ¡Hasta luego!');
+    twiml.hangup();
+  }
+  res.type('text/xml').send(twiml.toString());
+});
+
+// No input fallback
+app.post('/twilio/voice/no-input', (req, res) => {
+  const { VoiceResponse } = twilio.twiml;
+  const twiml = new VoiceResponse();
+  twiml.say({ language: 'es-MX' }, '¿Sigues ahí? Si necesitas ayuda, llámanos de nuevo. ¡Hasta luego!');
+  twiml.hangup();
+  res.type('text/xml').send(twiml.toString());
 });
 
 // ── SMS: Send outbound SMS ────────────────────────────────────────────────────
@@ -336,16 +410,38 @@ app.get('/twilio/whatsapp-inbox', async (req, res) => {
 });
 
 // ── WhatsApp: Incoming webhook ────────────────────────────────────────────────
-app.post('/twilio/whatsapp-incoming', (req, res) => {
+app.post('/twilio/whatsapp-incoming', async (req, res) => {
   const { From, Body, MessageSid } = req.body;
   console.log(`[WA-IN] ${From}: ${Body} (${MessageSid})`);
+
+  if (aiEnabled.wa && Body?.trim()) {
+    try {
+      const reply = await askClaude(From, Body, 'wa');
+      console.log(`[WA-AI] Ana → ${From}: "${reply}"`);
+      const client = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
+      await client.messages.create({ from: TWILIO_WA_FROM, to: From, body: reply });
+    } catch (e) {
+      console.error('[WA-AI] Error:', e.message);
+    }
+  }
   res.type('text/xml').send('<Response></Response>');
 });
 
-// ── SMS: Incoming webhook (Twilio calls this when a message is received) ──────
-app.post('/twilio/sms-incoming', (req, res) => {
+// ── SMS: Incoming webhook ─────────────────────────────────────────────────────
+app.post('/twilio/sms-incoming', async (req, res) => {
   const { From, Body, MessageSid } = req.body;
   console.log(`[SMS-IN] ${From}: ${Body} (${MessageSid})`);
+
+  if (aiEnabled.sms && Body?.trim()) {
+    try {
+      const reply = await askClaude(From, Body, 'sms');
+      console.log(`[SMS-AI] Ana → ${From}: "${reply}"`);
+      const client = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
+      await client.messages.create({ from: TWILIO_PHONE_NUMBER, to: From, body: reply });
+    } catch (e) {
+      console.error('[SMS-AI] Error:', e.message);
+    }
+  }
   res.type('text/xml').send('<Response></Response>');
 });
 
@@ -404,6 +500,51 @@ app.get('/twilio/calls/by-number', async (req, res) => {
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
+});
+
+// ── AI: Knowledge base ────────────────────────────────────────────────────────
+app.get('/ai/knowledge', (req, res) => {
+  res.json({ ok: true, knowledge: loadKnowledge() });
+});
+
+app.post('/ai/knowledge', (req, res) => {
+  const { knowledge } = req.body;
+  if (typeof knowledge !== 'string') return res.status(400).json({ ok: false, error: 'knowledge debe ser texto' });
+  const saved = saveKnowledge(knowledge);
+  res.json({ ok: saved, warning: saved ? null : 'No se pudo guardar en disco (filesystem efímero en Render); activo solo en memoria' });
+});
+
+// ── AI: Settings ──────────────────────────────────────────────────────────────
+app.get('/ai/settings', (req, res) => {
+  res.json({ ok: true, enabled: aiEnabled });
+});
+
+app.post('/ai/settings', (req, res) => {
+  const { sms, wa, voice } = req.body;
+  if (typeof sms   === 'boolean') aiEnabled.sms   = sms;
+  if (typeof wa    === 'boolean') aiEnabled.wa     = wa;
+  if (typeof voice === 'boolean') aiEnabled.voice  = voice;
+  res.json({ ok: true, enabled: aiEnabled });
+});
+
+// ── AI: Conversation history ──────────────────────────────────────────────────
+app.get('/ai/history', (req, res) => {
+  const all = {};
+  for (const [phone, msgs] of conversationHistory) {
+    all[phone] = msgs.map(({ role, content, ts }) => ({ role, content, ts }));
+  }
+  res.json({ ok: true, history: all });
+});
+
+app.delete('/ai/history/:phone', (req, res) => {
+  const phone = decodeURIComponent(req.params.phone);
+  conversationHistory.delete(phone);
+  res.json({ ok: true });
+});
+
+app.delete('/ai/history', (req, res) => {
+  conversationHistory.clear();
+  res.json({ ok: true });
 });
 
 // ── Health check ──────────────────────────────────────────────────────────────
