@@ -451,6 +451,38 @@ tr.lead-resuelto td:last-child { pointer-events:none;opacity:.4; }
 .nota-form textarea { padding:8px 10px;background:var(--card2);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-family:var(--font);font-size:12.5px;outline:none;resize:vertical;min-height:80px; }
 .nota-form textarea:focus { border-color:var(--accent); }
 
+/* ── Lead Conversation Tab ── */
+.lc-wrap { display:flex;flex-direction:column;height:100%;overflow:hidden; }
+.lc-actions { display:flex;align-items:center;gap:8px;padding:10px 16px;border-bottom:1px solid var(--border);flex-shrink:0;background:var(--card2); }
+.lc-call-btn { background:#00c875;border:none;border-radius:8px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;padding:7px 14px;font-family:var(--font);display:flex;align-items:center;gap:5px;transition:background .15s; }
+.lc-call-btn:hover { background:#00a865; }
+.lc-timeline { flex:1;overflow-y:auto;padding:14px 16px;display:flex;flex-direction:column;gap:10px;scroll-behavior:smooth; }
+.lc-loading { text-align:center;padding:20px;color:var(--text2);font-size:12px; }
+.lc-bubble-wrap { display:flex;flex-direction:column; }
+.lc-bubble-wrap.out { align-items:flex-end; }
+.lc-bubble-wrap.in  { align-items:flex-start; }
+.lc-bubble { max-width:72%;padding:8px 12px;border-radius:12px;font-size:12.5px;line-height:1.45;word-break:break-word; }
+.lc-bubble.out.sms  { background:#0073ea;color:#fff;border-bottom-right-radius:3px; }
+.lc-bubble.in.sms   { background:var(--card2);color:var(--text);border-bottom-left-radius:3px; }
+.lc-bubble.out.wa   { background:#128c7e;color:#fff;border-bottom-right-radius:3px; }
+.lc-bubble.in.wa    { background:#075e54;color:#fff;border-bottom-left-radius:3px; }
+.lc-bubble.call     { background:var(--card2);color:var(--text);border-radius:10px;display:flex;align-items:center;gap:10px;padding:10px 14px;width:260px;max-width:100%; }
+.lc-bubble-meta { font-size:10px;color:var(--text2);margin-top:3px; }
+.lc-call-pill { display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:20px;font-size:10px;font-weight:600; }
+.lc-call-pill.out  { background:rgba(0,200,117,.15);color:#00c875; }
+.lc-call-pill.in   { background:rgba(96,165,250,.15);color:#60a5fa; }
+.lc-call-pill.miss { background:rgba(226,68,92,.15);color:#e2445c; }
+.lc-compose { border-top:1px solid var(--border);padding:10px 14px;flex-shrink:0;background:var(--card2);display:flex;flex-direction:column;gap:8px; }
+.lc-channel-row { display:flex;align-items:center;gap:6px; }
+.lc-ch-btn { font-size:11px;padding:4px 10px;border-radius:20px;border:1px solid var(--border);background:none;color:var(--text2);cursor:pointer;font-family:var(--font);transition:all .12s; }
+.lc-ch-btn.active.sms { background:#0073ea;border-color:#0073ea;color:#fff; }
+.lc-ch-btn.active.wa  { background:#128c7e;border-color:#128c7e;color:#fff; }
+.lc-tpl-select { flex:1;background:rgba(255,255,255,.05);border:1px solid rgba(37,211,102,.2);border-radius:6px;color:rgba(255,255,255,.7);font-size:11px;font-family:var(--font);padding:4px 7px;outline:none; }
+.lc-input-row { display:flex;gap:8px;align-items:flex-end; }
+.lc-textarea { flex:1;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12.5px;font-family:var(--font);padding:8px 11px;resize:none;outline:none;line-height:1.4;min-height:36px;max-height:100px; }
+.lc-textarea:focus { border-color:var(--accent); }
+.lc-send-btn { flex-shrink:0;width:38px;height:38px;border-radius:8px;border:none;color:#fff;font-size:17px;cursor:pointer;display:flex;align-items:center;justify-content:center; }
+
 /* tareas */
 .tarea-item { display:flex;align-items:flex-start;gap:9px;padding:9px 0;border-bottom:1px solid var(--border); }
 .tarea-check { width:16px;height:16px;accent-color:var(--accent);cursor:pointer;flex-shrink:0;margin-top:1px; }
@@ -719,6 +751,7 @@ tr.lead-resuelto td:last-child { pointer-events:none;opacity:.4; }
         <div class="ml-tab active" onclick="showTab('info')" id="tab-btn-info"><span class="ml-tab-icon">👤</span>Info</div>
         <div class="ml-tab" onclick="showTab('cita')" id="tab-btn-cita"><span class="ml-tab-icon">📅</span>Cita</div>
         <div class="ml-tab" onclick="showTab('tareas')" id="tab-btn-tareas"><span class="ml-tab-icon">✅</span>Tareas</div>
+        <div class="ml-tab" onclick="showTab('conversacion')" id="tab-btn-conversacion"><span class="ml-tab-icon">💬</span>Conversación</div>
         <div class="ml-tab" onclick="showTab('historial')" id="tab-btn-historial"><span class="ml-tab-icon">🕓</span>Historial</div>
       </div>
 
@@ -821,6 +854,47 @@ tr.lead-resuelto td:last-child { pointer-events:none;opacity:.4; }
               <button class="btn-primary" onclick="addTarea()">Agregar</button>
             </div>
             <div id="tareas-list"></div>
+          </div>
+        </div>
+
+        <!-- CONVERSACIÓN TAB -->
+        <div id="tab-conversacion" class="tab-pane" style="padding:0;overflow:hidden;">
+          <div class="lc-wrap">
+            <!-- Action bar -->
+            <div class="lc-actions">
+              <button class="lc-call-btn" onclick="cpOpen()">📞 Llamar</button>
+              <span style="font-size:11px;color:var(--text2);margin-left:4px" id="lc-contact-num">—</span>
+            </div>
+            <!-- Timeline -->
+            <div class="lc-timeline" id="lc-timeline"><div class="lc-loading">Abriendo conversación…</div></div>
+            <!-- Compose -->
+            <div class="lc-compose">
+              <div class="lc-channel-row">
+                <button class="lc-ch-btn active sms" id="lc-ch-sms" onclick="lcSetChannel('sms')">💬 SMS</button>
+                <button class="lc-ch-btn wa"          id="lc-ch-wa"  onclick="lcSetChannel('wa')">📱 WhatsApp</button>
+                <select id="lc-tpl-select" class="lc-tpl-select" style="display:none" onchange="lcLoadTpl()">
+                  <option value="">📋 Plantilla…</option>
+                  <option value="aplicacante_registrado">✅ Aplicante registrado</option>
+                  <option value="webinar_con_video">🎥 Webinar con video</option>
+                  <option value="en_webinar_aplicantes">📩 En webinar — confirmación</option>
+                  <option value="en_webinar_webinar_visto">👀 Webinar visto</option>
+                  <option value="no_visto_webinar">⚠️ No vio el webinar</option>
+                  <option value="registrado_en_una_entrevista">📅 Registrado en entrevista</option>
+                  <option value="link_de_entrevista_con_globe_life">🔗 Link entrevista (5 min)</option>
+                  <option value="aviso_entrevista_con_manager_30_minutos_antes">⏰ Aviso entrevista 30 min</option>
+                  <option value="agenda_de_cita_para_manager">🗓️ Cita para manager</option>
+                  <option value="3er_intento_de_contacto">📵 3er intento</option>
+                  <option value="2do_intento_de_contacto_webinar_no_visto_eliminacion">🚫 2do intento — elim.</option>
+                  <option value="eliminacion_por_webinar_visto">❌ Eliminación</option>
+                </select>
+              </div>
+              <div id="lc-tpl-vars" style="display:none;flex-direction:column;gap:4px;"></div>
+              <div class="lc-input-row">
+                <textarea id="lc-textarea" class="lc-textarea" placeholder="Escribe un mensaje… (Ctrl+Enter enviar)" rows="2"
+                  onkeydown="if(event.ctrlKey&&event.key==='Enter')lcSend()"></textarea>
+                <button class="lc-send-btn" id="lc-send-btn" onclick="lcSend()" style="background:#0073ea;">➤</button>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -2457,6 +2531,7 @@ function openLead(id, tabName) {
 }
 
 function closeLead() {
+  clearInterval(_lcPollInt);
   document.getElementById('lead-modal').classList.add('hidden');
   currentLeadId = null;
 }
@@ -2670,10 +2745,11 @@ function updateEtapasSelect(currentEtapa) {
 //  TABS
 // ════════════════════════════════════════════
 function showTab(name) {
-  ['info','cita','tareas','notas'].forEach(t => {
+  ['info','cita','tareas','historial','conversacion'].forEach(t => {
     document.getElementById('tab-'+t)?.classList.toggle('active', t===name);
     document.getElementById('tab-btn-'+t)?.classList.toggle('active', t===name);
   });
+  if (name === 'conversacion') lcOpen();
 }
 
 // ════════════════════════════════════════════
@@ -3711,6 +3787,188 @@ async function _msgPollActive() {
     }
     if (updated) { saveLeads(); _msgRenderList(); _msgRenderThread(); }
   } catch {}
+}
+
+// ── Lead Conversation Tab ─────────────────────────────────────────────────────
+let _lcChannel  = 'sms';   // 'sms' | 'wa'
+let _lcPollInt  = null;
+let _lcLoading  = false;
+
+function lcOpen() {
+  const lead = leads.find(l => l.id === currentLeadId);
+  if (!lead) return;
+  clearInterval(_lcPollInt);
+  const phone = lead.telefono || '';
+  document.getElementById('lc-contact-num').textContent = phone || '(sin número)';
+  lcRenderTimeline(lead);
+  if (phone) {
+    lcFetchCalls(lead);
+    lcFetchMessages(lead);
+    _lcPollInt = setInterval(() => lcFetchMessages(leads.find(l => l.id === currentLeadId)), 10000);
+  }
+}
+
+function lcSetChannel(ch) {
+  _lcChannel = ch;
+  document.getElementById('lc-ch-sms').classList.toggle('active', ch === 'sms');
+  document.getElementById('lc-ch-sms').classList.toggle('sms',    ch === 'sms');
+  document.getElementById('lc-ch-wa').classList.toggle('active',  ch === 'wa');
+  document.getElementById('lc-ch-wa').classList.toggle('wa',      ch === 'wa');
+  const tplRow  = document.getElementById('lc-tpl-select');
+  const tplVars = document.getElementById('lc-tpl-vars');
+  tplRow.style.display  = ch === 'wa' ? '' : 'none';
+  tplVars.style.display = 'none';
+  tplRow.value = '';
+  document.getElementById('lc-textarea').value = '';
+  document.getElementById('lc-send-btn').style.background = ch === 'wa' ? '#128c7e' : '#0073ea';
+}
+
+function lcLoadTpl() {
+  const key  = document.getElementById('lc-tpl-select').value;
+  const lead = leads.find(l => l.id === currentLeadId);
+  const tplVars = document.getElementById('lc-tpl-vars');
+  if (!key) { tplVars.style.display = 'none'; tplVars.innerHTML = ''; return; }
+  const tpl = WA_TEMPLATES[key];
+  if (!tpl || !tpl.vars.length) { tplVars.style.display = 'none'; tplVars.innerHTML = ''; return; }
+  tplVars.style.display = 'flex';
+  tplVars.innerHTML = tpl.vars.map(v => {
+    const prefill = v === 'nombre' ? (lead?.nombre || '') : v === 'correo' ? (lead?.correo || '') : '';
+    return `<input data-var="${v}" placeholder="${v}" value="${esc(prefill)}"
+      style="background:rgba(255,255,255,.06);border:1px solid rgba(37,211,102,.2);border-radius:6px;color:#fff;font-size:11.5px;font-family:var(--font);padding:5px 9px;outline:none;width:100%;box-sizing:border-box;" />`;
+  }).join('');
+}
+
+async function lcSend() {
+  const lead = leads.find(l => l.id === currentLeadId);
+  if (!lead?.telefono) { showToast('Lead sin número de teléfono'); return; }
+  const btn = document.getElementById('lc-send-btn');
+  btn.disabled = true;
+  try {
+    if (_lcChannel === 'sms') {
+      const body = document.getElementById('lc-textarea').value.trim();
+      if (!body) { btn.disabled = false; return; }
+      const res = await fetch(`${SERVER_URL}/twilio/sms`, {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ to: lead.telefono, body, leadId: lead.id }),
+      });
+      if (!res.ok) throw new Error('Error SMS');
+      if (!lead.sms) lead.sms = [];
+      lead.sms.push({ body, direction: 'outbound', dateSent: new Date().toISOString(), sid: 'local_' + Date.now() });
+    } else {
+      const key = document.getElementById('lc-tpl-select').value;
+      let payload;
+      if (key) {
+        const tpl  = WA_TEMPLATES[key];
+        const vars = {};
+        document.querySelectorAll('#lc-tpl-vars input').forEach(inp => { vars[inp.dataset.var] = inp.value.trim(); });
+        payload = { to: lead.telefono, contentSid: tpl.sid, contentVariables: vars, leadId: lead.id };
+      } else {
+        const body = document.getElementById('lc-textarea').value.trim();
+        if (!body) { btn.disabled = false; return; }
+        payload = { to: lead.telefono, body, leadId: lead.id };
+      }
+      const res = await fetch(`${SERVER_URL}/twilio/whatsapp`, {
+        method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload),
+      });
+      if (!res.ok) throw new Error('Error WhatsApp');
+      if (!lead.whatsapp) lead.whatsapp = [];
+      const body = key ? `[Plantilla: ${key}]` : document.getElementById('lc-textarea').value.trim();
+      lead.whatsapp.push({ body, direction: 'outbound', dateSent: new Date().toISOString(), sid: 'local_' + Date.now() });
+    }
+    document.getElementById('lc-textarea').value = '';
+    document.getElementById('lc-tpl-select').value = '';
+    document.getElementById('lc-tpl-vars').style.display = 'none';
+    document.getElementById('lc-tpl-vars').innerHTML = '';
+    saveLeads();
+    lcRenderTimeline(lead);
+    showToast('Mensaje enviado ✓');
+  } catch (e) {
+    showToast('Error al enviar: ' + e.message);
+  }
+  btn.disabled = false;
+}
+
+async function lcFetchCalls(lead) {
+  if (!lead?.telefono) return;
+  try {
+    const res  = await fetch(`${SERVER_URL}/twilio/calls/by-number?phone=${encodeURIComponent(lead.telefono)}&limit=30`);
+    const data = await res.json();
+    if (data.calls) {
+      lead.calls = data.calls;
+      lcRenderTimeline(lead);
+    }
+  } catch {}
+}
+
+async function lcFetchMessages(lead) {
+  if (!lead?.telefono) return;
+  try {
+    const [r1, r2] = await Promise.all([
+      fetch(`${SERVER_URL}/twilio/sms-inbox?phone=${encodeURIComponent(lead.telefono)}`),
+      fetch(`${SERVER_URL}/twilio/whatsapp-inbox?phone=${encodeURIComponent(lead.telefono)}`),
+    ]);
+    let updated = false;
+    const d1 = await r1.json();
+    if (d1.messages) {
+      if (!lead.sms) lead.sms = [];
+      for (const m of d1.messages) if (!lead.sms.find(s => s.sid === m.sid)) { lead.sms.push(m); updated = true; }
+    }
+    const d2 = await r2.json();
+    if (d2.messages) {
+      if (!lead.whatsapp) lead.whatsapp = [];
+      for (const m of d2.messages) if (!lead.whatsapp.find(s => s.sid === m.sid)) { lead.whatsapp.push(m); updated = true; }
+    }
+    if (updated) { saveLeads(); lcRenderTimeline(lead); }
+  } catch {}
+}
+
+function lcRenderTimeline(lead) {
+  const el = document.getElementById('lc-timeline');
+  if (!el) return;
+  const items = [];
+  // SMS
+  for (const m of (lead.sms || [])) {
+    items.push({ type:'sms', out: m.direction?.startsWith('outbound'), body: m.body, date: new Date(m.dateSent || m.dateCreated || 0) });
+  }
+  // WhatsApp
+  for (const m of (lead.whatsapp || [])) {
+    items.push({ type:'wa', out: m.direction?.startsWith('outbound'), body: m.body, date: new Date(m.dateSent || m.dateCreated || 0) });
+  }
+  // Calls
+  for (const c of (lead.calls || [])) {
+    const out  = c.direction?.startsWith('outbound');
+    const miss = c.status === 'no-answer' || c.status === 'busy' || c.status === 'failed';
+    const dur  = parseInt(c.duration) > 0 ? `${Math.floor(c.duration/60)}:${String(c.duration%60).padStart(2,'0')}` : '';
+    items.push({ type:'call', out, miss, dur, status: c.status, date: new Date(c.startTime || 0) });
+  }
+  // Sort ascending
+  items.sort((a, b) => a.date - b.date);
+  if (!items.length) {
+    el.innerHTML = `<div class="lc-loading">Sin mensajes ni llamadas aún.<br><span style="font-size:10px;opacity:.5">Los mensajes enviados aparecerán aquí.</span></div>`;
+    return;
+  }
+  el.innerHTML = items.map(item => {
+    const timeStr = item.date.getTime() ? item.date.toLocaleString('es-MX', {day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}) : '';
+    if (item.type === 'call') {
+      const cls  = item.miss ? 'miss' : item.out ? 'out' : 'in';
+      const icon = item.miss ? '📵' : item.out ? '↗' : '↙';
+      const lbl  = item.miss ? 'Llamada perdida' : item.out ? 'Llamada saliente' : 'Llamada entrante';
+      return `<div style="display:flex;justify-content:center;">
+        <div class="lc-bubble call">
+          <span class="lc-call-pill ${cls}">${icon} ${lbl}${item.dur ? ' · ' + item.dur : ''}</span>
+          <span style="font-size:10px;color:var(--text2);margin-left:auto">${timeStr}</span>
+        </div>
+      </div>`;
+    }
+    const wrapCls = item.out ? 'out' : 'in';
+    const bubCls  = `${item.out?'out':'in'} ${item.type}`;
+    return `<div class="lc-bubble-wrap ${wrapCls}">
+      <div class="lc-bubble ${bubCls}">${esc(item.body || '')}</div>
+      <div class="lc-bubble-meta">${item.type === 'sms' ? '💬 SMS' : '📱 WA'} · ${timeStr}</div>
+    </div>`;
+  }).join('');
+  // Scroll to bottom
+  el.scrollTop = el.scrollHeight;
 }
 
 // ── Conversations (Call Log) ──────────────────────────────────────────────────
