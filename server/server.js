@@ -427,10 +427,26 @@ app.post('/twilio/whatsapp-incoming', async (req, res) => {
   res.type('text/xml').send('<Response></Response>');
 });
 
-// ── SMS: Incoming webhook ─────────────────────────────────────────────────────
+// ── SMS: Incoming webhook (also catches WA if misconfigured) ─────────────────
 app.post('/twilio/sms-incoming', async (req, res) => {
   const { From, Body, MessageSid } = req.body;
   console.log(`[SMS-IN] ${From}: ${Body} (${MessageSid})`);
+
+  // If the message comes from a WhatsApp number, route to WA handler
+  if (From?.startsWith('whatsapp:')) {
+    if (aiEnabled.wa && Body?.trim()) {
+      try {
+        const reply = await askClaude(From, Body, 'wa');
+        console.log(`[WA-AI via SMS hook] Ana → ${From}: "${reply}"`);
+        const client = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
+        await client.messages.create({ from: TWILIO_WA_FROM, to: From, body: reply });
+      } catch (e) {
+        console.error('[WA-AI] Error:', e.message);
+      }
+    }
+    res.type('text/xml').send('<Response></Response>');
+    return;
+  }
 
   if (aiEnabled.sms && Body?.trim()) {
     try {
