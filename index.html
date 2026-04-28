@@ -315,10 +315,12 @@ tr.lead-resuelto td:last-child { pointer-events:none;opacity:.4; }
 .req { color:var(--red); }
 .field-hint { font-size:10.5px;color:var(--text2);margin-top:3px; }
 
-/* sms bubbles */
+/* sms / whatsapp bubbles */
 .sms-bubble { max-width:80%;padding:7px 11px;border-radius:12px;font-size:12.5px;line-height:1.4;word-break:break-word; }
 .sms-out { align-self:flex-end;background:#0073ea;color:#fff;border-bottom-right-radius:3px; }
 .sms-in  { align-self:flex-start;background:rgba(255,255,255,.1);color:rgba(255,255,255,.9);border-bottom-left-radius:3px; }
+.wa-out  { align-self:flex-end;background:#005c4b;color:#e9feea;border-bottom-right-radius:3px; }
+.wa-in   { align-self:flex-start;background:#1f2c34;color:#e9feea;border-bottom-left-radius:3px; }
 .sms-meta { font-size:10px;color:rgba(255,255,255,.35);margin-top:2px; }
 .sms-out-wrap { display:flex;flex-direction:column;align-items:flex-end; }
 .sms-in-wrap  { display:flex;flex-direction:column;align-items:flex-start; }
@@ -633,6 +635,7 @@ tr.lead-resuelto td:last-child { pointer-events:none;opacity:.4; }
                   <input id="ml-telefono" placeholder="+1 555 000 0000" />
                   <button onclick="cpOpen()" title="Llamar" style="flex-shrink:0;background:#00c875;border:none;border-radius:6px;color:#fff;font-size:13px;cursor:pointer;padding:0 10px;height:32px;display:flex;align-items:center;gap:4px;font-family:var(--font)">📞</button>
                   <button onclick="smsOpen()" title="Enviar SMS" style="flex-shrink:0;background:#0073ea;border:none;border-radius:6px;color:#fff;font-size:13px;cursor:pointer;padding:0 10px;height:32px;display:flex;align-items:center;gap:4px;font-family:var(--font)">💬</button>
+                  <button onclick="waOpen()" title="WhatsApp" style="flex-shrink:0;background:#25d366;border:none;border-radius:6px;color:#fff;font-size:13px;cursor:pointer;padding:0 10px;height:32px;display:flex;align-items:center;gap:4px;font-family:var(--font)">📱</button>
                 </div>
               </div>
               <button class="add-phone-btn" onclick="addPhone()">+ Agregar teléfono</button>
@@ -822,6 +825,27 @@ tr.lead-resuelto td:last-child { pointer-events:none;opacity:.4; }
     <button onclick="smsSend()" id="sms-send-btn" style="flex-shrink:0;background:#0073ea;border:none;border-radius:8px;color:#fff;font-size:18px;cursor:pointer;padding:0;width:38px;height:38px;display:flex;align-items:center;justify-content:center;">➤</button>
   </div>
   <div style="padding:4px 14px 8px;font-size:10px;color:rgba(255,255,255,.25);text-align:center;">Ctrl+Enter para enviar · los mensajes recibidos aparecen automáticamente</div>
+</div>
+
+<!-- WHATSAPP PANEL -->
+<div id="wa-panel" style="display:none;position:fixed;bottom:24px;right:24px;z-index:9997;background:#0d1f17;border:1px solid rgba(37,211,102,.35);border-radius:16px;box-shadow:0 8px 40px rgba(0,0,0,.7);width:340px;font-family:var(--font);overflow:hidden;flex-direction:column;">
+  <div style="background:linear-gradient(135deg,#075e54,#128c7e);padding:12px 16px;display:flex;align-items:center;gap:10px;">
+    <div id="wa-avatar" style="width:36px;height:36px;border-radius:50%;background:#25d366;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#fff;flex-shrink:0">?</div>
+    <div style="flex:1;min-width:0">
+      <div id="wa-name" style="font-size:13px;font-weight:700;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">—</div>
+      <div id="wa-number" style="font-size:11px;color:rgba(255,255,255,.6);margin-top:1px">—</div>
+    </div>
+    <span style="font-size:10px;background:rgba(255,255,255,.15);color:#fff;padding:2px 7px;border-radius:20px;font-weight:600">WhatsApp</span>
+    <button onclick="waClose()" style="background:none;border:none;color:rgba(255,255,255,.6);font-size:18px;cursor:pointer;padding:0 4px;line-height:1">✕</button>
+  </div>
+  <div id="wa-thread" style="flex:1;height:280px;overflow-y:auto;padding:12px 14px;display:flex;flex-direction:column;gap:8px;scroll-behavior:smooth;background:#0b1f17;"></div>
+  <div style="padding:10px 12px;border-top:1px solid rgba(37,211,102,.15);display:flex;gap:8px;align-items:flex-end;background:#0d1f17;">
+    <textarea id="wa-inp" placeholder="Escribe tu mensaje…" rows="2" onkeydown="if(event.ctrlKey&&event.key==='Enter')waSend()" style="flex:1;background:rgba(255,255,255,.06);border:1px solid rgba(37,211,102,.2);border-radius:8px;color:#fff;font-size:12.5px;font-family:var(--font);padding:8px 10px;resize:none;outline:none;line-height:1.4;"></textarea>
+    <button onclick="waSend()" id="wa-send-btn" style="flex-shrink:0;background:#25d366;border:none;border-radius:8px;color:#fff;font-size:18px;cursor:pointer;padding:0;width:38px;height:38px;display:flex;align-items:center;justify-content:center;">➤</button>
+  </div>
+  <div id="wa-sandbox-tip" style="padding:6px 14px 8px;font-size:10px;color:rgba(255,255,255,.3);text-align:center;background:#0d1f17;display:none;">
+    Sandbox activo — el candidato debe enviar primero: <strong style="color:#25d366">join [código]</strong> al +14155238886
+  </div>
 </div>
 
 <!-- MODAL APLICANTES EXTERNOS -->
@@ -3190,6 +3214,110 @@ function cpToggleMute() {
 function cpSetStatus(text, color) {
   document.getElementById('cp-status').textContent = text;
   document.getElementById('cp-status').style.color = color || 'rgba(255,255,255,.6)';
+}
+
+// ── WhatsApp Module ───────────────────────────────────────────────────────────
+let _waLeadId  = null;
+let _waPollInt = null;
+
+function waOpen() {
+  const lead = leads.find(l => l.id === currentLeadId);
+  if (!lead) return;
+  const raw   = document.getElementById('ml-telefono')?.value?.trim() || lead.telefono || '';
+  if (!raw) { showToast('Este lead no tiene teléfono'); return; }
+  _waLeadId = lead.id;
+  if (!lead.whatsapp) lead.whatsapp = [];
+  const panel    = document.getElementById('wa-panel');
+  const initials = (lead.nombre||'?').split(' ').map(w=>w[0]||'').join('').slice(0,2).toUpperCase();
+  document.getElementById('wa-avatar').textContent = initials;
+  document.getElementById('wa-name').textContent   = lead.nombre || 'Desconocido';
+  document.getElementById('wa-number').textContent = raw;
+  panel.style.display = 'flex';
+  // offset if other panels open
+  const others = [
+    document.getElementById('call-panel').style.display !== 'none' ? 340 : 0,
+    document.getElementById('sms-panel').style.display  !== 'none' ? 340 : 0,
+  ];
+  panel.style.right = (24 + others.reduce((a,b) => a+b, 0)) + 'px';
+  waRenderThread(lead.whatsapp);
+  clearInterval(_waPollInt);
+  _waPollInt = setInterval(() => waPoll(raw), 8000);
+}
+
+function waClose() {
+  document.getElementById('wa-panel').style.display = 'none';
+  clearInterval(_waPollInt);
+  _waPollInt = null;
+}
+
+function waRenderThread(messages) {
+  const thread = document.getElementById('wa-thread');
+  if (!messages || !messages.length) {
+    thread.innerHTML = '<div style="text-align:center;color:rgba(255,255,255,.25);font-size:12px;margin-top:40px">Sin mensajes aún</div>';
+    return;
+  }
+  thread.innerHTML = messages.map(m => {
+    const out  = m.direction === 'outbound';
+    const time = m.date ? fmtDateTime(m.date) : '';
+    const tick = out ? (m.status === 'read' ? '✓✓' : '✓') : '';
+    return `<div class="${out?'sms-out-wrap':'sms-in-wrap'}">
+      <div class="sms-bubble ${out?'wa-out':'wa-in'}">${esc(m.body)}</div>
+      <div class="sms-meta">${time}${m.autor?' · '+esc(m.autor):''} ${tick}</div>
+    </div>`;
+  }).join('');
+  thread.scrollTop = thread.scrollHeight;
+}
+
+async function waSend() {
+  const inp  = document.getElementById('wa-inp');
+  const body = inp.value.trim();
+  if (!body) return;
+  const lead = leads.find(l => l.id === _waLeadId);
+  if (!lead) return;
+  const phone = document.getElementById('wa-number').textContent;
+  const btn   = document.getElementById('wa-send-btn');
+  btn.disabled = true; btn.style.opacity = '.5';
+  try {
+    const res  = await fetch(`${SERVER_URL}/twilio/whatsapp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ to: phone, body, leadId: lead.id })
+    });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || 'Error al enviar');
+    if (!lead.whatsapp) lead.whatsapp = [];
+    lead.whatsapp.push({ direction:'outbound', body, date: new Date().toISOString(), autor: currentUser?.name||'Agente', sid: data.sid, status:'sent' });
+    addHistorial(lead.id, `WhatsApp enviado: "${body.slice(0,50)}${body.length>50?'…':''}"`, '📱');
+    saveLeads();
+    inp.value = '';
+    waRenderThread(lead.whatsapp);
+  } catch (e) {
+    showToast('Error: ' + e.message);
+  } finally {
+    btn.disabled = false; btn.style.opacity = '1';
+  }
+}
+
+async function waPoll(phone) {
+  if (!_waLeadId) return;
+  const lead = leads.find(l => l.id === _waLeadId);
+  if (!lead) return;
+  try {
+    const res  = await fetch(`${SERVER_URL}/twilio/whatsapp-inbox?phone=${encodeURIComponent(phone)}`);
+    const data = await res.json();
+    if (!data.messages) return;
+    if (!lead.whatsapp) lead.whatsapp = [];
+    let updated = false;
+    for (const msg of data.messages) {
+      if (!lead.whatsapp.find(s => s.sid === msg.sid)) {
+        lead.whatsapp.push(msg);
+        if (msg.direction === 'inbound')
+          addHistorial(lead.id, `WhatsApp recibido: "${msg.body.slice(0,50)}${msg.body.length>50?'…':''}"`, '📩');
+        updated = true;
+      }
+    }
+    if (updated) { saveLeads(); waRenderThread(lead.whatsapp); }
+  } catch {}
 }
 
 // ── SMS Module ────────────────────────────────────────────────────────────────

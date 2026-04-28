@@ -19,6 +19,7 @@ const TWILIO_API_KEY       = process.env.TWILIO_API_KEY;       // Twilio Console
 const TWILIO_API_SECRET    = process.env.TWILIO_API_SECRET;
 const TWILIO_PHONE_NUMBER  = process.env.TWILIO_PHONE_NUMBER;  // e.g. +12015551234
 const TWILIO_APP_SID       = process.env.TWILIO_APP_SID;       // TwiML App SID
+const TWILIO_WA_FROM       = process.env.TWILIO_WA_FROM || 'whatsapp:+14155238886'; // Sandbox default → swap for approved number
 
 // ── Twilio: Access Token (browser can make calls) ─────────────────────────────
 app.get('/twilio/token', (req, res) => {
@@ -280,6 +281,55 @@ app.get('/twilio/sms-inbox', async (req, res) => {
     console.error('[SMS-Inbox] Error:', e.message);
     res.status(500).json({ ok: false, error: e.message });
   }
+});
+
+// ── WhatsApp: Send outbound message ──────────────────────────────────────────
+app.post('/twilio/whatsapp', async (req, res) => {
+  const { to, body, leadId } = req.body;
+  if (!to || !body) return res.status(400).json({ ok: false, error: 'to y body requeridos' });
+  if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN) return res.status(500).json({ ok: false, error: 'Twilio no configurado' });
+  try {
+    const client  = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
+    const toWa    = to.startsWith('whatsapp:') ? to : `whatsapp:${to}`;
+    const message = await client.messages.create({ body, to: toWa, from: TWILIO_WA_FROM });
+    console.log(`[WA] → ${to} | ${message.sid} | leadId:${leadId||'?'}`);
+    res.json({ ok: true, sid: message.sid });
+  } catch (e) {
+    console.error('[WA] Error:', e.message);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// ── WhatsApp: Fetch inbox (inbound messages from a contact) ───────────────────
+app.get('/twilio/whatsapp-inbox', async (req, res) => {
+  const { phone } = req.query;
+  if (!phone) return res.status(400).json({ ok: false, error: 'phone requerido' });
+  if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN) return res.status(500).json({ ok: false, error: 'Twilio no configurado' });
+  try {
+    const client   = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
+    const fromWa   = phone.startsWith('whatsapp:') ? phone : `whatsapp:${phone}`;
+    const messages = await client.messages.list({ to: TWILIO_WA_FROM, from: fromWa, limit: 50 });
+    res.json({
+      ok: true,
+      messages: messages.map(m => ({
+        sid:       m.sid,
+        body:      m.body,
+        direction: 'inbound',
+        status:    m.status,
+        date:      m.dateSent?.toISOString() || new Date().toISOString(),
+      }))
+    });
+  } catch (e) {
+    console.error('[WA-Inbox] Error:', e.message);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// ── WhatsApp: Incoming webhook ────────────────────────────────────────────────
+app.post('/twilio/whatsapp-incoming', (req, res) => {
+  const { From, Body, MessageSid } = req.body;
+  console.log(`[WA-IN] ${From}: ${Body} (${MessageSid})`);
+  res.type('text/xml').send('<Response></Response>');
 });
 
 // ── SMS: Incoming webhook (Twilio calls this when a message is received) ──────
