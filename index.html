@@ -253,13 +253,32 @@ tr.lead-resuelto td:last-child { pointer-events:none;opacity:.4; }
 .mlh-close { background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);color:rgba(255,255,255,.5);font-size:16px;cursor:pointer;padding:0;border-radius:8px;line-height:1;width:30px;height:30px;display:flex;align-items:center;justify-content:center;transition:all .12s; }
 .mlh-close:hover { background:rgba(226,68,92,.2);border-color:rgba(226,68,92,.3);color:#e2445c; }
 
-/* ── Split body ── */
+/* ── 3-column body ── */
 .ml-body { display:flex;flex:1;overflow:hidden; }
-.ml-left-col { width:340px;min-width:280px;border-right:1px solid rgba(255,255,255,.06);display:flex;flex-direction:column;overflow-y:auto;flex-shrink:0;background:rgba(17,20,34,.4); }
-.ml-left-col::-webkit-scrollbar { width:4px; }
-.ml-left-col::-webkit-scrollbar-thumb { background:rgba(255,255,255,.1);border-radius:4px; }
-.ml-left-inner { padding:18px 16px;display:flex;flex-direction:column;gap:0; }
-.ml-right-col { flex:1;display:flex;flex-direction:column;overflow:hidden;background:var(--bg); }
+
+/* LEFT: Activity vertical timeline */
+.ml-activity-col { width:210px;min-width:180px;flex-shrink:0;border-right:1px solid rgba(255,255,255,.06);display:flex;flex-direction:column;overflow:hidden;background:rgba(10,12,24,.5); }
+.ml-act-hdr { padding:12px 14px 8px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:rgba(255,255,255,.25);flex-shrink:0;border-bottom:1px solid rgba(255,255,255,.05); }
+.ml-act-scroll { flex:1;overflow-y:auto;padding:14px 10px 20px; }
+.ml-act-scroll::-webkit-scrollbar { width:3px; }
+.ml-act-scroll::-webkit-scrollbar-thumb { background:rgba(255,255,255,.08);border-radius:3px; }
+/* vertical connecting line */
+.ml-act-list { position:relative;padding-left:28px; }
+.ml-act-list::before { content:'';position:absolute;left:13px;top:8px;bottom:8px;width:2px;background:linear-gradient(to bottom,transparent,rgba(255,255,255,.08) 10%,rgba(255,255,255,.08) 90%,transparent); }
+.ml-act-item { position:relative;margin-bottom:18px;display:flex;flex-direction:column;gap:3px; }
+.ml-act-item:last-child { margin-bottom:0; }
+.ml-act-dot { position:absolute;left:-28px;width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0;border:2px solid rgba(0,0,0,.4);box-shadow:0 0 0 3px rgba(0,0,0,.3); }
+.ml-act-label { font-size:11px;color:rgba(255,255,255,.75);line-height:1.4;font-weight:500; }
+.ml-act-meta  { font-size:9.5px;color:rgba(255,255,255,.28); }
+
+/* MIDDLE: Conversation */
+.ml-conv-col { flex:1;display:flex;flex-direction:column;overflow:hidden;background:var(--bg);border-right:1px solid rgba(255,255,255,.06); }
+
+/* RIGHT: Info + Notes */
+.ml-info-col { width:310px;min-width:260px;flex-shrink:0;display:flex;flex-direction:column;overflow-y:auto;background:rgba(17,20,34,.4); }
+.ml-info-col::-webkit-scrollbar { width:4px; }
+.ml-info-col::-webkit-scrollbar-thumb { background:rgba(255,255,255,.1);border-radius:4px; }
+.ml-left-inner { padding:16px 14px;display:flex;flex-direction:column; }
 
 /* ── Left section labels ── */
 .ml-section-label { font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:rgba(255,255,255,.3);margin:14px 0 8px;display:flex;align-items:center;gap:8px; }
@@ -800,10 +819,56 @@ tr.lead-resuelto td:last-child { pointer-events:none;opacity:.4; }
       <button class="mlh-close" onclick="closeLead()">✕</button>
     </div>
 
-    <!-- body — two column, no tabs -->
+    <!-- body — 3 columns: Activity | Conversation | Info -->
     <div class="ml-body">
-      <!-- LEFT: Info + Notes -->
-      <div class="ml-left-col">
+
+      <!-- COL 1: Activity vertical timeline -->
+      <div class="ml-activity-col">
+        <div class="ml-act-hdr">Actividad</div>
+        <div class="ml-act-scroll">
+          <div class="ml-act-list" id="ml-act-list"><div style="font-size:11px;color:rgba(255,255,255,.2);padding:8px 0">Cargando…</div></div>
+        </div>
+      </div>
+
+      <!-- COL 2: Conversation (SMS + WA + Calls) -->
+      <div class="ml-conv-col">
+        <div class="lc-actions">
+          <button class="lc-call-btn" onclick="cpOpen()">📞 Llamar</button>
+          <div style="flex:1;min-width:0"><div id="lc-contact-num" style="font-size:12px;color:rgba(255,255,255,.4);">—</div></div>
+          <div style="font-size:10px;color:rgba(255,255,255,.18);background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);border-radius:6px;padding:4px 10px;font-weight:600;letter-spacing:.4px">MENSAJES</div>
+        </div>
+        <div class="lc-timeline" id="lc-timeline"><div class="lc-loading">Abriendo…</div></div>
+        <div class="lc-compose">
+          <div class="lc-channel-row">
+            <button class="lc-ch-btn active sms" id="lc-ch-sms" onclick="lcSetChannel('sms')">💬 SMS</button>
+            <button class="lc-ch-btn wa"          id="lc-ch-wa"  onclick="lcSetChannel('wa')">📱 WhatsApp</button>
+            <select id="lc-tpl-select" class="lc-tpl-select" style="display:none" onchange="lcLoadTpl()">
+              <option value="">📋 Plantilla…</option>
+              <option value="aplicacante_registrado">✅ Aplicante registrado</option>
+              <option value="webinar_con_video">🎥 Webinar con video</option>
+              <option value="en_webinar_aplicantes">📩 En webinar — confirmación</option>
+              <option value="en_webinar_webinar_visto">👀 Webinar visto</option>
+              <option value="no_visto_webinar">⚠️ No vio el webinar</option>
+              <option value="registrado_en_una_entrevista">📅 Registrado en entrevista</option>
+              <option value="link_de_entrevista_con_globe_life">🔗 Link entrevista</option>
+              <option value="aviso_entrevista_con_manager_30_minutos_antes">⏰ Aviso entrevista 30 min</option>
+              <option value="agenda_de_cita_para_manager">🗓️ Cita manager</option>
+              <option value="3er_intento_de_contacto">📵 3er intento</option>
+              <option value="2do_intento_de_contacto_webinar_no_visto_eliminacion">🚫 2do intento elim.</option>
+              <option value="eliminacion_por_webinar_visto">❌ Eliminación</option>
+            </select>
+          </div>
+          <div id="lc-tpl-vars" style="display:none;flex-direction:column;gap:4px;"></div>
+          <div class="lc-input-row">
+            <textarea id="lc-textarea" class="lc-textarea" placeholder="Escribe un mensaje… (Ctrl+Enter)" rows="2"
+              onkeydown="if(event.ctrlKey&&event.key==='Enter')lcSend()"></textarea>
+            <button class="lc-send-btn" id="lc-send-btn" onclick="lcSend()" style="background:#0073ea;">➤</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- COL 3: Info + Notes -->
+      <div class="ml-info-col">
         <div class="ml-left-inner">
           <div class="info-compact">
             <div class="ml-section-label">Contacto</div>
@@ -884,49 +949,6 @@ tr.lead-resuelto td:last-child { pointer-events:none;opacity:.4; }
         </div>
       </div>
 
-      <!-- RIGHT: Conversation timeline -->
-      <div class="ml-right-col">
-        <div class="lc-wrap">
-          <!-- Action bar -->
-          <div class="lc-actions">
-            <button class="lc-call-btn" onclick="cpOpen()">📞 Llamar</button>
-            <div style="flex:1;min-width:0">
-              <div id="lc-contact-num" style="font-size:12px;color:rgba(255,255,255,.5);font-weight:500">—</div>
-            </div>
-            <div style="font-size:10px;color:rgba(255,255,255,.2);background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);border-radius:6px;padding:4px 10px;font-weight:600">Conversación</div>
-          </div>
-          <!-- Timeline -->
-          <div class="lc-timeline" id="lc-timeline"><div class="lc-loading">Abriendo conversación…</div></div>
-          <!-- Compose -->
-          <div class="lc-compose">
-            <div class="lc-channel-row">
-              <button class="lc-ch-btn active sms" id="lc-ch-sms" onclick="lcSetChannel('sms')">💬 SMS</button>
-              <button class="lc-ch-btn wa"          id="lc-ch-wa"  onclick="lcSetChannel('wa')">📱 WhatsApp</button>
-              <select id="lc-tpl-select" class="lc-tpl-select" style="display:none" onchange="lcLoadTpl()">
-                <option value="">📋 Plantilla…</option>
-                <option value="aplicacante_registrado">✅ Aplicante registrado</option>
-                <option value="webinar_con_video">🎥 Webinar con video</option>
-                <option value="en_webinar_aplicantes">📩 En webinar — confirmación</option>
-                <option value="en_webinar_webinar_visto">👀 Webinar visto</option>
-                <option value="no_visto_webinar">⚠️ No vio el webinar</option>
-                <option value="registrado_en_una_entrevista">📅 Registrado en entrevista</option>
-                <option value="link_de_entrevista_con_globe_life">🔗 Link entrevista (5 min)</option>
-                <option value="aviso_entrevista_con_manager_30_minutos_antes">⏰ Aviso entrevista 30 min</option>
-                <option value="agenda_de_cita_para_manager">🗓️ Cita para manager</option>
-                <option value="3er_intento_de_contacto">📵 3er intento</option>
-                <option value="2do_intento_de_contacto_webinar_no_visto_eliminacion">🚫 2do intento — elim.</option>
-                <option value="eliminacion_por_webinar_visto">❌ Eliminación</option>
-              </select>
-            </div>
-            <div id="lc-tpl-vars" style="display:none;flex-direction:column;gap:4px;"></div>
-            <div class="lc-input-row">
-              <textarea id="lc-textarea" class="lc-textarea" placeholder="Escribe un mensaje… (Ctrl+Enter enviar)" rows="2"
-                onkeydown="if(event.ctrlKey&&event.key==='Enter')lcSend()"></textarea>
-              <button class="lc-send-btn" id="lc-send-btn" onclick="lcSend()" style="background:#0073ea;">➤</button>
-            </div>
-          </div>
-        </div>
-      </div>
     </div><!-- /ml-body -->
 
     <div class="ml-footer">
@@ -3827,6 +3849,7 @@ function lcOpen() {
   clearInterval(_lcPollInt);
   const phone = lead.telefono || '';
   document.getElementById('lc-contact-num').textContent = phone || '(sin número)';
+  lcRenderActivity(lead);
   lcRenderTimeline(lead);
   if (phone) {
     lcFetchCalls(lead);
@@ -3922,6 +3945,7 @@ async function lcFetchCalls(lead) {
     const data = await res.json();
     if (data.calls) {
       lead.calls = data.calls;
+      lcRenderActivity(lead);
       lcRenderTimeline(lead);
     }
   } catch {}
@@ -3949,14 +3973,49 @@ async function lcFetchMessages(lead) {
   } catch {}
 }
 
+function lcRenderActivity(lead) {
+  const el = document.getElementById('ml-act-list');
+  if (!el) return;
+  const COLOR_MAP = {
+    '🟢':'#00c875','✅':'#00c875','📞':'#0073ea','📵':'#e2445c','❌':'#e2445c',
+    '🚫':'#e2445c','📩':'#784bd1','📱':'#25d366','💬':'#0073ea','📅':'#fdab3d',
+    '🗓️':'#fdab3d','⏰':'#fdab3d','🔗':'#00bcd4','⭐':'#fdab3d','📋':'#676a82',
+    '↗':'#0073ea','↙':'#00c875','➡':'#fdab3d','⚠️':'#fdab3d',
+  };
+  const items = [];
+  for (const h of (lead.historial || [])) {
+    items.push({ icono: h.icono || '📋', accion: h.accion, usuario: h.usuario, date: new Date(h.fecha || 0) });
+  }
+  for (const c of (lead.calls || [])) {
+    const out  = c.direction?.startsWith('outbound');
+    const miss = c.status === 'no-answer' || c.status === 'busy' || c.status === 'failed';
+    const dur  = parseInt(c.duration) > 0 ? ` · ${Math.floor(c.duration/60)}:${String(c.duration%60).padStart(2,'0')}` : '';
+    const icono = miss ? '📵' : out ? '↗' : '↙';
+    const accion = (miss ? 'Llamada perdida' : out ? 'Llamada saliente' : 'Llamada entrante') + dur;
+    items.push({ icono, accion, usuario: '', date: new Date(c.startTime || 0) });
+  }
+  items.sort((a, b) => b.date - a.date);
+  if (!items.length) {
+    el.innerHTML = `<div style="font-size:11px;color:rgba(255,255,255,.18);padding:6px 0;text-align:center">Sin actividad</div>`;
+    return;
+  }
+  el.innerHTML = items.map(item => {
+    const color = COLOR_MAP[item.icono] || '#676a82';
+    const timeStr = item.date.getTime()
+      ? item.date.toLocaleDateString('es-MX',{day:'2-digit',month:'short'}) + ' ' + item.date.toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'})
+      : '';
+    return `<div class="ml-act-item">
+      <div class="ml-act-dot" style="background:${color}22;color:${color};border-color:${color}44">${item.icono}</div>
+      <div class="ml-act-label">${esc(item.accion)}</div>
+      <div class="ml-act-meta">${item.usuario ? esc(item.usuario) + ' · ' : ''}${timeStr}</div>
+    </div>`;
+  }).join('');
+}
+
 function lcRenderTimeline(lead) {
   const el = document.getElementById('lc-timeline');
   if (!el) return;
   const items = [];
-  // Historial (activity events)
-  for (const h of (lead.historial || [])) {
-    items.push({ type:'activity', icono: h.icono||'📋', accion: h.accion, usuario: h.usuario, date: new Date(h.fecha || 0) });
-  }
   // SMS
   for (const m of (lead.sms || [])) {
     items.push({ type:'sms', out: m.direction?.startsWith('outbound'), body: m.body, date: new Date(m.dateSent || m.dateCreated || 0) });
@@ -3975,7 +4034,7 @@ function lcRenderTimeline(lead) {
   items.sort((a, b) => a.date - b.date);
 
   if (!items.length) {
-    el.innerHTML = `<div class="lc-loading">Sin actividad aún.<br><span style="font-size:10px;opacity:.5">Las llamadas, mensajes y cambios de etapa aparecerán aquí.</span></div>`;
+    el.innerHTML = `<div class="lc-loading">Sin mensajes aún.<br><span style="font-size:10px;opacity:.5">Las llamadas y mensajes aparecerán aquí.</span></div>`;
     return;
   }
 
@@ -3994,15 +4053,6 @@ function lcRenderTimeline(lead) {
     }
     const timeStr = d.getTime() ? d.toLocaleTimeString('es-MX', {hour:'2-digit',minute:'2-digit'}) : '';
 
-    if (item.type === 'activity') {
-      return daySep + `<div style="display:flex;justify-content:center;margin:2px 0;">
-        <div style="display:inline-flex;align-items:center;gap:6px;background:var(--card2);border:1px solid var(--border);border-radius:20px;padding:4px 12px;font-size:11px;color:var(--text2);">
-          <span>${item.icono}</span><span>${esc(item.accion)}</span>
-          ${item.usuario ? `<span style="opacity:.5">· ${esc(item.usuario)}</span>` : ''}
-          ${timeStr ? `<span style="opacity:.4">· ${timeStr}</span>` : ''}
-        </div>
-      </div>`;
-    }
     if (item.type === 'call') {
       const cls  = item.miss ? 'miss' : item.out ? 'out' : 'in';
       const icon = item.miss ? '📵' : item.out ? '↗' : '↙';
