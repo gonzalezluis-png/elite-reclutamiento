@@ -748,10 +748,10 @@ tr.lead-resuelto td:last-child { pointer-events:none;opacity:.4; }
     <div class="ml-body">
       <!-- Left tabs -->
       <div class="ml-tabs">
-        <div class="ml-tab active" onclick="showTab('info')" id="tab-btn-info"><span class="ml-tab-icon">👤</span>Info</div>
+        <div class="ml-tab" onclick="showTab('conversacion')" id="tab-btn-conversacion"><span class="ml-tab-icon">💬</span>Conversación</div>
+        <div class="ml-tab" onclick="showTab('info')" id="tab-btn-info"><span class="ml-tab-icon">👤</span>Info</div>
         <div class="ml-tab" onclick="showTab('cita')" id="tab-btn-cita"><span class="ml-tab-icon">📅</span>Cita</div>
         <div class="ml-tab" onclick="showTab('tareas')" id="tab-btn-tareas"><span class="ml-tab-icon">✅</span>Tareas</div>
-        <div class="ml-tab" onclick="showTab('conversacion')" id="tab-btn-conversacion"><span class="ml-tab-icon">💬</span>Conversación</div>
         <div class="ml-tab" onclick="showTab('historial')" id="tab-btn-historial"><span class="ml-tab-icon">🕓</span>Historial</div>
       </div>
 
@@ -2525,7 +2525,7 @@ function openLead(id, tabName) {
   renderNotas(lead.notas || []);
   renderHistorial(lead.historial || []);
 
-  showTab(tabName || 'info');
+  showTab(tabName || 'conversacion');
   document.getElementById('lead-modal').classList.remove('hidden');
   _mlSetMode(false); // start in view (locked) mode
 }
