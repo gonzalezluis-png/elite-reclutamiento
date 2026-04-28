@@ -3891,6 +3891,7 @@ function lcLoadTpl() {
 async function lcSend() {
   const lead = leads.find(l => l.id === currentLeadId);
   if (!lead?.telefono) { showToast('Lead sin número de teléfono'); return; }
+  const phone = lead.telefono.replace(/[\s\-().]/g, '');
   const btn = document.getElementById('lc-send-btn');
   btn.disabled = true;
   try {
@@ -3899,7 +3900,7 @@ async function lcSend() {
       if (!body) { btn.disabled = false; return; }
       const res = await fetch(`${SERVER_URL}/twilio/sms`, {
         method: 'POST', headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({ to: lead.telefono, body, leadId: lead.id }),
+        body: JSON.stringify({ to: phone, body, leadId: lead.id }),
       });
       if (!res.ok) { const d = await res.json().catch(()=>({})); throw new Error(d.error || `Error SMS (${res.status})`); }
       if (!lead.sms) lead.sms = [];
@@ -3911,11 +3912,11 @@ async function lcSend() {
         const tpl  = WA_TEMPLATES[key];
         const vars = {};
         document.querySelectorAll('#lc-tpl-vars input').forEach(inp => { vars[inp.dataset.var] = inp.value.trim(); });
-        payload = { to: lead.telefono, contentSid: tpl.sid, contentVariables: vars, leadId: lead.id };
+        payload = { to: phone, contentSid: tpl.sid, contentVariables: vars, leadId: lead.id };
       } else {
         const body = document.getElementById('lc-textarea').value.trim();
         if (!body) { btn.disabled = false; return; }
-        payload = { to: lead.telefono, body, leadId: lead.id };
+        payload = { to: phone, body, leadId: lead.id };
       }
       const res = await fetch(`${SERVER_URL}/twilio/whatsapp`, {
         method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload),
