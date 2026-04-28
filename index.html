@@ -846,14 +846,23 @@ tr.lead-resuelto td:last-child { pointer-events:none;opacity:.4; }
 <div id="toast"></div>
 
 <!-- ══════════ CALL PANEL ══════════ -->
-<div id="call-panel" style="display:none;position:fixed;bottom:24px;right:24px;z-index:9999;background:#1a1d2e;border:1px solid rgba(0,200,117,.3);border-radius:16px;box-shadow:0 8px 40px rgba(0,0,0,.7);width:300px;font-family:var(--font);overflow:hidden;">
+<!-- FLOATING PHONE FAB -->
+<button id="phone-fab" onclick="cpTogglePanel()" title="Abrir teléfono" style="position:fixed;bottom:24px;right:24px;z-index:9998;width:52px;height:52px;border-radius:50%;background:#00c875;border:none;color:#fff;font-size:22px;cursor:pointer;box-shadow:0 4px 20px rgba(0,200,117,.5);display:flex;align-items:center;justify-content:center;transition:transform .15s,box-shadow .15s;" onmouseover="this.style.transform='scale(1.08)'" onmouseout="this.style.transform='scale(1)'">📞</button>
+
+<!-- CALL PANEL (softphone) -->
+<div id="call-panel" style="display:none;position:fixed;bottom:86px;right:24px;z-index:9999;background:#1a1d2e;border:1px solid rgba(0,200,117,.3);border-radius:16px;box-shadow:0 8px 40px rgba(0,0,0,.7);width:310px;font-family:var(--font);overflow:hidden;">
   <div style="background:linear-gradient(135deg,#0f3a2a,#0a2a1e);padding:14px 16px;display:flex;align-items:center;gap:10px;">
-    <div id="cp-avatar" style="width:36px;height:36px;border-radius:50%;background:#00c875;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#fff;flex-shrink:0">?</div>
+    <div id="cp-avatar" style="width:36px;height:36px;border-radius:50%;background:#00c875;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#fff;flex-shrink:0">📞</div>
     <div style="flex:1;min-width:0">
-      <div id="cp-name" style="font-size:13px;font-weight:700;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">—</div>
-      <div id="cp-number" style="font-size:11px;color:rgba(255,255,255,.5);margin-top:1px">—</div>
+      <div id="cp-name" style="font-size:13px;font-weight:700;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Softphone</div>
+      <div id="cp-number" style="font-size:11px;color:rgba(255,255,255,.5);margin-top:1px">Listo para marcar</div>
     </div>
     <div id="cp-status-dot" style="width:8px;height:8px;border-radius:50%;background:#555;flex-shrink:0"></div>
+    <button onclick="cpTogglePanel()" title="Cerrar" style="background:none;border:none;color:rgba(255,255,255,.5);font-size:18px;cursor:pointer;padding:0 0 0 6px;line-height:1;flex-shrink:0;">✕</button>
+  </div>
+  <!-- Manual number input (shown when no lead is pre-loaded) -->
+  <div id="cp-manual-row" style="padding:10px 16px 0;">
+    <input id="cp-manual-num" placeholder="+1 (555) 000-0000" onkeydown="if(event.key==='Enter')cpDial()" style="width:100%;box-sizing:border-box;background:rgba(255,255,255,.07);border:1px solid rgba(0,200,117,.25);border-radius:8px;color:#fff;font-size:13px;font-family:var(--font);padding:8px 12px;outline:none;letter-spacing:.5px;" />
   </div>
   <div style="padding:12px 16px;display:flex;flex-direction:column;gap:8px">
     <div style="display:flex;align-items:center;justify-content:space-between">
@@ -862,7 +871,7 @@ tr.lead-resuelto td:last-child { pointer-events:none;opacity:.4; }
         <div id="cp-timer" style="font-size:22px;font-weight:700;color:#fff;letter-spacing:1px;margin-top:2px">0:00</div>
       </div>
       <div style="display:flex;gap:8px">
-        <button id="cp-mute-btn" onclick="cpToggleMute()" title="Silenciar" style="width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);color:rgba(255,255,255,.7);font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .15s">🎤</div>
+        <button id="cp-mute-btn" onclick="cpToggleMute()" title="Silenciar" style="width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);color:rgba(255,255,255,.7);font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .15s">🎤</button>
         <button onclick="cpHangup()" title="Colgar" style="width:40px;height:40px;border-radius:50%;background:#e2445c;border:none;color:#fff;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .15s">📵</button>
       </div>
     </div>
@@ -3208,25 +3217,57 @@ async function cpInit() {
   }
 }
 
-function cpOpen() {
-  const lead = leads.find(l => l.id === currentLeadId);
-  if (!lead) return;
-  const phone = document.getElementById('ml-telefono')?.value?.trim() || lead.telefono || '';
-  if (!phone) { showToast('Este lead no tiene teléfono'); return; }
+function cpTogglePanel() {
   const panel = document.getElementById('call-panel');
-  const initials = (lead.nombre||'?').split(' ').map(w=>w[0]||'').join('').slice(0,2).toUpperCase();
-  document.getElementById('cp-avatar').textContent  = initials;
-  document.getElementById('cp-name').textContent    = lead.nombre || 'Desconocido';
-  document.getElementById('cp-number').textContent  = phone;
-  document.getElementById('cp-call-btn').dataset.phone = phone;
+  const fab   = document.getElementById('phone-fab');
+  const shown = panel.style.display !== 'none';
+  if (shown) {
+    panel.style.display = 'none';
+    fab.style.background = '#00c875';
+  } else {
+    panel.style.display = 'block';
+    fab.style.background = '#00a865';
+    cpSetStatus('Listo', '#00c875');
+    cpInit();
+    setTimeout(() => document.getElementById('cp-manual-num')?.focus(), 80);
+  }
+}
+
+function cpOpen(leadId) {
+  const id   = leadId || currentLeadId;
+  const lead = leads.find(l => l.id === id);
+  const panel = document.getElementById('call-panel');
+  const manualRow = document.getElementById('cp-manual-row');
+  if (lead) {
+    const phone = document.getElementById('ml-telefono')?.value?.trim() || lead.telefono || '';
+    if (!phone) { showToast('Este lead no tiene teléfono'); return; }
+    const initials = (lead.nombre||'?').split(' ').map(w=>w[0]||'').join('').slice(0,2).toUpperCase();
+    document.getElementById('cp-avatar').textContent  = initials;
+    document.getElementById('cp-name').textContent    = lead.nombre || 'Desconocido';
+    document.getElementById('cp-number').textContent  = phone;
+    document.getElementById('cp-call-btn').dataset.phone = phone;
+    document.getElementById('cp-manual-num').value    = phone;
+    manualRow.style.display = 'block';
+  } else {
+    document.getElementById('cp-avatar').textContent  = '📞';
+    document.getElementById('cp-name').textContent    = 'Softphone';
+    document.getElementById('cp-number').textContent  = 'Listo para marcar';
+    document.getElementById('cp-call-btn').dataset.phone = '';
+    document.getElementById('cp-manual-num').value    = '';
+    manualRow.style.display = 'block';
+  }
   panel.style.display = 'block';
+  document.getElementById('phone-fab').style.background = '#00a865';
   cpSetStatus('Iniciando…', '#f59e0b');
   cpInit();
 }
 
 async function cpDial() {
-  const phone = document.getElementById('cp-call-btn').dataset.phone;
-  if (!phone) return;
+  const manual = document.getElementById('cp-manual-num')?.value?.trim();
+  const phone  = manual || document.getElementById('cp-call-btn').dataset.phone;
+  if (!phone) { showToast('Ingresa un número para marcar'); document.getElementById('cp-manual-num')?.focus(); return; }
+  document.getElementById('cp-call-btn').dataset.phone = phone;
+  document.getElementById('cp-number').textContent = phone;
   if (!_cpReady) {
     const ok = await cpInit();
     if (!ok) return;
