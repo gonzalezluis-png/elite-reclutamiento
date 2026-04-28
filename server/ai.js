@@ -81,8 +81,8 @@ async function askClaude(phone, userMessage, channel = 'text') {
 
 // ── ElevenLabs TTS ────────────────────────────────────────────────────────────
 async function textToSpeech(text) {
-  const voiceId = process.env.ELEVENLABS_VOICE_ID || 'EXAVITQu4vr4xnSDxMaL';
-  const resp = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
+  const voiceId = process.env.ELEVENLABS_VOICE_ID || 'nTkjq09AuYgsNR8E4sDe';
+  const resp = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}/stream`, {
     method: 'POST',
     headers: {
       'xi-api-key': process.env.ELEVENLABS_API_KEY,
@@ -91,8 +91,13 @@ async function textToSpeech(text) {
     },
     body: JSON.stringify({
       text,
-      model_id: 'eleven_multilingual_v2',
-      voice_settings: { stability: 0.5, similarity_boost: 0.8, style: 0.2 },
+      model_id: 'eleven_turbo_v2_5',
+      voice_settings: {
+        stability: 0.35,
+        similarity_boost: 0.85,
+        style: 0.45,
+        use_speaker_boost: true,
+      },
     }),
   });
   if (!resp.ok) throw new Error(`ElevenLabs ${resp.status}: ${await resp.text()}`);
