@@ -246,17 +246,41 @@ tr.lead-resuelto td:last-child { pointer-events:none;opacity:.4; }
 .mlh-name { font-size:16px;font-weight:700;color:#fff;margin-bottom:6px; }
 .mlh-name-inp { font-size:15px;font-weight:700;color:#fff;background:transparent;border:none;outline:none;font-family:var(--font);width:100%;padding:2px 0; }
 .mlh-name-inp:focus { border-bottom:1px solid var(--accent); }
-/* ── View mode (locked) ── */
+/* ── Compact info grid ── */
+.info-fields { display:grid;grid-template-columns:1fr 1fr;gap:6px 14px;padding:14px;background:var(--card2);border-bottom:1px solid var(--border); }
+.info-field { display:flex;flex-direction:column;gap:3px; }
+.info-field-full { grid-column:1/-1; }
+.info-lbl { font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text2); }
+.info-field input,.info-field select { font-size:12.5px;padding:4px 7px;height:30px; }
+.info-field .phones-list { margin:0; }
+.info-field .phone-row input { font-size:12.5px;padding:4px 7px;height:30px; }
+.info-field .add-phone-btn { font-size:10px;padding:2px 6px;margin-top:2px; }
+/* ── Notes feed ── */
+.notes-feed-section { padding:12px 14px; }
+.notes-feed-header { font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text2);margin-bottom:10px;display:flex;align-items:center;gap:6px; }
+.notes-feed-header::after { content:'';flex:1;height:1px;background:var(--border); }
+.notes-compose { display:flex;gap:8px;margin-bottom:14px;align-items:flex-end; }
+.notes-compose textarea { flex:1;background:var(--card2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--font);font-size:12.5px;padding:8px 10px;outline:none;resize:none;min-height:62px;transition:border-color .15s; }
+.notes-compose textarea:focus { border-color:var(--accent); }
+.notes-send-btn { flex-shrink:0;align-self:flex-end; }
+.note-entry { display:flex;gap:9px;margin-bottom:10px;animation:noteIn .2s ease; }
+@keyframes noteIn { from{opacity:0;transform:translateY(-4px)} to{opacity:1;transform:none} }
+.note-avatar { width:26px;height:26px;border-radius:50%;background:var(--accent);color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px; }
+.note-bubble { flex:1;background:var(--card2);border:1px solid var(--border);border-radius:0 8px 8px 8px;padding:7px 10px; }
+.note-meta { font-size:10px;color:var(--text2);margin-bottom:3px;display:flex;align-items:center;gap:5px;flex-wrap:wrap; }
+.note-author { font-weight:700;color:var(--text3); }
+.note-time { color:var(--text2); }
+.note-text { font-size:12.5px;color:var(--text);line-height:1.5;white-space:pre-wrap;word-break:break-word; }
+/* ── View mode (locked) — only lock .info-fields and cita, NOT notes feed ── */
 .modal-lead.ml-view-mode .mlh-name-inp,
 .modal-lead.ml-view-mode .mlh-sel,
-.modal-lead.ml-view-mode #tab-info input,
-.modal-lead.ml-view-mode #tab-info select,
-.modal-lead.ml-view-mode #tab-info textarea,
+.modal-lead.ml-view-mode .info-fields input,
+.modal-lead.ml-view-mode .info-fields select,
 .modal-lead.ml-view-mode #tab-cita input,
 .modal-lead.ml-view-mode #tab-cita select,
 .modal-lead.ml-view-mode #tab-cita textarea { pointer-events:none !important;background:transparent !important;border-color:transparent !important;-webkit-appearance:none;appearance:none;cursor:default; }
 .modal-lead.ml-view-mode .mlh-name-inp:focus { border-bottom:none; }
-.modal-lead.ml-view-mode .add-phone-btn,
+.modal-lead.ml-view-mode .info-fields .add-phone-btn,
 .modal-lead.ml-view-mode #tab-cita .btn-primary { display:none !important; }
 .mlh-meta { display:flex;align-items:center;gap:8px;flex-wrap:wrap; }
 .mlh-sel { padding:3px 8px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-size:11.5px;font-family:var(--font);outline:none;cursor:pointer; }
@@ -585,7 +609,6 @@ tr.lead-resuelto td:last-child { pointer-events:none;opacity:.4; }
         <div class="ml-tab active" onclick="showTab('info')" id="tab-btn-info"><span class="ml-tab-icon">👤</span>Info</div>
         <div class="ml-tab" onclick="showTab('cita')" id="tab-btn-cita"><span class="ml-tab-icon">📅</span>Cita</div>
         <div class="ml-tab" onclick="showTab('tareas')" id="tab-btn-tareas"><span class="ml-tab-icon">✅</span>Tareas</div>
-        <div class="ml-tab" onclick="showTab('notas')" id="tab-btn-notas"><span class="ml-tab-icon">📝</span>Notas</div>
         <div class="ml-tab" onclick="showTab('historial')" id="tab-btn-historial"><span class="ml-tab-icon">🕓</span>Historial</div>
       </div>
 
@@ -594,59 +617,68 @@ tr.lead-resuelto td:last-child { pointer-events:none;opacity:.4; }
 
         <!-- INFO TAB -->
         <div id="tab-info" class="tab-pane active">
-          <div class="form-section">
-            <div class="form-section-title">👤 Postulado</div>
-            <div class="field-row">
-              <div class="field"><label>Nombre del postulado <span class="req">*</span></label><input id="ml-contacto" placeholder="Juan Pérez" /></div>
-              <div class="field"><label>Correo electrónico</label><input type="email" id="ml-correo" placeholder="juan@email.com" /></div>
+          <div class="info-fields">
+            <div class="info-field info-field-full">
+              <span class="info-lbl">Nombre</span>
+              <input id="ml-contacto" placeholder="Juan Pérez" />
             </div>
-            <div class="field"><label>Teléfono principal</label>
+            <div class="info-field">
+              <span class="info-lbl">Teléfono</span>
               <div class="phones-list" id="phones-list">
-                <div class="phone-row"><input id="ml-telefono" placeholder="+52 55 0000 0000" /></div>
+                <div class="phone-row"><input id="ml-telefono" placeholder="+1 555 000 0000" /></div>
               </div>
-              <button class="add-phone-btn" onclick="addPhone()">+ Agregar teléfono</button>
+              <button class="add-phone-btn" onclick="addPhone()">+ teléfono</button>
             </div>
-            <div class="field-row">
-              <div class="field"><label>Propietario</label>
-                <select id="ml-propietario">
-                  <option value="">Sin asignar</option>
-                  <option>Luis González</option>
-                  <option>Maria Lugo</option>
-                  <option>Caritza Rojas</option>
-                  <option>Bryan Palacios</option>
-                  <option>Alexander</option>
-                </select>
-              </div>
-              <div class="field"><label>Fuente</label>
-                <select id="ml-fuente">
-                  <option>Meta / Facebook</option>
-                  <option>Facebook</option>
-                  <option>Instagram</option>
-                  <option>WhatsApp</option>
-                  <option>Indeed</option>
-                  <option>Glassdoor</option>
-                  <option>OCC / Indeed</option>
-                  <option>Referido</option>
-                  <option>LinkedIn</option>
-                  <option>Otro</option>
-                </select>
-              </div>
+            <div class="info-field">
+              <span class="info-lbl">Correo</span>
+              <input type="email" id="ml-correo" placeholder="juan@email.com" />
             </div>
-            <div class="field"><label>Inscrito por</label>
-              <select id="ml-inscrito-por">
-                <option value="">— Sin especificar —</option>
-                <option>Luis González</option>
-                <option>Maria Lugo</option>
-                <option>Caritza Rojas</option>
-                <option>Bryan Palacios</option>
-                <option>Alexander</option>
+            <div class="info-field">
+              <span class="info-lbl">Fuente</span>
+              <select id="ml-fuente">
+                <option>Meta / Facebook</option><option>Facebook</option><option>Instagram</option>
+                <option>WhatsApp</option><option>Indeed</option><option>Glassdoor</option>
+                <option>OCC / Indeed</option><option>Referido</option><option>LinkedIn</option><option>Otro</option>
               </select>
             </div>
-            <div class="field-row">
-              <div class="field"><label>Ubicación</label><input id="ml-ubicacion" placeholder="Ciudad, Estado" /></div>
-              <div class="field"><label>Fecha de inscripción en Webinar</label><input type="date" id="ml-fecha-inscripcion-webinar" /></div>
+            <div class="info-field">
+              <span class="info-lbl">Propietario</span>
+              <select id="ml-propietario">
+                <option value="">Sin asignar</option>
+                <option>Luis González</option><option>Maria Lugo</option>
+                <option>Caritza Rojas</option><option>Bryan Palacios</option><option>Alexander</option>
+              </select>
             </div>
-            <div class="field"><label>Seguidores</label><input id="ml-seguidores" placeholder="Nombres separados por coma" /></div>
+            <div class="info-field">
+              <span class="info-lbl">Ubicación</span>
+              <input id="ml-ubicacion" placeholder="Ciudad, Estado" />
+            </div>
+            <div class="info-field">
+              <span class="info-lbl">Inscrito por</span>
+              <select id="ml-inscrito-por">
+                <option value="">— Sin especificar —</option>
+                <option>Luis González</option><option>Maria Lugo</option>
+                <option>Caritza Rojas</option><option>Bryan Palacios</option><option>Alexander</option>
+              </select>
+            </div>
+            <div class="info-field">
+              <span class="info-lbl">Fecha Webinar</span>
+              <input type="date" id="ml-fecha-inscripcion-webinar" />
+            </div>
+            <div class="info-field info-field-full">
+              <span class="info-lbl">Seguidores</span>
+              <input id="ml-seguidores" placeholder="Nombres separados por coma" />
+            </div>
+          </div>
+
+          <!-- NOTES FEED (always editable, outside lock zone) -->
+          <div class="notes-feed-section">
+            <div class="notes-feed-header">📝 Notas</div>
+            <div class="notes-compose">
+              <textarea id="nota-inp" placeholder="Escribe una nota... (Enter para nueva línea, Ctrl+Enter para enviar)" onkeydown="if(event.ctrlKey&&event.key==='Enter')addNota()"></textarea>
+              <button class="btn-primary notes-send-btn" onclick="addNota()">Enviar</button>
+            </div>
+            <div id="notas-list"></div>
           </div>
         </div>
 
@@ -684,18 +716,6 @@ tr.lead-resuelto td:last-child { pointer-events:none;opacity:.4; }
               <button class="btn-primary" onclick="addTarea()">Agregar</button>
             </div>
             <div id="tareas-list"></div>
-          </div>
-        </div>
-
-        <!-- NOTAS TAB -->
-        <div id="tab-notas" class="tab-pane">
-          <div class="form-section">
-            <div class="form-section-title">📝 Notas</div>
-            <div class="nota-form">
-              <textarea id="nota-inp" placeholder="Escribe una nota..."></textarea>
-              <div style="display:flex;justify-content:flex-end;"><button class="btn-primary" onclick="addNota()">Agregar nota</button></div>
-            </div>
-            <div id="notas-list"></div>
           </div>
         </div>
 
@@ -2499,13 +2519,36 @@ function removeTag(i) { currentTags.splice(i,1); renderTagsWrap(); }
 // ════════════════════════════════════════════
 //  NOTAS
 // ════════════════════════════════════════════
+function fmtDateTime(d) {
+  if (!d) return '';
+  const dt = new Date(d);
+  if (isNaN(dt)) return d;
+  const now = new Date();
+  const isToday = dt.toDateString() === now.toDateString();
+  const time = dt.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
+  if (isToday) return `hoy · ${time}`;
+  const date = dt.toLocaleDateString('es-MX', { day: '2-digit', month: 'short' });
+  return `${date} · ${time}`;
+}
+function _initials(name) {
+  return (name || '?').split(' ').map(w => w[0] || '').join('').slice(0, 2).toUpperCase();
+}
 function renderNotas(notas) {
   const el = document.getElementById('notas-list');
-  if (!notas.length) { el.innerHTML = '<div class="empty-tab" style="padding:20px 0"><div class="et-icon">📝</div><p>Sin notas aún</p></div>'; return; }
+  if (!notas || !notas.length) {
+    el.innerHTML = '<div style="text-align:center;color:var(--text2);font-size:12px;padding:16px 0;opacity:.6">Sin notas aún</div>';
+    return;
+  }
   el.innerHTML = notas.map(n => `
-    <div class="nota-item">
-      <div class="nota-meta">${esc(n.autor||'Sistema')} · ${fmtDate(n.fecha)}</div>
-      <div class="nota-text">${esc(n.texto)}</div>
+    <div class="note-entry">
+      <div class="note-avatar">${_initials(n.autor)}</div>
+      <div class="note-bubble">
+        <div class="note-meta">
+          <span class="note-author">${esc(n.autor || 'Sistema')}</span>
+          <span class="note-time">${fmtDateTime(n.fecha)}</span>
+        </div>
+        <div class="note-text">${esc(n.texto)}</div>
+      </div>
     </div>`).join('');
 }
 function addNota() {
