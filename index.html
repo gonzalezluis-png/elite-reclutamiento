@@ -315,6 +315,63 @@ tr.lead-resuelto td:last-child { pointer-events:none;opacity:.4; }
 .req { color:var(--red); }
 .field-hint { font-size:10.5px;color:var(--text2);margin-top:3px; }
 
+/* ── Messaging Page ───────────────────────────────────────────────────────── */
+#messaging-view { display:none;flex-direction:row; }
+#messaging-view.active { display:flex !important; }
+.msg-sidebar { width:320px;min-width:260px;border-right:1px solid var(--border);display:flex;flex-direction:column;background:var(--card2);flex-shrink:0; }
+.msg-sidebar-hdr { padding:14px 16px 10px;border-bottom:1px solid var(--border); }
+.msg-sidebar-hdr h2 { font-size:15px;font-weight:700;margin:0 0 10px; }
+.msg-search { width:100%;background:var(--bg);border:1px solid var(--border);border-radius:7px;color:var(--text);font-size:12px;font-family:var(--font);padding:7px 10px;outline:none; }
+.msg-filters { display:flex;gap:6px;margin-top:10px;flex-wrap:wrap; }
+.msg-filter { font-size:11px;padding:3px 10px;border-radius:20px;border:1px solid var(--border);background:none;color:var(--text2);cursor:pointer;font-family:var(--font);transition:all .12s; }
+.msg-filter.active { background:var(--accent);color:#fff;border-color:var(--accent); }
+.msg-conv-list { flex:1;overflow-y:auto; }
+.msg-conv-item { display:flex;align-items:center;gap:10px;padding:11px 14px;cursor:pointer;border-bottom:1px solid rgba(255,255,255,.04);transition:background .1s;position:relative; }
+.msg-conv-item:hover { background:rgba(255,255,255,.04); }
+.msg-conv-item.active { background:rgba(0,115,234,.12);border-left:3px solid var(--accent); }
+.msg-conv-avatar { width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#fff;flex-shrink:0; }
+.msg-conv-info { flex:1;min-width:0; }
+.msg-conv-name { font-size:12.5px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
+.msg-conv-preview { font-size:11px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px; }
+.msg-conv-meta { display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0; }
+.msg-conv-time { font-size:10px;color:var(--text2); }
+.msg-conv-badge { background:var(--accent);color:#fff;border-radius:10px;font-size:10px;font-weight:700;padding:1px 6px;min-width:18px;text-align:center; }
+.msg-conv-channel { font-size:13px; }
+.msg-main { flex:1;display:flex;flex-direction:column;min-width:0; }
+.msg-thread-hdr { padding:12px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;background:var(--card2);flex-shrink:0; }
+.msg-thread-hdr-info { flex:1;min-width:0; }
+.msg-thread-hdr-name { font-size:14px;font-weight:700; }
+.msg-thread-hdr-sub { font-size:11px;color:var(--text2);margin-top:2px; }
+.msg-thread-body { flex:1;overflow-y:auto;padding:16px 20px;display:flex;flex-direction:column;gap:10px; }
+.msg-bubble-wrap { display:flex;flex-direction:column; }
+.msg-bubble-wrap.out { align-items:flex-end; }
+.msg-bubble-wrap.in  { align-items:flex-start; }
+.msg-bubble { max-width:68%;padding:8px 13px;border-radius:14px;font-size:12.5px;line-height:1.5;word-break:break-word; }
+.msg-bubble.out.sms  { background:#0073ea;color:#fff;border-bottom-right-radius:3px; }
+.msg-bubble.in.sms   { background:var(--card);color:var(--text);border-bottom-left-radius:3px; }
+.msg-bubble.out.wa   { background:#005c4b;color:#e9feea;border-bottom-right-radius:3px; }
+.msg-bubble.in.wa    { background:#1f2c34;color:#e9feea;border-bottom-left-radius:3px; }
+.msg-bubble-meta { font-size:10px;color:var(--text2);margin-top:3px;display:flex;align-items:center;gap:5px; }
+.msg-channel-tag { font-size:9px;padding:1px 5px;border-radius:3px;font-weight:600; }
+.msg-channel-tag.sms { background:rgba(0,115,234,.2);color:#60a5fa; }
+.msg-channel-tag.wa  { background:rgba(37,211,102,.15);color:#4ade80; }
+.msg-compose { padding:12px 16px;border-top:1px solid var(--border);background:var(--card2);display:flex;flex-direction:column;gap:8px; }
+.msg-compose-top { display:flex;gap:8px;align-items:center; }
+.msg-channel-btns { display:flex;gap:6px; }
+.msg-ch-btn { font-size:11px;padding:4px 10px;border-radius:6px;border:1px solid var(--border);background:none;color:var(--text2);cursor:pointer;font-family:var(--font);transition:all .12s; }
+.msg-ch-btn.active.sms { background:#0073ea;color:#fff;border-color:#0073ea; }
+.msg-ch-btn.active.wa  { background:#25d366;color:#fff;border-color:#25d366; }
+.msg-tpl-row { display:flex;gap:8px;align-items:center; }
+.msg-tpl-sel { flex:1;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:11.5px;font-family:var(--font);padding:5px 8px;outline:none; }
+.msg-tpl-vars { display:flex;flex-wrap:wrap;gap:6px;margin-top:2px; }
+.msg-tpl-var { display:flex;align-items:center;gap:4px; }
+.msg-tpl-var label { font-size:10px;color:var(--text2);white-space:nowrap; }
+.msg-tpl-var input { background:var(--bg);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:11px;font-family:var(--font);padding:3px 7px;outline:none;width:110px; }
+.msg-input-row { display:flex;gap:8px;align-items:flex-end; }
+.msg-textarea { flex:1;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12.5px;font-family:var(--font);padding:9px 12px;resize:none;outline:none;line-height:1.4;min-height:38px;max-height:120px; }
+.msg-send-btn { flex-shrink:0;width:40px;height:40px;border-radius:8px;border:none;color:#fff;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .15s; }
+.msg-empty-state { flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--text2);gap:10px; }
+.msg-empty-state .icon { font-size:48px;opacity:.3; }
 /* sms / whatsapp bubbles */
 .sms-bubble { max-width:80%;padding:7px 11px;border-radius:12px;font-size:12.5px;line-height:1.4;word-break:break-word; }
 .sms-out { align-self:flex-end;background:#0073ea;color:#fff;border-bottom-right-radius:3px; }
@@ -537,6 +594,7 @@ tr.lead-resuelto td:last-child { pointer-events:none;opacity:.4; }
       <div id="pipe-list"></div>
     </div>
     <div class="sidebar-bottom">
+      <div class="sidebar-item" onclick="showMessaging()" id="nav-messaging">💬 &nbsp;Mensajería</div>
       <div class="sidebar-item" onclick="openExternalApplicant()" style="color:#60a5fa;">📥 &nbsp;Aplicantes Externos</div>
       <a id="sidebar-webinar-link" class="sidebar-item sidebar-webinar-link" href="https://quintero-partners.webinargeek.com/oportunidad-laboral-webinar-on-demand-q-p" target="_blank" rel="noopener">🔗 &nbsp;Link de Webinar</a>
       <div class="sidebar-item sidebar-config-btn" id="sidebar-config-btn" onclick="showConfig()">⚙️ &nbsp;Configuraciones</div>
@@ -575,6 +633,9 @@ tr.lead-resuelto td:last-child { pointer-events:none;opacity:.4; }
 
     <!-- CONFIGURACIONES -->
     <div id="config-view" style="display:none;flex:1;overflow:auto;padding:28px 32px;background:var(--bg);"></div>
+
+    <!-- MENSAJERÍA -->
+    <div id="messaging-view" style="display:none;flex:1;overflow:hidden;background:var(--bg);"></div>
 
     <!-- CALENDARIO DE ENTREVISTAS -->
     <div id="calendar-view">
@@ -3231,6 +3292,330 @@ function cpToggleMute() {
 function cpSetStatus(text, color) {
   document.getElementById('cp-status').textContent = text;
   document.getElementById('cp-status').style.color = color || 'rgba(255,255,255,.6)';
+}
+
+// ── Messaging Page ────────────────────────────────────────────────────────────
+let _msgFilter   = 'all';   // all | sms | wa | unread
+let _msgSearch   = '';
+let _msgLeadId   = null;
+let _msgChannel  = 'sms';   // sms | wa
+let _msgPollInt  = null;
+
+function _hideAllViews() {
+  document.getElementById('kanban-wrap').style.display       = 'none';
+  document.getElementById('table-view-wrap').classList.remove('active');
+  document.getElementById('calendar-view').classList.remove('active');
+  document.getElementById('config-view').style.display      = 'none';
+  document.getElementById('messaging-view').classList.remove('active');
+  document.getElementById('pipeline-tabs').style.display    = 'none';
+  document.getElementById('pipeline-subtabs').style.display = 'none';
+  document.getElementById('search-input').style.display     = 'none';
+}
+
+function showMessaging() {
+  _hideAllViews();
+  activeView = 'messaging';
+  document.getElementById('board-title').textContent = 'Mensajería';
+  document.getElementById('messaging-view').classList.add('active');
+  document.getElementById('messaging-view').style.display = 'flex';
+  renderSidebar();
+  _msgBuildPage();
+  clearInterval(_msgPollInt);
+  _msgPollInt = setInterval(_msgPollActive, 8000);
+}
+
+function _msgBuildPage() {
+  const view = document.getElementById('messaging-view');
+  view.innerHTML = `
+    <div class="msg-sidebar">
+      <div class="msg-sidebar-hdr">
+        <h2>💬 Mensajería</h2>
+        <input class="msg-search" placeholder="🔍 Buscar contacto o mensaje…" oninput="_msgSearch=this.value;_msgRenderList()" />
+        <div class="msg-filters">
+          <button class="msg-filter ${_msgFilter==='all'?'active':''}"   onclick="_msgSetFilter('all')">Todo</button>
+          <button class="msg-filter ${_msgFilter==='sms'?'active':''}"   onclick="_msgSetFilter('sms')">📱 SMS</button>
+          <button class="msg-filter ${_msgFilter==='wa'?'active':''}"    onclick="_msgSetFilter('wa')">💬 WhatsApp</button>
+          <button class="msg-filter ${_msgFilter==='unread'?'active':''}" onclick="_msgSetFilter('unread')">🔴 No leídos</button>
+        </div>
+      </div>
+      <div class="msg-conv-list" id="msg-conv-list"></div>
+    </div>
+    <div class="msg-main" id="msg-main">
+      <div class="msg-empty-state">
+        <div class="icon">💬</div>
+        <div style="font-size:14px;font-weight:600;">Selecciona una conversación</div>
+        <div style="font-size:12px;opacity:.6;">o inicia una nueva desde un lead</div>
+      </div>
+    </div>`;
+  _msgRenderList();
+}
+
+function _msgSetFilter(f) {
+  _msgFilter = f;
+  document.querySelectorAll('.msg-filter').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  _msgRenderList();
+}
+
+function _msgGetConversations() {
+  const convs = [];
+  for (const lead of leads) {
+    const hasSms = lead.sms && lead.sms.length > 0;
+    const hasWa  = lead.whatsapp && lead.whatsapp.length > 0;
+    if (!hasSms && !hasWa) continue;
+    if (_msgFilter === 'sms' && !hasSms) continue;
+    if (_msgFilter === 'wa'  && !hasWa)  continue;
+
+    // Build combined timeline
+    const allMsgs = [
+      ...(hasSms ? lead.sms.map(m => ({...m, ch:'sms'}))  : []),
+      ...(hasWa  ? lead.whatsapp.map(m => ({...m, ch:'wa'})) : []),
+    ].sort((a,b) => new Date(b.date) - new Date(a.date));
+
+    const last   = allMsgs[0];
+    const unread = allMsgs.filter(m => m.direction === 'inbound' && !m.read).length;
+    if (_msgFilter === 'unread' && unread === 0) continue;
+
+    const q = _msgSearch.toLowerCase();
+    if (q && !lead.nombre.toLowerCase().includes(q) && !(lead.telefono||'').includes(q) &&
+        !allMsgs.some(m => m.body.toLowerCase().includes(q))) continue;
+
+    convs.push({ lead, last, unread, hasSms, hasWa });
+  }
+  return convs.sort((a,b) => new Date(b.last.date) - new Date(a.last.date));
+}
+
+function _msgRenderList() {
+  const list  = document.getElementById('msg-conv-list');
+  if (!list) return;
+  const convs = _msgGetConversations();
+  if (!convs.length) {
+    list.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text2);font-size:12px;">Sin conversaciones</div>';
+    return;
+  }
+  const colors = ['#6366f1','#0073ea','#f59e0b','#00c875','#e2445c','#8b5cf6'];
+  list.innerHTML = convs.map(({lead, last, unread, hasSms, hasWa}) => {
+    const initials = (lead.nombre||'?').split(' ').map(w=>w[0]||'').join('').slice(0,2).toUpperCase();
+    const color    = colors[(lead.nombre||'').charCodeAt(0) % colors.length];
+    const chIcon   = last.ch === 'wa' ? '💬' : '📱';
+    const preview  = (last.direction==='outbound' ? '↗ ':'↙ ') + (last.body||'').slice(0,40);
+    const t        = last.date ? fmtDateTime(last.date) : '';
+    const isActive = _msgLeadId === lead.id;
+    return `<div class="msg-conv-item${isActive?' active':''}" onclick="_msgOpenConv('${lead.id}')">
+      <div class="msg-conv-avatar" style="background:${color}">${initials}</div>
+      <div class="msg-conv-info">
+        <div class="msg-conv-name">${esc(lead.nombre||'Sin nombre')}</div>
+        <div class="msg-conv-preview">${esc(preview)}</div>
+      </div>
+      <div class="msg-conv-meta">
+        <div class="msg-conv-time">${t}</div>
+        <div style="display:flex;gap:4px;align-items:center;">
+          ${unread ? `<div class="msg-conv-badge">${unread}</div>` : ''}
+          <span class="msg-conv-channel">${hasSms && hasWa ? '📱💬' : chIcon}</span>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function _msgOpenConv(leadId) {
+  _msgLeadId = leadId;
+  const lead = leads.find(l => l.id === leadId);
+  if (!lead) return;
+  // Mark inbound as read
+  (lead.sms||[]).forEach(m => { if(m.direction==='inbound') m.read = true; });
+  (lead.whatsapp||[]).forEach(m => { if(m.direction==='inbound') m.read = true; });
+  saveLeads();
+  _msgRenderList();
+  _msgRenderThread();
+}
+
+function _msgRenderThread() {
+  const lead = leads.find(l => l.id === _msgLeadId);
+  if (!lead) return;
+  const main  = document.getElementById('msg-main');
+  const phone = lead.telefono || '';
+  const hasSms = (lead.sms||[]).length > 0;
+  const hasWa  = (lead.whatsapp||[]).length > 0;
+  if (!_msgChannel || (_msgChannel==='sms' && !hasSms && hasWa)) _msgChannel = hasWa ? 'wa' : 'sms';
+
+  const colors = ['#6366f1','#0073ea','#f59e0b','#00c875','#e2445c','#8b5cf6'];
+  const color  = colors[(lead.nombre||'').charCodeAt(0) % colors.length];
+  const initials = (lead.nombre||'?').split(' ').map(w=>w[0]||'').join('').slice(0,2).toUpperCase();
+
+  // Build combined timeline
+  const msgs = [
+    ...(lead.sms||[]).map(m => ({...m, ch:'sms'})),
+    ...(lead.whatsapp||[]).map(m => ({...m, ch:'wa'})),
+  ].sort((a,b) => new Date(a.date) - new Date(b.date));
+
+  const threadHtml = msgs.length ? msgs.map(m => {
+    const out  = m.direction === 'outbound';
+    const time = m.date ? fmtDateTime(m.date) : '';
+    const ch   = m.ch;
+    const tick = out && ch==='wa' ? (m.status==='read'?'✓✓':'✓') : '';
+    return `<div class="msg-bubble-wrap ${out?'out':'in'}">
+      <div class="msg-bubble ${out?'out':'in'} ${ch}">${esc(m.body||'')}</div>
+      <div class="msg-bubble-meta">
+        <span class="msg-channel-tag ${ch}">${ch==='wa'?'WhatsApp':'SMS'}</span>
+        ${time}${m.autor?' · '+esc(m.autor):''}${tick?' '+tick:''}
+      </div>
+    </div>`;
+  }).join('') : '<div style="text-align:center;color:var(--text2);font-size:12px;padding:20px;">Sin mensajes aún</div>';
+
+  main.innerHTML = `
+    <div class="msg-thread-hdr">
+      <div class="msg-conv-avatar" style="background:${color};width:36px;height:36px;font-size:13px;font-weight:700;">${initials}</div>
+      <div class="msg-thread-hdr-info">
+        <div class="msg-thread-hdr-name">${esc(lead.nombre||'Sin nombre')}</div>
+        <div class="msg-thread-hdr-sub">${esc(phone)} ${lead.ubicacion?'· '+esc(lead.ubicacion):''}</div>
+      </div>
+      <button onclick="openLead('${lead.id}')" style="background:rgba(255,255,255,.07);border:1px solid var(--border);border-radius:7px;color:var(--text);font-size:11.5px;font-family:var(--font);padding:5px 11px;cursor:pointer;">Ver Lead ↗</button>
+    </div>
+    <div class="msg-thread-body" id="msg-thread-body">${threadHtml}</div>
+    <div class="msg-compose">
+      <div class="msg-compose-top">
+        <div class="msg-channel-btns">
+          <button class="msg-ch-btn ${_msgChannel==='sms'?'active sms':''}" onclick="_msgSetChannel('sms')">📱 SMS</button>
+          <button class="msg-ch-btn ${_msgChannel==='wa'?'active wa':''}"  onclick="_msgSetChannel('wa')">💬 WhatsApp</button>
+        </div>
+        <div style="flex:1;"></div>
+        <span style="font-size:11px;color:var(--text2);">${esc(phone)}</span>
+      </div>
+      ${_msgChannel==='wa' ? `
+      <div class="msg-tpl-row">
+        <select class="msg-tpl-sel" id="msg-tpl-sel" onchange="_msgLoadTpl()">
+          <option value="">📋 Plantilla WhatsApp…</option>
+          <option value="aplicacante_registrado">✅ Aplicante registrado</option>
+          <option value="webinar_con_video">🎥 Webinar con video</option>
+          <option value="en_webinar_aplicantes">📩 En webinar — confirmación</option>
+          <option value="en_webinar_webinar_visto">👀 Webinar visto</option>
+          <option value="no_visto_webinar">⚠️ No vio el webinar</option>
+          <option value="registrado_en_una_entrevista">📅 Registrado en entrevista</option>
+          <option value="link_de_entrevista_con_globe_life">🔗 Link entrevista (5 min)</option>
+          <option value="aviso_entrevista_con_manager_30_minutos_antes">⏰ Aviso 30 min antes</option>
+          <option value="agenda_de_cita_para_manager">🗓️ Cita para manager</option>
+          <option value="3er_intento_de_contacto">📵 3er intento</option>
+          <option value="2do_intento_de_contacto_webinar_no_visto_eliminacion">🚫 2do intento eliminación</option>
+          <option value="eliminacion_por_webinar_visto">❌ Eliminación</option>
+        </select>
+      </div>
+      <div class="msg-tpl-vars" id="msg-tpl-vars"></div>` : ''}
+      <div class="msg-input-row">
+        <textarea class="msg-textarea" id="msg-inp" placeholder="${_msgChannel==='wa'?'Mensaje de WhatsApp… (Ctrl+Enter enviar)':'Mensaje SMS… (Ctrl+Enter enviar)'}" onkeydown="if(event.ctrlKey&&event.key==='Enter')_msgSend()" rows="2"></textarea>
+        <button class="msg-send-btn" id="msg-send-btn" onclick="_msgSend()" style="background:${_msgChannel==='wa'?'#25d366':'#0073ea'};">➤</button>
+      </div>
+    </div>`;
+
+  // Scroll to bottom
+  setTimeout(() => {
+    const tb = document.getElementById('msg-thread-body');
+    if (tb) tb.scrollTop = tb.scrollHeight;
+  }, 50);
+}
+
+function _msgSetChannel(ch) {
+  _msgChannel = ch;
+  _msgRenderThread();
+}
+
+function _msgLoadTpl() {
+  const sel  = document.getElementById('msg-tpl-sel');
+  const key  = sel?.value;
+  const tpl  = WA_TEMPLATES[key];
+  const varsEl = document.getElementById('msg-tpl-vars');
+  const inp  = document.getElementById('msg-inp');
+  if (!varsEl) return;
+  if (!key || !tpl) { varsEl.innerHTML=''; if(inp){inp.value='';inp.style.opacity='1';} return; }
+  const lead = leads.find(l => l.id === _msgLeadId);
+  const auto = { nombre: lead?.nombre||'', fuente: lead?.fuente||'', correo: lead?.correo||'', nombre_candidato: lead?.nombre||'' };
+  varsEl.innerHTML = tpl.vars.map((v,i) =>
+    `<div class="msg-tpl-var">
+      <label>{{${i+1}}} ${v}</label>
+      <input id="msg-var-${i}" value="${esc(auto[v]||'')}" placeholder="${v}" />
+    </div>`).join('');
+  if (inp) { inp.value='← Plantilla: '+key.replace(/_/g,' '); inp.style.opacity='.4'; }
+}
+
+async function _msgSend() {
+  const lead = leads.find(l => l.id === _msgLeadId);
+  if (!lead) return;
+  const phone = lead.telefono || '';
+  if (!phone) { showToast('Lead sin teléfono'); return; }
+  const btn = document.getElementById('msg-send-btn');
+  if (btn) { btn.disabled=true; btn.style.opacity='.5'; }
+
+  try {
+    let payload, displayBody;
+
+    if (_msgChannel === 'wa') {
+      const selEl  = document.getElementById('msg-tpl-sel');
+      const tplKey = selEl?.value;
+      const tpl    = WA_TEMPLATES[tplKey];
+      if (tplKey && tpl) {
+        const vars = {};
+        tpl.vars.forEach((v,i) => { const el=document.getElementById(`msg-var-${i}`); vars[(i+1).toString()]=el?el.value.trim():''; });
+        payload = { to: phone, contentSid: tpl.sid, contentVariables: vars, leadId: lead.id };
+        displayBody = `[${tplKey.replace(/_/g,' ')}] ${Object.values(vars).join(' · ')}`;
+      } else {
+        const inp = document.getElementById('msg-inp');
+        const body = inp?.value.trim();
+        if (!body) return;
+        payload = { to: phone, body, leadId: lead.id };
+        displayBody = body;
+      }
+      const res  = await fetch(`${SERVER_URL}/twilio/whatsapp`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error);
+      if (!lead.whatsapp) lead.whatsapp = [];
+      lead.whatsapp.push({ direction:'outbound', body: displayBody, date: new Date().toISOString(), autor: currentUser?.name||'Agente', sid: data.sid, status:'sent', ch:'wa' });
+      addHistorial(lead.id, `WhatsApp: "${displayBody.slice(0,60)}"`, '💬');
+    } else {
+      const inp  = document.getElementById('msg-inp');
+      const body = inp?.value.trim();
+      if (!body) return;
+      const res  = await fetch(`${SERVER_URL}/twilio/sms`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ to: phone, body, leadId: lead.id }) });
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error);
+      if (!lead.sms) lead.sms = [];
+      lead.sms.push({ direction:'outbound', body, date: new Date().toISOString(), autor: currentUser?.name||'Agente', sid: data.sid });
+      displayBody = body;
+      addHistorial(lead.id, `SMS: "${body.slice(0,60)}"`, '📱');
+    }
+
+    saveLeads();
+    _msgRenderList();
+    _msgRenderThread();
+  } catch(e) {
+    showToast('Error: ' + e.message);
+  } finally {
+    if (btn) { btn.disabled=false; btn.style.opacity='1'; }
+  }
+}
+
+async function _msgPollActive() {
+  if (!_msgLeadId || activeView !== 'messaging') return;
+  const lead = leads.find(l => l.id === _msgLeadId);
+  if (!lead || !lead.telefono) return;
+  const phone = lead.telefono;
+  let updated = false;
+  try {
+    // Poll SMS
+    const r1   = await fetch(`${SERVER_URL}/twilio/sms-inbox?phone=${encodeURIComponent(phone)}`);
+    const d1   = await r1.json();
+    if (d1.messages) for (const m of d1.messages) {
+      if (!lead.sms) lead.sms = [];
+      if (!lead.sms.find(s => s.sid === m.sid)) { lead.sms.push(m); updated = true; }
+    }
+    // Poll WA
+    const r2   = await fetch(`${SERVER_URL}/twilio/whatsapp-inbox?phone=${encodeURIComponent(phone)}`);
+    const d2   = await r2.json();
+    if (d2.messages) for (const m of d2.messages) {
+      if (!lead.whatsapp) lead.whatsapp = [];
+      if (!lead.whatsapp.find(s => s.sid === m.sid)) { lead.whatsapp.push(m); updated = true; }
+    }
+    if (updated) { saveLeads(); _msgRenderList(); _msgRenderThread(); }
+  } catch {}
 }
 
 // ── WhatsApp Module ───────────────────────────────────────────────────────────
