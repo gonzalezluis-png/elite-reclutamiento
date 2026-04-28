@@ -3901,7 +3901,7 @@ async function lcSend() {
         method: 'POST', headers: {'Content-Type':'application/json'},
         body: JSON.stringify({ to: lead.telefono, body, leadId: lead.id }),
       });
-      if (!res.ok) throw new Error('Error SMS');
+      if (!res.ok) { const d = await res.json().catch(()=>({})); throw new Error(d.error || `Error SMS (${res.status})`); }
       if (!lead.sms) lead.sms = [];
       lead.sms.push({ body, direction: 'outbound', dateSent: new Date().toISOString(), sid: 'local_' + Date.now() });
     } else {
@@ -3920,7 +3920,7 @@ async function lcSend() {
       const res = await fetch(`${SERVER_URL}/twilio/whatsapp`, {
         method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload),
       });
-      if (!res.ok) throw new Error('Error WhatsApp');
+      if (!res.ok) { const d = await res.json().catch(()=>({})); throw new Error(d.error || `Error WhatsApp (${res.status})`); }
       if (!lead.whatsapp) lead.whatsapp = [];
       const body = key ? `[Plantilla: ${key}]` : document.getElementById('lc-textarea').value.trim();
       lead.whatsapp.push({ body, direction: 'outbound', dateSent: new Date().toISOString(), sid: 'local_' + Date.now() });
