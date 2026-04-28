@@ -356,6 +356,56 @@ app.post('/twilio/status', (req, res) => {
   res.sendStatus(200);
 });
 
+// ── Call log ──────────────────────────────────────────────────────────────────
+app.get('/twilio/calls', async (req, res) => {
+  try {
+    const { phone, limit = 50 } = req.query;
+    const filters = { limit: parseInt(limit) };
+    if (phone) {
+      filters.to   = phone;
+    }
+    const [outbound, inbound] = await Promise.all([
+      client.calls.list({ ...filters, from: phone ? undefined : undefined }),
+      phone ? client.calls.list({ to: phone, limit: parseInt(limit) }) : Promise.resolve([]),
+    ]);
+    // If no phone filter, just fetch recent calls
+    const calls = phone
+      ? [...outbound, ...inbound].sort((a, b) => new Date(b.startTime) - new Date(a.startTime))
+      : (await client.calls.list({ limit: parseInt(limit) }));
+    res.json({ calls: (Array.isArray(calls) ? calls : []).map(c => ({
+      sid:       c.sid,
+      to:        c.to,
+      from:      c.from,
+      status:    c.status,
+      direction: c.direction,
+      duration:  c.duration,
+      startTime: c.startTime,
+      price:     c.price,
+    }))});
+  } catch (e) {
+    console.error('calls list:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/twilio/calls/by-number', async (req, res) => {
+  try {
+    const { phone, limit = 30 } = req.query;
+    if (!phone) return res.status(400).json({ error: 'phone required' });
+    const [out, inc] = await Promise.all([
+      client.calls.list({ from: phone, limit: parseInt(limit) }),
+      client.calls.list({ to:   phone, limit: parseInt(limit) }),
+    ]);
+    const calls = [...out, ...inc].sort((a, b) => new Date(b.startTime) - new Date(a.startTime)).slice(0, parseInt(limit));
+    res.json({ calls: calls.map(c => ({
+      sid: c.sid, to: c.to, from: c.from, status: c.status,
+      direction: c.direction, duration: c.duration, startTime: c.startTime,
+    }))});
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ── Health check ──────────────────────────────────────────────────────────────
 app.get('/',       (req, res) => res.json({ status: 'ok', service: 'Elite Webinar Bot' }));
 app.get('/health', (req, res) => res.json({ status: 'ok' }));

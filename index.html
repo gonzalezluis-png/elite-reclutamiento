@@ -372,6 +372,45 @@ tr.lead-resuelto td:last-child { pointer-events:none;opacity:.4; }
 .msg-send-btn { flex-shrink:0;width:40px;height:40px;border-radius:8px;border:none;color:#fff;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .15s; }
 .msg-empty-state { flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--text2);gap:10px; }
 .msg-empty-state .icon { font-size:48px;opacity:.3; }
+/* ── Conversaciones (call log) ── */
+#conversations-view.active { display:flex !important; }
+.cv-wrap { display:flex;flex-direction:row;height:100%;width:100%;overflow:hidden; }
+.cv-sidebar { width:320px;min-width:260px;border-right:1px solid var(--border);display:flex;flex-direction:column;background:var(--card2);flex-shrink:0; }
+.cv-sidebar-hdr { padding:14px 16px 10px;border-bottom:1px solid var(--border); }
+.cv-sidebar-hdr h2 { font-size:15px;font-weight:700;margin:0 0 10px; }
+.cv-filters { display:flex;gap:6px;flex-wrap:wrap; }
+.cv-filter { font-size:11px;padding:4px 10px;border-radius:20px;border:1px solid var(--border);background:none;color:var(--text2);cursor:pointer;font-family:var(--font);transition:all .12s; }
+.cv-filter.active { background:var(--accent);border-color:var(--accent);color:#fff; }
+.cv-search { padding:8px 12px;border-bottom:1px solid var(--border); }
+.cv-search input { width:100%;box-sizing:border-box;background:var(--bg);border:1px solid var(--border);border-radius:7px;color:var(--text);font-size:12px;font-family:var(--font);padding:6px 10px;outline:none; }
+.cv-list { flex:1;overflow-y:auto; }
+.cv-item { display:flex;align-items:center;gap:10px;padding:11px 14px;border-bottom:1px solid rgba(255,255,255,.04);cursor:pointer;transition:background .1s; }
+.cv-item:hover,.cv-item.active { background:rgba(255,255,255,.05); }
+.cv-item.active { border-left:3px solid var(--accent); }
+.cv-avatar { width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#fff;flex-shrink:0; }
+.cv-item-info { flex:1;min-width:0; }
+.cv-item-name { font-size:13px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
+.cv-item-sub  { font-size:11px;color:var(--text2);margin-top:2px;display:flex;align-items:center;gap:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
+.cv-item-time { font-size:10px;color:var(--text2);flex-shrink:0; }
+.cv-item-badge { font-size:10px;background:var(--accent);color:#fff;border-radius:10px;padding:1px 6px;flex-shrink:0; }
+.cv-main { flex:1;display:flex;flex-direction:column;overflow:hidden; }
+.cv-main-hdr { padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-shrink:0; }
+.cv-main-hdr h3 { font-size:15px;font-weight:700;margin:0;flex:1; }
+.cv-timeline { flex:1;overflow-y:auto;padding:16px 20px;display:flex;flex-direction:column;gap:12px; }
+.cv-call-card { background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px 16px;display:flex;align-items:center;gap:14px; }
+.cv-call-icon { width:42px;height:42px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0; }
+.cv-call-icon.out  { background:rgba(0,200,117,.15); }
+.cv-call-icon.in   { background:rgba(96,165,250,.15); }
+.cv-call-icon.miss { background:rgba(226,68,92,.15); }
+.cv-call-info { flex:1;min-width:0; }
+.cv-call-dir  { font-size:12px;font-weight:600;color:var(--text); }
+.cv-call-num  { font-size:11px;color:var(--text2);margin-top:2px; }
+.cv-call-meta { text-align:right;flex-shrink:0; }
+.cv-call-dur  { font-size:13px;font-weight:700;color:var(--text); }
+.cv-call-time { font-size:10px;color:var(--text2);margin-top:2px; }
+.cv-call-btn  { font-size:11px;padding:4px 10px;border-radius:6px;background:var(--accent);border:none;color:#fff;cursor:pointer;font-family:var(--font);margin-top:6px;display:inline-flex;align-items:center;gap:4px; }
+.cv-empty { flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--text2);gap:8px;font-size:13px; }
+.cv-loading { text-align:center;padding:30px;color:var(--text2);font-size:13px; }
 /* sms / whatsapp bubbles */
 .sms-bubble { max-width:80%;padding:7px 11px;border-radius:12px;font-size:12.5px;line-height:1.4;word-break:break-word; }
 .sms-out { align-self:flex-end;background:#0073ea;color:#fff;border-bottom-right-radius:3px; }
@@ -594,6 +633,7 @@ tr.lead-resuelto td:last-child { pointer-events:none;opacity:.4; }
       <div id="pipe-list"></div>
     </div>
     <div class="sidebar-bottom">
+      <div class="sidebar-item" onclick="showConversations()" id="nav-conversations">📞 &nbsp;Conversaciones</div>
       <div class="sidebar-item" onclick="showMessaging()" id="nav-messaging">💬 &nbsp;Mensajería</div>
       <div class="sidebar-item" onclick="openExternalApplicant()" style="color:#60a5fa;">📥 &nbsp;Aplicantes Externos</div>
       <a id="sidebar-webinar-link" class="sidebar-item sidebar-webinar-link" href="https://quintero-partners.webinargeek.com/oportunidad-laboral-webinar-on-demand-q-p" target="_blank" rel="noopener">🔗 &nbsp;Link de Webinar</a>
@@ -633,6 +673,9 @@ tr.lead-resuelto td:last-child { pointer-events:none;opacity:.4; }
 
     <!-- CONFIGURACIONES -->
     <div id="config-view" style="display:none;flex:1;overflow:auto;padding:28px 32px;background:var(--bg);"></div>
+
+    <!-- CONVERSACIONES (llamadas) -->
+    <div id="conversations-view" style="display:none;flex:1;overflow:hidden;background:var(--bg);"></div>
 
     <!-- MENSAJERÍA -->
     <div id="messaging-view" style="display:none;flex:1;overflow:hidden;background:var(--bg);"></div>
@@ -3356,9 +3399,12 @@ function _hideAllViews() {
   document.getElementById('calendar-view').classList.remove('active');
   document.getElementById('config-view').style.display      = 'none';
   document.getElementById('messaging-view').classList.remove('active');
+  document.getElementById('conversations-view').classList.remove('active');
+  document.getElementById('conversations-view').style.display = 'none';
   document.getElementById('pipeline-tabs').style.display    = 'none';
   document.getElementById('pipeline-subtabs').style.display = 'none';
   document.getElementById('search-input').style.display     = 'none';
+  clearInterval(_cvPollInt);
 }
 
 function showMessaging() {
@@ -3665,6 +3711,239 @@ async function _msgPollActive() {
     }
     if (updated) { saveLeads(); _msgRenderList(); _msgRenderThread(); }
   } catch {}
+}
+
+// ── Conversations (Call Log) ──────────────────────────────────────────────────
+let _cvFilter    = 'all';   // all | outbound | inbound | missed
+let _cvSearch    = '';
+let _cvContactId = null;    // selected lead id
+let _cvAllCalls  = [];      // raw call array from Twilio
+let _cvPollInt   = null;
+
+function _hideAllViewsConv() {
+  _hideAllViews();
+  document.getElementById('conversations-view').classList.remove('active');
+  document.getElementById('conversations-view').style.display = 'none';
+}
+
+function showConversations() {
+  _hideAllViews();
+  activeView = 'conversations';
+  document.getElementById('board-title').textContent = 'Conversaciones';
+  const el = document.getElementById('conversations-view');
+  el.classList.add('active');
+  el.style.display = 'flex';
+  renderSidebar();
+  _cvBuildPage();
+  _cvLoadCalls();
+  clearInterval(_cvPollInt);
+  _cvPollInt = setInterval(_cvLoadCalls, 30000);
+}
+
+function _cvBuildPage() {
+  const el = document.getElementById('conversations-view');
+  el.innerHTML = `
+  <div class="cv-wrap">
+    <div class="cv-sidebar">
+      <div class="cv-sidebar-hdr">
+        <h2>📞 Conversaciones</h2>
+        <div class="cv-filters">
+          <button class="cv-filter active" data-f="all"      onclick="_cvSetFilter('all')">Todas</button>
+          <button class="cv-filter"        data-f="outbound" onclick="_cvSetFilter('outbound')">Salientes</button>
+          <button class="cv-filter"        data-f="inbound"  onclick="_cvSetFilter('inbound')">Entrantes</button>
+          <button class="cv-filter"        data-f="missed"   onclick="_cvSetFilter('missed')">Perdidas</button>
+        </div>
+      </div>
+      <div class="cv-search">
+        <input placeholder="🔍 Buscar por número o nombre…" oninput="_cvSearch=this.value;_cvRenderList()" />
+      </div>
+      <div class="cv-list" id="cv-list"><div class="cv-loading">Cargando llamadas…</div></div>
+    </div>
+    <div class="cv-main" id="cv-main">
+      <div class="cv-empty"><span style="font-size:48px;opacity:.3">📞</span><span>Selecciona una conversación</span></div>
+    </div>
+  </div>`;
+}
+
+function _cvSetFilter(f) {
+  _cvFilter = f;
+  document.querySelectorAll('.cv-filter').forEach(b => b.classList.toggle('active', b.dataset.f === f));
+  _cvRenderList();
+}
+
+async function _cvLoadCalls() {
+  if (activeView !== 'conversations') return;
+  try {
+    const res  = await fetch(`${SERVER_URL}/twilio/calls?limit=100`);
+    const data = await res.json();
+    if (data.calls) { _cvAllCalls = data.calls; _cvRenderList(); }
+  } catch (e) { console.error('cv load:', e); }
+}
+
+function _cvGroupByContact(calls) {
+  const map = {};
+  for (const c of calls) {
+    const num = c.direction === 'outbound-api' || c.direction === 'outbound-dial'
+      ? c.to : c.from;
+    if (!map[num]) map[num] = [];
+    map[num].push(c);
+  }
+  return map;
+}
+
+function _cvFilterCalls(calls) {
+  return calls.filter(c => {
+    if (_cvFilter === 'outbound' && !c.direction?.startsWith('outbound')) return false;
+    if (_cvFilter === 'inbound'  && c.direction !== 'inbound') return false;
+    if (_cvFilter === 'missed'   && c.status !== 'no-answer' && c.status !== 'busy' && c.status !== 'failed') return false;
+    if (_cvSearch) {
+      const q = _cvSearch.toLowerCase();
+      const lead = leads.find(l => l.telefono && (c.to?.includes(l.telefono.replace(/\D/g,'').slice(-10)) || c.from?.includes(l.telefono.replace(/\D/g,'').slice(-10))));
+      const name = lead?.nombre || '';
+      if (!c.to?.includes(q) && !c.from?.includes(q) && !name.toLowerCase().includes(q)) return false;
+    }
+    return true;
+  });
+}
+
+function _cvRenderList() {
+  const list = document.getElementById('cv-list');
+  if (!list) return;
+  const filtered = _cvFilterCalls(_cvAllCalls);
+  const grouped  = _cvGroupByContact(filtered);
+  const entries  = Object.entries(grouped).sort((a, b) =>
+    new Date(b[1][0].startTime) - new Date(a[1][0].startTime)
+  );
+  if (!entries.length) {
+    list.innerHTML = '<div class="cv-loading">Sin llamadas para este filtro</div>';
+    return;
+  }
+  list.innerHTML = entries.map(([num, calls]) => {
+    const last   = calls[0];
+    const lead   = leads.find(l => l.telefono && num.includes(l.telefono.replace(/\D/g,'').slice(-10)));
+    const name   = lead?.nombre || num;
+    const initials = name.split(' ').map(w => w[0]||'').join('').slice(0,2).toUpperCase();
+    const color  = lead ? '#6366f1' : '#00c875';
+    const dir    = last.direction?.startsWith('outbound') ? '↗' : '↙';
+    const miss   = last.status === 'no-answer' || last.status === 'busy' || last.status === 'failed';
+    const durFmt = last.duration > 0 ? `${Math.floor(last.duration/60)}:${String(last.duration%60).padStart(2,'0')}` : '—';
+    const timeAgo = _cvTimeAgo(last.startTime);
+    const active = _cvContactId === num ? 'active' : '';
+    return `<div class="cv-item ${active}" onclick="_cvOpenContact('${num}')">
+      <div class="cv-avatar" style="background:${miss?'rgba(226,68,92,.3)':color}">${initials}</div>
+      <div class="cv-item-info">
+        <div class="cv-item-name">${esc(name)}</div>
+        <div class="cv-item-sub">${miss?'<span style="color:#e2445c">📵 Perdida</span>':dir+' '+durFmt} · ${esc(num)}</div>
+      </div>
+      <div style="text-align:right;flex-shrink:0">
+        <div class="cv-item-time">${timeAgo}</div>
+        ${calls.length > 1 ? `<div class="cv-item-badge">${calls.length}</div>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function _cvOpenContact(num) {
+  _cvContactId = num;
+  document.querySelectorAll('.cv-item').forEach(el => el.classList.toggle('active', el.onclick?.toString().includes(`'${num}'`)));
+  const calls  = _cvFilterCalls(_cvAllCalls).filter(c => c.to === num || c.from === num);
+  const lead   = leads.find(l => l.telefono && num.includes(l.telefono.replace(/\D/g,'').slice(-10)));
+  const name   = lead?.nombre || num;
+  const main   = document.getElementById('cv-main');
+  if (!main) return;
+  const totalDur  = calls.reduce((s, c) => s + (parseInt(c.duration)||0), 0);
+  const totalMin  = Math.floor(totalDur/60);
+  const outCount  = calls.filter(c => c.direction?.startsWith('outbound')).length;
+  const inCount   = calls.filter(c => c.direction === 'inbound').length;
+  const missCount = calls.filter(c => c.status === 'no-answer' || c.status === 'busy').length;
+
+  main.innerHTML = `
+    <div class="cv-main-hdr">
+      <div class="cv-avatar" style="background:#6366f1;width:36px;height:36px;font-size:13px;">${name.split(' ').map(w=>w[0]||'').join('').slice(0,2).toUpperCase()}</div>
+      <div style="flex:1;min-width:0">
+        <h3>${esc(name)}</h3>
+        <div style="font-size:11px;color:var(--text2)">${esc(num)} · ${calls.length} llamadas · ${totalMin}m totales</div>
+      </div>
+      <button class="cv-call-btn" onclick="cpOpen_num('${num}','${esc(name)}')">📞 Llamar</button>
+      ${lead ? `<button class="cv-call-btn" style="background:#6366f1;margin-left:6px" onclick="openLead('${lead.id}')">Ver lead →</button>` : ''}
+    </div>
+    <div style="display:flex;gap:10px;padding:12px 20px;border-bottom:1px solid var(--border);flex-shrink:0">
+      <div style="flex:1;background:var(--card);border-radius:8px;padding:10px 14px;text-align:center">
+        <div style="font-size:20px;font-weight:700;color:var(--accent)">${outCount}</div>
+        <div style="font-size:10px;color:var(--text2);margin-top:2px">Salientes</div>
+      </div>
+      <div style="flex:1;background:var(--card);border-radius:8px;padding:10px 14px;text-align:center">
+        <div style="font-size:20px;font-weight:700;color:#60a5fa">${inCount}</div>
+        <div style="font-size:10px;color:var(--text2);margin-top:2px">Entrantes</div>
+      </div>
+      <div style="flex:1;background:var(--card);border-radius:8px;padding:10px 14px;text-align:center">
+        <div style="font-size:20px;font-weight:700;color:#e2445c">${missCount}</div>
+        <div style="font-size:10px;color:var(--text2);margin-top:2px">Perdidas</div>
+      </div>
+      <div style="flex:1;background:var(--card);border-radius:8px;padding:10px 14px;text-align:center">
+        <div style="font-size:20px;font-weight:700;color:#f59e0b">${totalMin}m</div>
+        <div style="font-size:10px;color:var(--text2);margin-top:2px">Tiempo total</div>
+      </div>
+    </div>
+    <div class="cv-timeline" id="cv-timeline">
+      ${calls.map(c => _cvCallCard(c, num)).join('')}
+    </div>`;
+}
+
+function _cvCallCard(c, contactNum) {
+  const out  = c.direction?.startsWith('outbound');
+  const miss = c.status === 'no-answer' || c.status === 'busy' || c.status === 'failed';
+  const durFmt = parseInt(c.duration) > 0
+    ? `${Math.floor(c.duration/60)}:${String(c.duration%60).padStart(2,'0')}`
+    : '0:00';
+  const iconCls = miss ? 'miss' : out ? 'out' : 'in';
+  const icon    = miss ? '📵' : out ? '↗' : '↙';
+  const dirLbl  = miss ? 'Perdida' : out ? 'Saliente' : 'Entrante';
+  const numDisplay = out ? c.to : c.from;
+  const dt = new Date(c.startTime);
+  const dtFmt = dt.toLocaleDateString('es-MX', {day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
+  return `<div class="cv-call-card">
+    <div class="cv-call-icon ${iconCls}">${icon}</div>
+    <div class="cv-call-info">
+      <div class="cv-call-dir">${dirLbl}</div>
+      <div class="cv-call-num">${esc(numDisplay)}</div>
+      <div style="font-size:10px;color:var(--text2);margin-top:3px">${esc(dtFmt)}</div>
+    </div>
+    <div class="cv-call-meta">
+      <div class="cv-call-dur">${durFmt}</div>
+      <div style="font-size:10px;margin-top:2px;padding:2px 7px;border-radius:10px;display:inline-block;
+        background:${miss?'rgba(226,68,92,.15)':out?'rgba(0,200,117,.15)':'rgba(96,165,250,.15)'};
+        color:${miss?'#e2445c':out?'#00c875':'#60a5fa'}">${c.status||'—'}</div>
+      <br><button class="cv-call-btn" style="margin-top:6px" onclick="cpOpen_num('${esc(contactNum)}','')">📞 Volver a llamar</button>
+    </div>
+  </div>`;
+}
+
+function cpOpen_num(phone, name) {
+  const panel   = document.getElementById('call-panel');
+  const initials = (name||phone).split(' ').map(w=>w[0]||'').join('').slice(0,2).toUpperCase()||'📞';
+  document.getElementById('cp-avatar').textContent  = initials;
+  document.getElementById('cp-name').textContent    = name || 'Llamada';
+  document.getElementById('cp-number').textContent  = phone;
+  document.getElementById('cp-manual-num').value    = phone;
+  document.getElementById('cp-call-btn').dataset.phone = phone;
+  panel.style.display = 'block';
+  document.getElementById('phone-fab').style.background = '#00a865';
+  cpSetStatus('Iniciando…', '#f59e0b');
+  cpInit();
+}
+
+function _cvTimeAgo(iso) {
+  if (!iso) return '';
+  const diff = Date.now() - new Date(iso).getTime();
+  const m = Math.floor(diff / 60000);
+  if (m < 1)  return 'ahora';
+  if (m < 60) return `${m}m`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h`;
+  const d = Math.floor(h / 24);
+  if (d < 7)  return `${d}d`;
+  return new Date(iso).toLocaleDateString('es-MX', {day:'2-digit',month:'short'});
 }
 
 // ── WhatsApp Module ───────────────────────────────────────────────────────────
