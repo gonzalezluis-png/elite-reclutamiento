@@ -809,7 +809,7 @@ tr.lead-resuelto td:last-child { pointer-events:none;opacity:.4; }
     <div class="mlh">
       <div class="mlh-avatar" id="ml-avatar">?</div>
       <div class="mlh-left">
-        <input class="mlh-name-inp" id="ml-nombre" placeholder="Nombre del postulado" oninput="_mlUpdateAvatar()" />
+        <input class="mlh-name-inp" id="ml-nombre" placeholder="Nombre del postulado" oninput="_mlUpdateAvatar();const c=document.getElementById('ml-contacto');if(c)c.value=this.value;" />
         <div class="mlh-meta">
           <select class="mlh-sel" id="ml-pipeline" onchange="updateEtapasSelect()"></select>
           <span style="color:rgba(255,255,255,.2);font-size:10px">›</span>
@@ -873,7 +873,7 @@ tr.lead-resuelto td:last-child { pointer-events:none;opacity:.4; }
           <div class="info-compact">
             <div class="ml-section-label">Contacto</div>
             <div class="field-row">
-              <div class="field"><label>Nombre</label><input id="ml-contacto" placeholder="Juan Pérez" /></div>
+              <div class="field"><label>Nombre</label><input id="ml-contacto" placeholder="Juan Pérez" oninput="document.getElementById('ml-nombre').value=this.value;_mlUpdateAvatar()" /></div>
               <div class="field"><label>Correo</label><input type="email" id="ml-correo" placeholder="juan@email.com" /></div>
             </div>
             <div class="field">
