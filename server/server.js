@@ -3,12 +3,64 @@
 const express  = require('express');
 const cors     = require('cors');
 const { chromium } = require('playwright');
+const twilio   = require('twilio');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(cors({ origin: '*' }));
 app.use(express.json());
+app.use(express.urlencoded({ extended: false }));
+
+// ── Twilio config (set these env vars in Render) ──────────────────────────────
+const TWILIO_ACCOUNT_SID   = process.env.TWILIO_ACCOUNT_SID;
+const TWILIO_AUTH_TOKEN    = process.env.TWILIO_AUTH_TOKEN;
+const TWILIO_API_KEY       = process.env.TWILIO_API_KEY;       // Twilio Console → API Keys
+const TWILIO_API_SECRET    = process.env.TWILIO_API_SECRET;
+const TWILIO_PHONE_NUMBER  = process.env.TWILIO_PHONE_NUMBER;  // e.g. +12015551234
+const TWILIO_APP_SID       = process.env.TWILIO_APP_SID;       // TwiML App SID
+
+// ── Twilio: Access Token (browser can make calls) ─────────────────────────────
+app.get('/twilio/token', (req, res) => {
+  if (!TWILIO_ACCOUNT_SID || !TWILIO_API_KEY || !TWILIO_API_SECRET || !TWILIO_APP_SID) {
+    return res.status(500).json({ error: 'Twilio no configurado — faltan variables de entorno' });
+  }
+  try {
+    const { AccessToken } = twilio.jwt;
+    const { VoiceGrant } = AccessToken;
+    const token = new AccessToken(TWILIO_ACCOUNT_SID, TWILIO_API_KEY, TWILIO_API_SECRET, {
+      identity: req.query.identity || 'agent',
+      ttl: 3600,
+    });
+    token.addGrant(new VoiceGrant({ outgoingApplicationSid: TWILIO_APP_SID, incomingAllow: false }));
+    res.json({ token: token.toJwt() });
+  } catch (e) {
+    console.error('Token error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── Twilio: TwiML — called by Twilio when agent dials ─────────────────────────
+app.post('/twilio/voice', (req, res) => {
+  const { VoiceResponse } = twilio.twiml;
+  const twiml = new VoiceResponse();
+  const to = req.body.To;
+  if (to) {
+    const dial = twiml.dial({ callerId: TWILIO_PHONE_NUMBER, timeout: 30, record: 'do-not-record' });
+    dial.number(to);
+  } else {
+    twiml.say({ language: 'es-MX' }, 'No se especificó un número de destino.');
+  }
+  res.type('text/xml');
+  res.send(twiml.toString());
+});
+
+// ── Twilio: Call status callback (optional logging) ───────────────────────────
+app.post('/twilio/status', (req, res) => {
+  const { CallSid, CallStatus, To, Duration } = req.body;
+  console.log(`[Twilio] ${CallSid} → ${To} | ${CallStatus} | ${Duration || 0}s`);
+  res.sendStatus(200);
+});
 
 // ── Health check ──────────────────────────────────────────────────────────────
 app.get('/',       (req, res) => res.json({ status: 'ok', service: 'Elite Webinar Bot' }));
