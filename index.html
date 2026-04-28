@@ -44,8 +44,12 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); heig
 .sidebar-search input { width:100%;padding:7px 10px;background:var(--card2);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-size:12px;font-family:var(--font);outline:none; }
 .sidebar-search input:focus { border-color:var(--accent); }
 .sidebar-label { font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text2);padding:10px 14px 4px; }
-.sidebar-section-hdr { font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text2);padding:12px 14px 4px;display:flex;align-items:center;gap:6px; }
+.sidebar-section-hdr { font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text2);padding:12px 14px 4px;display:flex;align-items:center;gap:6px;cursor:pointer;user-select:none; }
+.sidebar-section-hdr:hover { color:var(--text); }
 .sidebar-section-hdr::after { content:'';flex:1;height:1px;background:var(--border); }
+.sidebar-section-hdr .grp-arrow { font-size:9px;margin-left:2px;transition:transform .2s;flex-shrink:0; }
+.sidebar-group-body { overflow:hidden;transition:opacity .15s; }
+.sidebar-group-body.collapsed { display:none; }
 .pipe-item-webinar { background:linear-gradient(135deg,rgba(120,75,209,.25),rgba(0,188,212,.15));border:1px solid rgba(120,75,209,.4);border-radius:8px;margin:4px 6px !important; }
 .pipe-item-webinar:hover { background:linear-gradient(135deg,rgba(120,75,209,.38),rgba(0,188,212,.25)) !important; }
 .pipe-item-webinar.active { background:linear-gradient(135deg,rgba(120,75,209,.5),rgba(0,188,212,.35)) !important;border-color:var(--purple) !important; }
@@ -1064,14 +1068,20 @@ function renderSidebar() {
     }
   ];
 
+  const _grpCollapsed = JSON.parse(localStorage.getItem('er_grp_collapsed') || '{}');
+
   let html = '';
   for (const group of GROUPS) {
+    const grpKey = group.label.replace(/\s+/g,'_');
+    const collapsed = !!_grpCollapsed[grpKey];
     const pipes = group.ids
       .map(id => PIPELINES.find(p => p.id === id))
       .filter(p => p && (p.visible || isAdmin) && p.nombre.toLowerCase().includes(q));
     if (!pipes.length) continue;
 
-    html += `<div class="sidebar-section-hdr">${group.label}</div>`;
+    const arrow = collapsed ? '▸' : '▾';
+    html += `<div class="sidebar-section-hdr" onclick="toggleSidebarGroup('${grpKey}',this)">${group.label}<span class="grp-arrow">${arrow}</span></div>`;
+    html += `<div class="sidebar-group-body${collapsed ? ' collapsed' : ''}">`;
     for (const p of pipes) {
       const count = leads.filter(l => l.pipeline_id === p.id).length;
       const active = activePipelineId === p.id && activeView === 'kanban' ? 'active' : '';
@@ -1095,12 +1105,24 @@ function renderSidebar() {
       }
     }
     if (group.extra) html += group.extra;
+    html += `</div>`;
   }
   el.innerHTML = html;
   const cfgBtn = document.getElementById('sidebar-config-btn');
   if (cfgBtn) { cfgBtn.classList.toggle('active', activeView === 'config'); }
   const wLink = document.getElementById('sidebar-webinar-link');
   if (wLink) wLink.href = webinarLink;
+}
+
+function toggleSidebarGroup(key, hdr) {
+  const body = hdr.nextElementSibling;
+  const _grpCollapsed = JSON.parse(localStorage.getItem('er_grp_collapsed') || '{}');
+  const nowCollapsed = !body.classList.contains('collapsed');
+  body.classList.toggle('collapsed', nowCollapsed);
+  _grpCollapsed[key] = nowCollapsed;
+  localStorage.setItem('er_grp_collapsed', JSON.stringify(_grpCollapsed));
+  const arrow = hdr.querySelector('.grp-arrow');
+  if (arrow) arrow.textContent = nowCollapsed ? '▸' : '▾';
 }
 
 function selectPipeline(id) {
