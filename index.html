@@ -2481,9 +2481,7 @@ function openLead(id, tabName) {
   renderCitaActual(lead.cita);
 
   // tareas, notas, historial
-  renderTareas(lead.tareas || []);
   renderNotas(lead.notas || []);
-  renderHistorial(lead.historial || []);
 
   document.getElementById('lead-modal').classList.remove('hidden');
   _mlSetMode(false);
@@ -2804,6 +2802,7 @@ function addNota() {
 // ════════════════════════════════════════════
 function renderTareas(tareas) {
   const el = document.getElementById('tareas-list');
+  if (!el) return;
   if (!tareas.length) { el.innerHTML = '<div class="empty-tab" style="padding:20px 0"><div class="et-icon">✅</div><p>Sin tareas</p></div>'; return; }
   el.innerHTML = tareas.map((t,i) => `
     <div class="tarea-item">
