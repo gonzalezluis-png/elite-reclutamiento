@@ -745,6 +745,7 @@ tr.lead-resuelto td:last-child { pointer-events:none;opacity:.4; }
       <a id="sidebar-webinar-link" class="sidebar-item sidebar-webinar-link" href="https://quintero-partners.webinargeek.com/oportunidad-laboral-webinar-on-demand-q-p" target="_blank" rel="noopener">🔗 &nbsp;Link de Webinar</a>
       <div class="sidebar-item" onclick="showAIPanel()" id="nav-ai">🤖 &nbsp;Asistente IA</div>
       <div class="sidebar-item sidebar-config-btn" id="sidebar-config-btn" onclick="showConfig()">⚙️ &nbsp;Configuraciones</div>
+      <div class="sidebar-item" onclick="resetAllLeads()" style="color:#f87171;">🗑️ &nbsp;Borrar todos los leads</div>
       <div class="sidebar-item" onclick="doLogout()" style="color:var(--red);">🚪 &nbsp;Cerrar sesión</div>
     </div>
   </div>
@@ -1431,6 +1432,15 @@ function doLogin() {
     errEl.textContent = 'Correo o contraseña incorrectos.';
   }
 }
+function resetAllLeads() {
+  if (!confirm('¿Seguro que quieres borrar TODOS los leads? Esta acción no se puede deshacer.')) return;
+  localStorage.removeItem('er_leads');
+  leads = [];
+  renderKanban();
+  renderSidebar();
+  alert('Todos los leads han sido eliminados.');
+}
+
 function doLogout() {
   currentUser = null;
   document.getElementById('login-page').classList.remove('hidden');
