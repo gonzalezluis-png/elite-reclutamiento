@@ -338,9 +338,10 @@ app.post('/twilio/sms', async (req, res) => {
 
 // ── SMS: Fetch inbox (inbound messages for a phone number) ────────────────────
 app.get('/twilio/sms-inbox', async (req, res) => {
-  const { phone } = req.query;
-  if (!phone) return res.status(400).json({ ok: false, error: 'phone requerido' });
+  const raw = req.query.phone;
+  if (!raw) return res.status(400).json({ ok: false, error: 'phone requerido' });
   if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN) return res.status(500).json({ ok: false, error: 'Twilio no configurado' });
+  const phone = raw.replace(/[\s\-().]/g, '');
   try {
     const client = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
     const [inbound, outbound] = await Promise.all([
@@ -392,9 +393,10 @@ app.post('/twilio/whatsapp', async (req, res) => {
 
 // ── WhatsApp: Fetch inbox (inbound messages from a contact) ───────────────────
 app.get('/twilio/whatsapp-inbox', async (req, res) => {
-  const { phone } = req.query;
-  if (!phone) return res.status(400).json({ ok: false, error: 'phone requerido' });
+  const raw = req.query.phone;
+  if (!raw) return res.status(400).json({ ok: false, error: 'phone requerido' });
   if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN) return res.status(500).json({ ok: false, error: 'Twilio no configurado' });
+  const phone = raw.replace(/[\s\-().]/g, '');
   try {
     const client = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
     const contactWa = phone.startsWith('whatsapp:') ? phone : `whatsapp:${phone}`;
