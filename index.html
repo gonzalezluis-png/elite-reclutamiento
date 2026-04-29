@@ -1787,6 +1787,7 @@ function renderCalendario() {
 //  KANBAN (all views now use table layout)
 // ════════════════════════════════════════════
 function renderKanban() {
+  if (activeView !== 'kanban') return;
   const pipe = PIPELINES.find(p => p.id === activePipelineId);
   if (!pipe) return;
   const q = (document.getElementById('search-input').value || '').toLowerCase();
