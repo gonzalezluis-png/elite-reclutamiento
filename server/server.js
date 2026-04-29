@@ -466,7 +466,7 @@ async function fsCreateLead(phone) {
       telefono:    fsVal(toE164(phone.replace('whatsapp:', ''))),
       fuente:      fsVal('WhatsApp Inbound'),
       etapa:       fsVal('Nuevo Contacto'),
-      pipeline_id: fsVal('postulados-meta'),
+      pipeline_id: fsVal('postulados-whatsapp-meta'),
       estado:      fsVal('abierto'),
       valor:       fsVal(0),
       propietario: fsVal('Ana (IA)'),
