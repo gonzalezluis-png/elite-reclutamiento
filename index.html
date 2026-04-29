@@ -1200,6 +1200,11 @@ tr.lead-resuelto td:last-child { pointer-events:none;opacity:.4; }
       🎥 <span>Enviar a En Webinar</span>
     </button>
   </div>
+  <div style="padding:8px 13px;border-top:1px solid var(--border);">
+    <button onclick="deleteLeadFull()" style="width:100%;background:transparent;border:1px solid #f87171;border-radius:7px;color:#f87171;font-size:12px;font-weight:600;font-family:var(--font);padding:7px 12px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;transition:all .15s;" onmouseover="this.style.background='#f87171';this.style.color='#fff'" onmouseout="this.style.background='transparent';this.style.color='#f87171'">
+      🗑️ Eliminar lead y conversación
+    </button>
+  </div>
 </div>
 
 <script>
@@ -2676,6 +2681,29 @@ function deleteLead() {
   renderKanban();
   renderSidebar();
   showToast('🗑️ Aplicante eliminado', true);
+}
+
+async function deleteLeadFull() {
+  const leadId = _openMenuLeadId || currentLeadId;
+  if (!leadId) return;
+  const lead = leads.find(l => l.id === leadId);
+  if (!confirm(`¿Eliminar a ${lead?.nombre || 'este lead'} y toda su conversación? Esta acción no se puede deshacer.`)) return;
+  closeAllMenus();
+  closeLead();
+  leads = leads.filter(l => l.id !== leadId);
+  saveLeads();
+  renderKanban();
+  renderSidebar();
+  // Delete from Firestore
+  fsDeleteLead(leadId);
+  // Delete conversation history from server
+  if (lead?.telefono) {
+    const phone = lead.telefono.startsWith('whatsapp:') ? lead.telefono : `whatsapp:${lead.telefono}`;
+    fetch(`${SERVER_URL}/ai/history/${encodeURIComponent(phone)}`, { method: 'DELETE' }).catch(() => {});
+    // Also try without whatsapp: prefix in case it was stored differently
+    fetch(`${SERVER_URL}/ai/history/${encodeURIComponent(lead.telefono)}`, { method: 'DELETE' }).catch(() => {});
+  }
+  showToast('🗑️ Lead y conversación eliminados');
 }
 
 // ════════════════════════════════════════════
