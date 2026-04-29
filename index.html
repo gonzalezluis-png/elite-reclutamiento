@@ -3571,67 +3571,77 @@ async function showAIPanel() {
       </div>
     </div>
 
-    <!-- System Prompt -->
-    <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:20px;">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
-        <div>
-          <div style="font-size:13px;font-weight:700;color:#c4b5fd;">🧠 Prompt del sistema</div>
-          <div style="font-size:11px;color:var(--text2);margin-top:3px;">Personalidad, rutas de conversación e instrucciones de Ana. Este es el cerebro de la IA.</div>
-        </div>
-        <div style="display:flex;gap:8px;">
-          <button class="btn-secondary" onclick="aiResetPrompt()" style="font-size:11px;padding:6px 12px;">↺ Restablecer</button>
-          <button class="btn-primary"   onclick="aiSavePrompt()"  style="font-size:11px;padding:6px 14px;">💾 Guardar</button>
-        </div>
-      </div>
-      <textarea id="ai-prompt-ta" style="width:100%;height:440px;background:#0d0f1a;border:1px solid rgba(120,75,209,.35);border-radius:8px;color:#e2d9f3;font-size:12px;font-family:monospace;padding:14px;line-height:1.75;resize:vertical;outline:none;box-sizing:border-box;" placeholder="Cargando…"></textarea>
-    </div>
-
-    <!-- Knowledge base -->
-    <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:20px;">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
-        <div>
-          <div style="font-size:13px;font-weight:700;color:#7dd3fc;">📚 Base de conocimiento</div>
-          <div style="font-size:11px;color:var(--text2);margin-top:3px;">Datos específicos: horarios de webinar, precios, contactos, FAQs adicionales.</div>
-        </div>
-        <button class="btn-primary" onclick="aiSaveKnowledge()" style="font-size:11px;padding:6px 14px;">💾 Guardar</button>
-      </div>
-      <textarea id="ai-knowledge-ta" style="width:100%;height:260px;background:var(--card2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;font-family:monospace;padding:12px;line-height:1.6;resize:vertical;outline:none;box-sizing:border-box;" placeholder="Cargando…"></textarea>
-    </div>
-
-    <!-- Toggles + History row -->
+    <!-- Canales + Historia -->
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
       <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:18px;">
         <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text2);margin-bottom:12px;">Canales activos</div>
-        <div style="display:flex;flex-direction:column;gap:8px;" id="ai-toggles">
-          <div style="color:var(--text2);font-size:12px;">Cargando…</div>
-        </div>
+        <div style="display:flex;flex-direction:column;gap:8px;" id="ai-toggles"><div style="color:var(--text2);font-size:12px;">Cargando…</div></div>
       </div>
       <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:18px;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
           <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text2);">Conversaciones activas</div>
           <button class="btn-secondary" onclick="aiClearHistory()" style="font-size:10px;padding:4px 10px;">🗑️ Borrar</button>
         </div>
-        <div id="ai-history-list" style="font-size:12px;color:var(--text2);max-height:200px;overflow-y:auto;">Cargando…</div>
+        <div id="ai-history-list" style="font-size:12px;color:var(--text2);max-height:180px;overflow-y:auto;">Cargando…</div>
       </div>
+    </div>
+
+    <!-- Prompt general -->
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:20px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+        <div>
+          <div style="font-size:13px;font-weight:700;color:#c4b5fd;">🧠 Prompt general</div>
+          <div style="font-size:11px;color:var(--text2);margin-top:3px;">Personalidad, misión e instrucciones generales de Ana.</div>
+        </div>
+        <button class="btn-primary" onclick="aiSaveGeneral()" style="font-size:11px;padding:6px 14px;">💾 Guardar</button>
+      </div>
+      <textarea id="ai-general-ta" style="width:100%;height:220px;background:#0d0f1a;border:1px solid rgba(120,75,209,.35);border-radius:8px;color:#e2d9f3;font-size:12px;font-family:monospace;padding:14px;line-height:1.7;resize:vertical;outline:none;box-sizing:border-box;" placeholder="Cargando…"></textarea>
+    </div>
+
+    <!-- Q&A pairs -->
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:20px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+        <div>
+          <div style="font-size:13px;font-weight:700;color:#6ee7b7;">💬 Preguntas y Respuestas</div>
+          <div style="font-size:11px;color:var(--text2);margin-top:3px;">Agrega preguntas frecuentes con sus respuestas exactas. Ana las usará como guía.</div>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn-secondary" onclick="aiAddQA()"  style="font-size:11px;padding:6px 12px;">+ Agregar</button>
+          <button class="btn-primary"   onclick="aiSaveQA()" style="font-size:11px;padding:6px 14px;">💾 Guardar</button>
+        </div>
+      </div>
+      <div id="ai-qa-list" style="display:flex;flex-direction:column;gap:12px;"></div>
+    </div>
+
+    <!-- Forbidden -->
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:20px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+        <div>
+          <div style="font-size:13px;font-weight:700;color:#fca5a5;">🚫 Detalles prohibidos</div>
+          <div style="font-size:11px;color:var(--text2);margin-top:3px;">Temas que Ana nunca debe mencionar ni responder.</div>
+        </div>
+        <button class="btn-primary" onclick="aiSaveForbidden()" style="font-size:11px;padding:6px 14px;">💾 Guardar</button>
+      </div>
+      <textarea id="ai-forbidden-ta" style="width:100%;height:160px;background:#1a0d0d;border:1px solid rgba(226,68,92,.3);border-radius:8px;color:#fca5a5;font-size:12px;font-family:monospace;padding:14px;line-height:1.7;resize:vertical;outline:none;box-sizing:border-box;" placeholder="Cargando…"></textarea>
     </div>
   </div>`;
   await aiLoadPanel();
 }
 
+let _aiConfig = null;
+
 async function aiLoadPanel() {
   try {
-    const [ks, ss, hs] = await Promise.all([
-      fetch(`${SERVER_URL}/ai/knowledge`).then(r=>r.json()),
+    const [cs, ss, hs] = await Promise.all([
+      fetch(`${SERVER_URL}/ai/config`).then(r=>r.json()),
       fetch(`${SERVER_URL}/ai/settings`).then(r=>r.json()),
       fetch(`${SERVER_URL}/ai/history`).then(r=>r.json()),
     ]);
-    if (ks.knowledge !== undefined) document.getElementById('ai-knowledge-ta').value = ks.knowledge;
-    const ps = await fetch(`${SERVER_URL}/ai/prompt`).then(r=>r.json());
-    if (ps.prompt !== undefined) document.getElementById('ai-prompt-ta').value = ps.prompt;
-    if (!document.getElementById('ai-prompt-ta')._defaultStored) {
-      document.getElementById('ai-prompt-ta')._default = ps.default;
-      document.getElementById('ai-prompt-ta')._defaultStored = true;
-    }
+
+    _aiConfig = cs.config || {};
+    document.getElementById('ai-general-ta').value   = _aiConfig.general  || '';
+    document.getElementById('ai-forbidden-ta').value = _aiConfig.forbidden || '';
+    aiRenderQA(_aiConfig.qa || []);
 
     const channels = [
       { key:'voice', label:'📞 Llamadas' },
@@ -3644,28 +3654,94 @@ async function aiLoadPanel() {
         <input type="checkbox" id="ai-tog-${c.key}" ${on?'checked':''} onchange="aiToggle('${c.key}',this.checked)"
           style="width:15px;height:15px;accent-color:var(--green);cursor:pointer;" />
         <span style="font-size:12px;font-weight:600;color:var(--text)">${c.label}</span>
-        <span style="font-size:10px;color:${on?'var(--green)':'var(--text2)'};font-weight:600;">${on?'ACTIVO':'INACTIVO'}</span>
+        <span style="font-size:10px;color:${on?'var(--green)':'var(--text2)'};font-weight:600;margin-left:auto;">${on?'ACTIVO':'INACTIVO'}</span>
       </label>`;
     }).join('');
 
-    const hist = hs.history || {};
+    const hist   = hs.history || {};
     const phones = Object.keys(hist);
-    document.getElementById('ai-history-list').innerHTML = phones.length ? phones.map(ph => {
-      const msgs = hist[ph];
-      const last = msgs[msgs.length-1];
-      const preview = last?.content?.slice(0,80) + (last?.content?.length > 80 ? '…' : '');
-      return `<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--card2);border-radius:8px;margin-bottom:6px;">
-        <div style="flex:1;min-width:0;">
-          <div style="font-size:12px;font-weight:600;color:var(--text)">${esc(ph)}</div>
-          <div style="font-size:11px;color:var(--text2);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(preview||'')}</div>
-        </div>
-        <span style="font-size:10px;color:var(--text2);white-space:nowrap">${msgs.length} msgs</span>
-        <button onclick="aiClearPhone('${esc(ph)}')" style="background:rgba(226,68,92,.15);border:none;color:var(--red);border-radius:6px;padding:3px 8px;cursor:pointer;font-size:11px;">✕</button>
-      </div>`;
-    }).join('') : '<div style="color:rgba(255,255,255,.25);font-size:12px;text-align:center;padding:20px 0;">Sin conversaciones activas</div>';
+    document.getElementById('ai-history-list').innerHTML = phones.length
+      ? phones.map(ph => {
+          const msgs    = hist[ph];
+          const last    = msgs[msgs.length-1];
+          const preview = (last?.content||'').slice(0,70) + ((last?.content||'').length > 70 ? '…' : '');
+          return `<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--card2);border-radius:7px;margin-bottom:5px;">
+            <div style="flex:1;min-width:0;">
+              <div style="font-size:11px;font-weight:600;color:var(--text)">${esc(ph)}</div>
+              <div style="font-size:10px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(preview)}</div>
+            </div>
+            <span style="font-size:10px;color:var(--text2);white-space:nowrap">${msgs.length}</span>
+            <button onclick="aiClearPhone('${esc(ph)}')" style="background:rgba(226,68,92,.15);border:none;color:var(--red);border-radius:5px;padding:2px 7px;cursor:pointer;font-size:11px;">✕</button>
+          </div>`;
+        }).join('')
+      : '<div style="color:rgba(255,255,255,.2);font-size:11px;text-align:center;padding:16px 0;">Sin conversaciones</div>';
   } catch (e) {
     showToast('Error cargando panel IA: ' + e.message);
   }
+}
+
+function aiRenderQA(qa) {
+  const el = document.getElementById('ai-qa-list');
+  if (!el) return;
+  if (!qa.length) {
+    el.innerHTML = `<div style="color:rgba(255,255,255,.2);font-size:12px;text-align:center;padding:16px;">Sin preguntas — haz clic en "+ Agregar"</div>`;
+    return;
+  }
+  el.innerHTML = qa.map((p, i) => `
+    <div style="background:var(--card2);border:1px solid var(--border);border-radius:10px;padding:14px;position:relative;" id="ai-qa-${p.id}">
+      <button onclick="aiDeleteQA('${p.id}')" style="position:absolute;top:10px;right:10px;background:rgba(226,68,92,.15);border:none;color:var(--red);border-radius:5px;padding:2px 8px;cursor:pointer;font-size:12px;">✕</button>
+      <div style="font-size:10px;font-weight:700;color:#6ee7b7;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">Pregunta ${i+1}</div>
+      <input value="${esc(p.question)}" onchange="aiUpdateQA('${p.id}','question',this.value)"
+        placeholder="¿Qué pregunta el candidato?"
+        style="width:100%;background:#0d1a12;border:1px solid rgba(110,231,183,.25);border-radius:7px;color:#e2f3ea;font-size:12px;padding:8px 10px;outline:none;margin-bottom:8px;box-sizing:border-box;" />
+      <div style="font-size:10px;font-weight:700;color:#7dd3fc;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">Respuesta de Ana</div>
+      <textarea onchange="aiUpdateQA('${p.id}','answer',this.value)"
+        placeholder="¿Qué debe responder Ana?"
+        style="width:100%;height:80px;background:#0d1220;border:1px solid rgba(125,211,252,.25);border-radius:7px;color:#e2eeff;font-size:12px;padding:8px 10px;outline:none;resize:vertical;box-sizing:border-box;">${esc(p.answer)}</textarea>
+    </div>`).join('');
+}
+
+function aiAddQA() {
+  if (!_aiConfig) return;
+  const newItem = { id: Date.now().toString(), question: '', answer: '' };
+  _aiConfig.qa = [...(_aiConfig.qa || []), newItem];
+  aiRenderQA(_aiConfig.qa);
+  document.getElementById(`ai-qa-${newItem.id}`)?.scrollIntoView({ behavior:'smooth' });
+}
+
+function aiDeleteQA(id) {
+  if (!_aiConfig) return;
+  _aiConfig.qa = (_aiConfig.qa || []).filter(p => p.id !== id);
+  aiRenderQA(_aiConfig.qa);
+}
+
+function aiUpdateQA(id, field, value) {
+  if (!_aiConfig) return;
+  const item = (_aiConfig.qa || []).find(p => p.id === id);
+  if (item) item[field] = value;
+}
+
+async function aiSaveGeneral() {
+  if (!_aiConfig) return;
+  _aiConfig.general = document.getElementById('ai-general-ta').value;
+  const r = await fetch(`${SERVER_URL}/ai/config`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ config: { general: _aiConfig.general } }) });
+  const d = await r.json();
+  showToast(d.ok ? '✅ Prompt general guardado' : '⚠️ Solo en memoria');
+}
+
+async function aiSaveQA() {
+  if (!_aiConfig) return;
+  const r = await fetch(`${SERVER_URL}/ai/config`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ config: { qa: _aiConfig.qa } }) });
+  const d = await r.json();
+  showToast(d.ok ? '✅ Preguntas guardadas' : '⚠️ Solo en memoria');
+}
+
+async function aiSaveForbidden() {
+  if (!_aiConfig) return;
+  _aiConfig.forbidden = document.getElementById('ai-forbidden-ta').value;
+  const r = await fetch(`${SERVER_URL}/ai/config`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ config: { forbidden: _aiConfig.forbidden } }) });
+  const d = await r.json();
+  showToast(d.ok ? '✅ Restricciones guardadas' : '⚠️ Solo en memoria');
 }
 
 async function aiToggle(channel, enabled) {
@@ -3677,33 +3753,6 @@ async function aiToggle(channel, enabled) {
   } catch { showToast('Error al cambiar configuración'); }
 }
 
-async function aiSavePrompt() {
-  const prompt = document.getElementById('ai-prompt-ta')?.value || '';
-  try {
-    const r = await fetch(`${SERVER_URL}/ai/prompt`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ prompt }) });
-    const d = await r.json();
-    showToast(d.ok ? '✅ Prompt guardado' : '⚠️ Guardado solo en memoria (Railway reinicia el filesystem)');
-  } catch { showToast('Error al guardar prompt'); }
-}
-
-async function aiResetPrompt() {
-  const ta = document.getElementById('ai-prompt-ta');
-  if (!ta) return;
-  const r = await fetch(`${SERVER_URL}/ai/prompt`).then(r=>r.json());
-  if (confirm('¿Restaurar el prompt por defecto? Se perderán tus cambios actuales.')) {
-    ta.value = r.default || '';
-    showToast('Prompt restablecido — recuerda guardar');
-  }
-}
-
-async function aiSaveKnowledge() {
-  const knowledge = document.getElementById('ai-knowledge-ta')?.value || '';
-  try {
-    const r = await fetch(`${SERVER_URL}/ai/knowledge`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ knowledge }) });
-    const d = await r.json();
-    showToast(d.warning ? '⚠️ ' + d.warning : '✅ Conocimiento guardado');
-  } catch { showToast('Error al guardar'); }
-}
 
 async function aiClearHistory() {
   if (!confirm('¿Borrar todas las conversaciones activas de IA?')) return;

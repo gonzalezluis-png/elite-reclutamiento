@@ -4,7 +4,7 @@ const express  = require('express');
 const cors     = require('cors');
 const { chromium } = require('playwright');
 const twilio   = require('twilio');
-const { askClaude, textToSpeech, loadKnowledge, saveKnowledge, loadPrompt, savePrompt, DEFAULT_PROMPT, conversationHistory, aiEnabled } = require('./ai');
+const { askClaude, textToSpeech, loadConfig, saveConfig, DEFAULT_CONFIG, conversationHistory, aiEnabled } = require('./ai');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -603,28 +603,18 @@ app.get('/twilio/calls/by-number', async (req, res) => {
   }
 });
 
-// ── AI: Prompt ────────────────────────────────────────────────────────────────
-app.get('/ai/prompt', (req, res) => {
-  res.json({ ok: true, prompt: loadPrompt(), default: DEFAULT_PROMPT });
+// ── AI: Config (general prompt + Q&A + forbidden) ────────────────────────────
+app.get('/ai/config', (req, res) => {
+  res.json({ ok: true, config: loadConfig(), default: DEFAULT_CONFIG });
 });
 
-app.post('/ai/prompt', (req, res) => {
-  const { prompt } = req.body;
-  if (typeof prompt !== 'string') return res.status(400).json({ ok: false, error: 'prompt debe ser texto' });
-  const saved = savePrompt(prompt);
+app.post('/ai/config', (req, res) => {
+  const { config } = req.body;
+  if (!config || typeof config !== 'object') return res.status(400).json({ ok: false, error: 'config inválida' });
+  const current = loadConfig();
+  const merged  = { ...current, ...config };
+  const saved   = saveConfig(merged);
   res.json({ ok: saved });
-});
-
-// ── AI: Knowledge base ────────────────────────────────────────────────────────
-app.get('/ai/knowledge', (req, res) => {
-  res.json({ ok: true, knowledge: loadKnowledge() });
-});
-
-app.post('/ai/knowledge', (req, res) => {
-  const { knowledge } = req.body;
-  if (typeof knowledge !== 'string') return res.status(400).json({ ok: false, error: 'knowledge debe ser texto' });
-  const saved = saveKnowledge(knowledge);
-  res.json({ ok: saved, warning: saved ? null : 'No se pudo guardar en disco (filesystem efímero en Render); activo solo en memoria' });
 });
 
 // ── AI: Settings ──────────────────────────────────────────────────────────────
