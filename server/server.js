@@ -526,7 +526,8 @@ Solo incluye campos que el candidato haya mencionado explícitamente. Si no hay 
     const updates  = {};
 
     const existingNombre = existing.nombre?.stringValue || '';
-    if (extracted.nombre && existingNombre.startsWith('WA '))
+    const isAutoName = !existingNombre || existingNombre.startsWith('WA ') || existingNombre.startsWith('+');
+    if (extracted.nombre && isAutoName)
       updates.nombre = extracted.nombre;
     if (extracted.correo        && !existing.correo?.stringValue)         updates.correo         = extracted.correo;
     if (extracted.ubicacion     && !existing.ubicacion?.stringValue)      updates.ubicacion      = extracted.ubicacion;
@@ -743,14 +744,51 @@ app.post('/twilio/sms-incoming', async (req, res) => {
   const { From, Body, MessageSid } = req.body;
   console.log(`[SMS-IN] ${From}: ${Body} (${MessageSid})`);
 
-  // If the message comes from a WhatsApp number, route to WA handler
+  // If the message comes from a WhatsApp number, run full WA pipeline
   if (From?.startsWith('whatsapp:')) {
+    const exists = await fsLeadExists(From.replace('whatsapp:', ''));
+    if (!exists) await fsCreateLead(From);
+
     if (aiEnabled.wa && Body?.trim()) {
       try {
         const reply = await askClaude(From, Body, 'wa');
         console.log(`[WA-AI via SMS hook] Ana → ${From}: "${reply}"`);
         const client = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
         await client.messages.create({ from: TWILIO_WA_FROM, to: From, body: reply });
+
+        const history = conversationHistory.get(From) || [];
+        ;(async () => {
+          try {
+            await extractAndUpdateLead(From, history);
+
+            if (!webinarInviteSent.has(From)) {
+              const wantsWebinar = await detectWebinarIntent(history);
+              if (wantsWebinar) {
+                webinarInviteSent.add(From);
+                const rawPhone = From.replace('whatsapp:', '');
+                const doc = await fsGetLeadByPhone(rawPhone);
+                if (doc) {
+                  const leadId = doc.name.split('/').pop();
+                  const f      = doc.fields || {};
+                  const nombre = f.nombre?.stringValue || '';
+                  const correo = f.correo?.stringValue || '';
+
+                  const twilioClient = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
+                  await twilioClient.messages.create({
+                    from: TWILIO_WA_FROM,
+                    to:   From,
+                    body: `🎥 Aquí está el link de tu webinar informativo:\n${WEBINAR_URL}\n\nEs gratuito y dura aproximadamente 60 minutos. ¡Cualquier duda estoy aquí! 😊`,
+                  });
+
+                  if (correo) await sendWebinarEmail(correo, nombre);
+                  await moveLeadToWebinar(leadId, nombre, correo);
+                }
+              }
+            }
+          } catch (e) {
+            console.error('[BG via SMS hook] Error:', e.message);
+          }
+        })();
       } catch (e) {
         console.error('[WA-AI] Error:', e.message);
       }
