@@ -226,6 +226,14 @@ function pickCallerId(toNumber) {
   return CALLER_NUMBERS[areaCode] || DEFAULT_CALLER;
 }
 
+// Normalize any phone to E.164 (assumes US +1 for 10-digit numbers)
+function toE164(raw) {
+  const digits = (raw || '').replace(/\D/g, '');
+  if (digits.length === 10) return `+1${digits}`;
+  if (digits.length === 11 && digits[0] === '1') return `+${digits}`;
+  return digits ? `+${digits}` : raw;
+}
+
 // ── Twilio: TwiML — called by Twilio when agent dials ─────────────────────────
 // TTS audio cache (id → Buffer, auto-expires in 3 min)
 const _ttsCache = new Map();
@@ -341,7 +349,7 @@ app.get('/twilio/sms-inbox', async (req, res) => {
   const raw = req.query.phone;
   if (!raw) return res.status(400).json({ ok: false, error: 'phone requerido' });
   if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN) return res.status(500).json({ ok: false, error: 'Twilio no configurado' });
-  const phone = raw.replace(/[\s\-().]/g, '');
+  const phone = toE164(raw);
   try {
     const client = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
     const [inbound, outbound] = await Promise.all([
@@ -396,7 +404,7 @@ app.get('/twilio/whatsapp-inbox', async (req, res) => {
   const raw = req.query.phone;
   if (!raw) return res.status(400).json({ ok: false, error: 'phone requerido' });
   if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN) return res.status(500).json({ ok: false, error: 'Twilio no configurado' });
-  const phone = raw.replace(/[\s\-().]/g, '');
+  const phone = toE164(raw);
   try {
     const client = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
     const contactWa = phone.startsWith('whatsapp:') ? phone : `whatsapp:${phone}`;
