@@ -2379,25 +2379,47 @@ function confirmNoCalifica() {
   showToast('🚫 Movido a No Califica', true);
 }
 
-function sendToWebinar() {
+async function sendToWebinar() {
   const leadId = _openMenuLeadId || currentLeadId;
   if (!leadId) return;
   closeAllMenus();
   closeLead();
   const lead = leads.find(l => l.id === leadId);
-  if (lead) {
-    pushUndo('lead_change', JSON.parse(JSON.stringify(lead)));
-    const prev = lead.etapa;
-    lead.pipeline_id = 'en-webinar';
-    lead.etapa       = 'Inscrito en Webinar';
-    lead.fecha_inscripcion_webinar = new Date().toISOString();
-    addHistorial(lead.id, `Enviado a Webinar (desde ${prev})`, '🎥');
-    saveLeads(lead.id);
-    const wUrl = `/webinar.html?id=${lead.id}&nombre=${encodeURIComponent(lead.nombre||'')}&correo=${encodeURIComponent(lead.correo||'')}`;
-    const _a = Object.assign(document.createElement('a'), { href: wUrl, target: '_blank', rel: 'noopener' });
-    document.body.appendChild(_a); _a.click(); document.body.removeChild(_a);
-    if (lead.correo) enviarLinkPorCorreo(lead.id);
+  if (!lead) return;
+
+  pushUndo('lead_change', JSON.parse(JSON.stringify(lead)));
+  const prev = lead.etapa;
+  lead.pipeline_id = 'en-webinar';
+  lead.etapa       = 'Inscrito en Webinar';
+  lead.fecha_inscripcion_webinar = new Date().toISOString();
+  addHistorial(lead.id, `Enviado a Webinar (desde ${prev})`, '🎥');
+  saveLeads(lead.id);
+
+  // 1. Abrir página de registro
+  const wUrl = `/webinar.html?id=${lead.id}&nombre=${encodeURIComponent(lead.nombre||'')}&correo=${encodeURIComponent(lead.correo||'')}`;
+  const _a = Object.assign(document.createElement('a'), { href: wUrl, target: '_blank', rel: 'noopener' });
+  document.body.appendChild(_a); _a.click(); document.body.removeChild(_a);
+
+  // 2. Enviar email con el link
+  if (lead.correo) enviarLinkPorCorreo(lead.id);
+
+  // 3. Enviar link por WhatsApp si tiene teléfono
+  if (lead.telefono) {
+    const msg = `🎥 ¡Hola${lead.nombre ? ' ' + lead.nombre.split(' ')[0] : ''}! Te compartimos el link de tu webinar informativo sobre la oportunidad laboral con Globe Life:\n\n${webinarLink}\n\nEs gratuito y dura aproximadamente 60 minutos. ¡Cualquier duda estamos aquí! 😊`;
+    try {
+      await fetch(`${SERVER_URL}/twilio/whatsapp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to: lead.telefono, body: msg, leadId: lead.id }),
+      });
+      addHistorial(lead.id, 'Link del webinar enviado por WhatsApp', '📱');
+      saveLeads(lead.id);
+      showToast('📱 Link enviado por WhatsApp');
+    } catch (e) {
+      showToast('⚠️ No se pudo enviar por WhatsApp: ' + e.message);
+    }
   }
+
   celebrateWebinar();
   renderKanban();
   renderSidebar();
