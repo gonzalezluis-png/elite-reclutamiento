@@ -1432,13 +1432,15 @@ function doLogin() {
     errEl.textContent = 'Correo o contraseña incorrectos.';
   }
 }
-function resetAllLeads() {
+async function resetAllLeads() {
   if (!confirm('¿Seguro que quieres borrar TODOS los leads? Esta acción no se puede deshacer.')) return;
+  const toDelete = [...leads];
   leads = [];
   localStorage.setItem('er_leads', '[]');
   localStorage.setItem('er_seed_v', SEED_VERSION);
   renderKanban();
   renderSidebar();
+  await Promise.all(toDelete.map(l => fsDeleteLead(l.id)));
   alert('Todos los leads han sido eliminados.');
 }
 
