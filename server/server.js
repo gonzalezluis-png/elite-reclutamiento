@@ -511,15 +511,29 @@ Solo incluye campos que el candidato haya mencionado explícitamente. Si no hay 
     });
 
     let extracted;
-    try { extracted = JSON.parse(extraction.content[0].text.trim()); }
-    catch { return; }
+    try {
+      let raw = extraction.content[0].text.trim();
+      // Strip markdown code blocks if present
+      raw = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
+      // Extract first JSON object if there's surrounding text
+      const match = raw.match(/\{[\s\S]*\}/);
+      if (match) raw = match[0];
+      extracted = JSON.parse(raw);
+      console.log(`[AI-Extract] Extraído para ${phone}:`, extracted);
+    } catch (e) {
+      console.error(`[AI-Extract] JSON parse error para ${phone}:`, extraction.content[0].text.slice(0, 200));
+      return;
+    }
 
     const hasData = Object.values(extracted).some(v => v !== null);
     if (!hasData) return;
 
     const rawPhone = phone.replace('whatsapp:', '');
     const doc = await fsGetLeadByPhone(rawPhone);
-    if (!doc) return;
+    if (!doc) {
+      console.error(`[AI-Extract] Lead no encontrado en Firestore para ${rawPhone}`);
+      return;
+    }
 
     const leadId = doc.name.split('/').pop();
     const existing = doc.fields || {};
