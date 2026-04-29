@@ -5,7 +5,7 @@ const cors       = require('cors');
 const { chromium } = require('playwright');
 const twilio     = require('twilio');
 const nodemailer = require('nodemailer');
-const { askClaude, textToSpeech, loadConfig, saveConfig, DEFAULT_CONFIG, conversationHistory, aiEnabled } = require('./ai');
+const { askClaude, textToSpeech, loadConfig, loadConfigFromFirestore, saveConfig, DEFAULT_CONFIG, conversationHistory, aiEnabled } = require('./ai');
 
 const WEBINAR_URL  = process.env.WEBINAR_URL || 'https://quintero-partners.webinargeek.com/oportunidad-laboral-webinar-on-demand-q-p';
 const SMTP_USER    = process.env.SMTP_USER;
@@ -882,16 +882,17 @@ app.get('/twilio/calls/by-number', async (req, res) => {
 });
 
 // ── AI: Config (general prompt + Q&A + forbidden) ────────────────────────────
-app.get('/ai/config', (req, res) => {
-  res.json({ ok: true, config: loadConfig(), default: DEFAULT_CONFIG });
+app.get('/ai/config', async (req, res) => {
+  const config = await loadConfigFromFirestore().catch(() => loadConfig());
+  res.json({ ok: true, config, default: DEFAULT_CONFIG });
 });
 
-app.post('/ai/config', (req, res) => {
+app.post('/ai/config', async (req, res) => {
   const { config } = req.body;
   if (!config || typeof config !== 'object') return res.status(400).json({ ok: false, error: 'config inválida' });
-  const current = loadConfig();
+  const current = await loadConfigFromFirestore().catch(() => loadConfig());
   const merged  = { ...current, ...config };
-  const saved   = saveConfig(merged);
+  const saved   = await saveConfig(merged);
   res.json({ ok: saved });
 });
 

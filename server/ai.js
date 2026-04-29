@@ -2,8 +2,11 @@ const Anthropic = require('@anthropic-ai/sdk');
 const fs   = require('fs');
 const path = require('path');
 
-const anthropic      = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-const CONFIG_FILE    = path.join(__dirname, 'ai_config.json');
+const anthropic  = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+const FS_PROJECT = 'elite-reclutamiento-crm';
+const FS_KEY     = 'AIzaSyCW2t1oHb7xc2Vi6vJROGRM7E7nu-CbU3s';
+const FS_BASE    = `https://firestore.googleapis.com/v1/projects/${FS_PROJECT}/databases/(default)/documents`;
+const CONFIG_DOC = `${FS_BASE}/config/ai_config?key=${FS_KEY}`;
 
 // Per-phone conversation history: phone → [{role, content, ts}]
 const conversationHistory = new Map();
@@ -81,26 +84,100 @@ INSTRUCCIONES:
 - No hablar de temas que no sean relacionados con la oportunidad de trabajo`
 };
 
-// ── Config load/save ──────────────────────────────────────────────────────────
-function loadConfig() {
-  try {
-    const raw = fs.readFileSync(CONFIG_FILE, 'utf8');
-    return { ...DEFAULT_CONFIG, ...JSON.parse(raw) };
-  } catch {
-    return { ...DEFAULT_CONFIG };
-  }
+// ── Config load/save (Firestore-backed, in-memory cache) ─────────────────────
+let _configCache = null;
+
+function fsConfigVal(v) {
+  if (v === null || v === undefined) return { nullValue: null };
+  if (typeof v === 'boolean') return { booleanValue: v };
+  if (typeof v === 'number')  return { doubleValue: v };
+  if (typeof v === 'string')  return { stringValue: v };
+  if (Array.isArray(v))       return { arrayValue: { values: v.map(fsConfigVal) } };
+  if (typeof v === 'object')  return { mapValue: { fields: Object.fromEntries(Object.entries(v).map(([k, x]) => [k, fsConfigVal(x)])) } };
+  return { stringValue: String(v) };
 }
 
-function saveConfig(config) {
+function fsConfigParse(fields) {
+  if (!fields) return {};
+  const out = {};
+  for (const [k, v] of Object.entries(fields)) {
+    if (v.stringValue  !== undefined) out[k] = v.stringValue;
+    else if (v.booleanValue !== undefined) out[k] = v.booleanValue;
+    else if (v.doubleValue  !== undefined) out[k] = v.doubleValue;
+    else if (v.integerValue !== undefined) out[k] = Number(v.integerValue);
+    else if (v.nullValue    !== undefined) out[k] = null;
+    else if (v.arrayValue) out[k] = (v.arrayValue.values || []).map(i => fsConfigParse(i.mapValue?.fields || { _: i })?._  ?? fsConfigParseSingle(i));
+    else if (v.mapValue)   out[k] = fsConfigParse(v.mapValue.fields || {});
+  }
+  return out;
+}
+
+function fsConfigParseSingle(v) {
+  if (v.stringValue  !== undefined) return v.stringValue;
+  if (v.booleanValue !== undefined) return v.booleanValue;
+  if (v.doubleValue  !== undefined) return v.doubleValue;
+  if (v.integerValue !== undefined) return Number(v.integerValue);
+  if (v.nullValue    !== undefined) return null;
+  if (v.mapValue)    return fsConfigParse(v.mapValue.fields || {});
+  if (v.arrayValue)  return (v.arrayValue.values || []).map(fsConfigParseSingle);
+  return null;
+}
+
+async function loadConfigFromFirestore() {
   try {
-    fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2), 'utf8');
-    return true;
+    const res  = await fetch(CONFIG_DOC);
+    const data = await res.json();
+    if (data.fields) {
+      const cfg = fsConfigParse(data.fields);
+      // qa is array of maps — parse each item
+      if (data.fields.qa?.arrayValue?.values) {
+        cfg.qa = data.fields.qa.arrayValue.values.map(v => fsConfigParse(v.mapValue?.fields || {}));
+      }
+      return { ...DEFAULT_CONFIG, ...cfg };
+    }
+  } catch {}
+  return { ...DEFAULT_CONFIG };
+}
+
+function loadConfig() {
+  // Return cache synchronously; refresh async in background
+  if (!_configCache) _configCache = { ...DEFAULT_CONFIG };
+  loadConfigFromFirestore().then(cfg => { _configCache = cfg; }).catch(() => {});
+  return _configCache;
+}
+
+async function saveConfig(config) {
+  try {
+    _configCache = config;
+    const fields = {
+      general:   fsConfigVal(config.general  || ''),
+      forbidden: fsConfigVal(config.forbidden || ''),
+      qa: {
+        arrayValue: {
+          values: (config.qa || []).map(item => ({
+            mapValue: {
+              fields: {
+                id:       fsConfigVal(item.id       || ''),
+                question: fsConfigVal(item.question || ''),
+                answer:   fsConfigVal(item.answer   || ''),
+              }
+            }
+          }))
+        }
+      }
+    };
+    const res = await fetch(CONFIG_DOC, {
+      method:  'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ fields }),
+    });
+    return res.ok;
   } catch { return false; }
 }
 
 // ── Build system prompt from config ──────────────────────────────────────────
-function buildSystemPrompt(channel = 'text') {
-  const cfg = loadConfig();
+async function buildSystemPrompt(channel = 'text') {
+  const cfg = await loadConfigFromFirestore().catch(() => loadConfig());
 
   const channelNote = channel === 'voice'
     ? 'Estás en una LLAMADA DE VOZ. Responde en máximo 2 oraciones cortas y directas.'
@@ -138,7 +215,7 @@ async function askClaude(phone, userMessage, channel = 'text') {
   const response = await anthropic.messages.create({
     model: 'claude-opus-4-5',
     max_tokens: channel === 'voice' ? 150 : 512,
-    system: buildSystemPrompt(channel),
+    system: await buildSystemPrompt(channel),
     messages,
   });
 
@@ -167,4 +244,4 @@ async function textToSpeech(text) {
   return Buffer.from(await resp.arrayBuffer());
 }
 
-module.exports = { askClaude, textToSpeech, loadConfig, saveConfig, DEFAULT_CONFIG, conversationHistory, aiEnabled };
+module.exports = { askClaude, textToSpeech, loadConfig, loadConfigFromFirestore, saveConfig, DEFAULT_CONFIG, conversationHistory, aiEnabled };
