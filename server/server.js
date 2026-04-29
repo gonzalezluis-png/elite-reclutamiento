@@ -430,10 +430,74 @@ app.get('/twilio/whatsapp-inbox', async (req, res) => {
   }
 });
 
+// ── Firestore helpers (same REST API as frontend) ─────────────────────────────
+const FS_PROJECT = 'elite-reclutamiento-crm';
+const FS_KEY     = 'AIzaSyCW2t1oHb7xc2Vi6vJROGRM7E7nu-CbU3s';
+const FS_BASE    = `https://firestore.googleapis.com/v1/projects/${FS_PROJECT}/databases/(default)/documents`;
+
+function fsVal(v) {
+  if (v === null || v === undefined) return { nullValue: null };
+  if (typeof v === 'boolean') return { booleanValue: v };
+  if (typeof v === 'number')  return Number.isInteger(v) ? { integerValue: String(v) } : { doubleValue: v };
+  if (typeof v === 'string')  return { stringValue: v };
+  if (Array.isArray(v))       return { arrayValue: { values: v.map(fsVal) } };
+  if (typeof v === 'object')  return { mapValue: { fields: Object.fromEntries(Object.entries(v).map(([k,x]) => [k, fsVal(x)])) } };
+  return { stringValue: String(v) };
+}
+
+async function fsLeadExists(phone) {
+  try {
+    const url = `${FS_BASE}/leads?key=${FS_KEY}&pageSize=500`;
+    const data = await fetch(url).then(r => r.json());
+    const docs = data.documents || [];
+    return docs.some(doc => {
+      const tel = doc.fields?.telefono?.stringValue || '';
+      return toE164(tel) === toE164(phone);
+    });
+  } catch { return false; }
+}
+
+async function fsCreateLead(phone) {
+  const id  = 'lead-wa-' + Date.now();
+  const now = new Date().toISOString();
+  const doc = {
+    fields: {
+      nombre:      fsVal(`WA ${phone}`),
+      telefono:    fsVal(toE164(phone.replace('whatsapp:', ''))),
+      fuente:      fsVal('WhatsApp Inbound'),
+      etapa:       fsVal('Nuevo Contacto'),
+      pipeline_id: fsVal('postulados-meta'),
+      estado:      fsVal('abierto'),
+      valor:       fsVal(0),
+      propietario: fsVal('Ana (IA)'),
+      created_at:  fsVal(now),
+      notas:       fsVal([]),
+      tareas:      fsVal([]),
+      pagos:       fsVal([]),
+      etiquetas:   fsVal([]),
+      historial:   fsVal([{ icono: '📱', accion: 'Lead creado automáticamente por WhatsApp entrante', fecha: now, usuario: 'Ana (IA)' }]),
+    }
+  };
+  try {
+    await fetch(`${FS_BASE}/leads/${id}?key=${FS_KEY}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(doc),
+    });
+    console.log(`[WA-AI] Lead auto-creado: ${id} para ${phone}`);
+  } catch (e) {
+    console.error('[WA-AI] Error creando lead:', e.message);
+  }
+}
+
 // ── WhatsApp: Incoming webhook ────────────────────────────────────────────────
 app.post('/twilio/whatsapp-incoming', async (req, res) => {
   const { From, Body, MessageSid } = req.body;
   console.log(`[WA-IN] ${From}: ${Body} (${MessageSid})`);
+
+  // Auto-create lead if number not in CRM
+  const exists = await fsLeadExists(From.replace('whatsapp:', ''));
+  if (!exists) await fsCreateLead(From);
 
   if (aiEnabled.wa && Body?.trim()) {
     try {
