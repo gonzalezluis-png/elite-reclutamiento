@@ -457,6 +457,81 @@ async function fsLeadExists(phone) {
   } catch { return false; }
 }
 
+async function fsGetLeadByPhone(phone) {
+  try {
+    const data = await fetch(`${FS_BASE}/leads?key=${FS_KEY}&pageSize=500`).then(r => r.json());
+    return (data.documents || []).find(doc => {
+      const tel = doc.fields?.telefono?.stringValue || '';
+      return toE164(tel) === toE164(phone);
+    }) || null;
+  } catch { return null; }
+}
+
+async function fsUpdateLeadFields(leadId, fields) {
+  const mask = Object.keys(fields).join('&updateMask.fieldPaths=');
+  const body = { fields: Object.fromEntries(Object.entries(fields).map(([k,v]) => [k, fsVal(v)])) };
+  await fetch(`${FS_BASE}/leads/${leadId}?key=${FS_KEY}&updateMask.fieldPaths=${mask}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+async function extractAndUpdateLead(phone, conversationHistory) {
+  try {
+    const messages = conversationHistory.slice(-14).map(({ role, content }) => ({ role, content }));
+    if (messages.length < 2) return;
+
+    const Anthropic = require('@anthropic-ai/sdk');
+    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
+    const extraction = await client.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 300,
+      system: `Eres un extractor de datos. Analiza la conversación y extrae información del candidato.
+Responde SOLO con JSON válido, sin texto adicional:
+{
+  "nombre": "nombre completo o null",
+  "correo": "email o null",
+  "ubicacion": "ciudad, estado o null",
+  "disponibilidad": "tiempo completo / parcial / descripción o null"
+}
+Solo incluye campos que el candidato haya mencionado explícitamente. Si no hay info, pon null.`,
+      messages,
+    });
+
+    let extracted;
+    try { extracted = JSON.parse(extraction.content[0].text.trim()); }
+    catch { return; }
+
+    const hasData = Object.values(extracted).some(v => v !== null);
+    if (!hasData) return;
+
+    const rawPhone = phone.replace('whatsapp:', '');
+    const doc = await fsGetLeadByPhone(rawPhone);
+    if (!doc) return;
+
+    const leadId = doc.name.split('/').pop();
+    const existing = doc.fields || {};
+    const updates  = {};
+
+    if (extracted.nombre && extracted.nombre !== (existing.nombre?.stringValue || '')) {
+      if (!(existing.nombre?.stringValue || '').startsWith('WA ')) return;
+      updates.nombre = extracted.nombre;
+    }
+    if (extracted.correo    && !existing.correo?.stringValue)    updates.correo       = extracted.correo;
+    if (extracted.ubicacion && !existing.ubicacion?.stringValue) updates.ubicacion    = extracted.ubicacion;
+    if (extracted.disponibilidad && !existing.disponibilidad?.stringValue) updates.disponibilidad = extracted.disponibilidad;
+
+    if (Object.keys(updates).length === 0) return;
+
+    await fsUpdateLeadFields(leadId, updates);
+    console.log(`[AI-Extract] Lead ${leadId} actualizado:`, updates);
+  } catch (e) {
+    console.error('[AI-Extract] Error:', e.message);
+  }
+}
+
 async function fsCreateLead(phone) {
   const id  = 'lead-wa-' + Date.now();
   const now = new Date().toISOString();
@@ -505,6 +580,10 @@ app.post('/twilio/whatsapp-incoming', async (req, res) => {
       console.log(`[WA-AI] Ana → ${From}: "${reply}"`);
       const client = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
       await client.messages.create({ from: TWILIO_WA_FROM, to: From, body: reply });
+
+      // Extract lead info from conversation in background (no await — no delay for user)
+      const history = conversationHistory.get(From) || [];
+      extractAndUpdateLead(From, history).catch(() => {});
     } catch (e) {
       console.error('[WA-AI] Error:', e.message);
     }
