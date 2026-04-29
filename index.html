@@ -2408,23 +2408,6 @@ async function sendToWebinar() {
   // 2. Enviar email con el link
   if (lead.correo) enviarLinkPorCorreo(lead.id);
 
-  // 3. Enviar link por WhatsApp si tiene teléfono
-  if (lead.telefono) {
-    const msg = `🎥 ¡Hola${lead.nombre ? ' ' + lead.nombre.split(' ')[0] : ''}! Te compartimos el link de tu webinar informativo sobre la oportunidad laboral con Globe Life:\n\n${webinarLink}\n\nEs gratuito y dura aproximadamente 60 minutos. ¡Cualquier duda estamos aquí! 😊`;
-    try {
-      await fetch(`${SERVER_URL}/twilio/whatsapp`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ to: lead.telefono, body: msg, leadId: lead.id }),
-      });
-      addHistorial(lead.id, 'Link del webinar enviado por WhatsApp', '📱');
-      saveLeads(lead.id);
-      showToast('📱 Link enviado por WhatsApp');
-    } catch (e) {
-      showToast('⚠️ No se pudo enviar por WhatsApp: ' + e.message);
-    }
-  }
-
   celebrateWebinar();
   renderKanban();
   renderSidebar();
