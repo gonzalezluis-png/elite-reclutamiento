@@ -515,12 +515,11 @@ Solo incluye campos que el candidato haya mencionado explícitamente. Si no hay 
     const existing = doc.fields || {};
     const updates  = {};
 
-    if (extracted.nombre && extracted.nombre !== (existing.nombre?.stringValue || '')) {
-      if (!(existing.nombre?.stringValue || '').startsWith('WA ')) return;
+    const existingNombre = existing.nombre?.stringValue || '';
+    if (extracted.nombre && existingNombre.startsWith('WA '))
       updates.nombre = extracted.nombre;
-    }
-    if (extracted.correo    && !existing.correo?.stringValue)    updates.correo       = extracted.correo;
-    if (extracted.ubicacion && !existing.ubicacion?.stringValue) updates.ubicacion    = extracted.ubicacion;
+    if (extracted.correo        && !existing.correo?.stringValue)         updates.correo         = extracted.correo;
+    if (extracted.ubicacion     && !existing.ubicacion?.stringValue)      updates.ubicacion      = extracted.ubicacion;
     if (extracted.disponibilidad && !existing.disponibilidad?.stringValue) updates.disponibilidad = extracted.disponibilidad;
 
     if (Object.keys(updates).length === 0) return;
