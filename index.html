@@ -3721,27 +3721,37 @@ function aiUpdateQA(id, field, value) {
   if (item) item[field] = value;
 }
 
+async function _aiSave(partial, label) {
+  try {
+    if (!_aiConfig) { showToast('⚠️ Cargando configuración, espera un momento'); return; }
+    const r = await fetch(`${SERVER_URL}/ai/config`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ config: partial }),
+    });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const d = await r.json();
+    showToast(d.ok ? `✅ ${label} guardado` : `⚠️ ${label} activo solo en memoria`);
+  } catch (e) {
+    showToast(`❌ Error al guardar: ${e.message}`);
+  }
+}
+
 async function aiSaveGeneral() {
   if (!_aiConfig) return;
-  _aiConfig.general = document.getElementById('ai-general-ta').value;
-  const r = await fetch(`${SERVER_URL}/ai/config`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ config: { general: _aiConfig.general } }) });
-  const d = await r.json();
-  showToast(d.ok ? '✅ Prompt general guardado' : '⚠️ Solo en memoria');
+  _aiConfig.general = document.getElementById('ai-general-ta')?.value || '';
+  await _aiSave({ general: _aiConfig.general }, 'Prompt general');
 }
 
 async function aiSaveQA() {
   if (!_aiConfig) return;
-  const r = await fetch(`${SERVER_URL}/ai/config`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ config: { qa: _aiConfig.qa } }) });
-  const d = await r.json();
-  showToast(d.ok ? '✅ Preguntas guardadas' : '⚠️ Solo en memoria');
+  await _aiSave({ qa: _aiConfig.qa }, 'Preguntas y respuestas');
 }
 
 async function aiSaveForbidden() {
   if (!_aiConfig) return;
-  _aiConfig.forbidden = document.getElementById('ai-forbidden-ta').value;
-  const r = await fetch(`${SERVER_URL}/ai/config`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ config: { forbidden: _aiConfig.forbidden } }) });
-  const d = await r.json();
-  showToast(d.ok ? '✅ Restricciones guardadas' : '⚠️ Solo en memoria');
+  _aiConfig.forbidden = document.getElementById('ai-forbidden-ta')?.value || '';
+  await _aiSave({ forbidden: _aiConfig.forbidden }, 'Detalles prohibidos');
 }
 
 async function aiToggle(channel, enabled) {
