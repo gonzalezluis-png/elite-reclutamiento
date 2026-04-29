@@ -3578,16 +3578,31 @@ async function showAIPanel() {
       </div>
     </div>
 
+    <!-- System Prompt -->
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:20px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+        <div>
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text2);">🧠 Prompt del sistema</div>
+          <div style="font-size:11px;color:var(--text2);margin-top:3px;">Define la personalidad, rutas de conversación e instrucciones de Ana. Este es el cerebro de la IA.</div>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn-secondary" onclick="aiResetPrompt()" style="font-size:11px;padding:6px 12px;">↺ Restablecer</button>
+          <button class="btn-primary"   onclick="aiSavePrompt()"  style="font-size:11px;padding:6px 14px;">💾 Guardar</button>
+        </div>
+      </div>
+      <textarea id="ai-prompt-ta" style="width:100%;height:420px;background:#0d0f1a;border:1px solid rgba(120,75,209,.3);border-radius:8px;color:#e2d9f3;font-size:12px;font-family:monospace;padding:14px;line-height:1.7;resize:vertical;outline:none;" placeholder="Cargando…"></textarea>
+    </div>
+
     <!-- Knowledge base -->
     <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:20px;">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
         <div>
-          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text2);">Base de conocimiento</div>
-          <div style="font-size:11px;color:var(--text2);margin-top:3px;">Aquí enseñas a Ana sobre tu empresa. Edita y guarda.</div>
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text2);">📚 Base de conocimiento</div>
+          <div style="font-size:11px;color:var(--text2);margin-top:3px;">Información específica de tu empresa: precios, horarios, webinars, FAQs.</div>
         </div>
         <button class="btn-primary" onclick="aiSaveKnowledge()" style="font-size:11px;padding:6px 14px;">💾 Guardar</button>
       </div>
-      <textarea id="ai-knowledge-ta" style="width:100%;height:360px;background:var(--card2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;font-family:monospace;padding:12px;line-height:1.6;resize:vertical;outline:none;" placeholder="Cargando…"></textarea>
+      <textarea id="ai-knowledge-ta" style="width:100%;height:300px;background:var(--card2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;font-family:monospace;padding:12px;line-height:1.6;resize:vertical;outline:none;" placeholder="Cargando…"></textarea>
     </div>
 
     <!-- History -->
@@ -3610,6 +3625,12 @@ async function aiLoadPanel() {
       fetch(`${SERVER_URL}/ai/history`).then(r=>r.json()),
     ]);
     if (ks.knowledge !== undefined) document.getElementById('ai-knowledge-ta').value = ks.knowledge;
+    const ps = await fetch(`${SERVER_URL}/ai/prompt`).then(r=>r.json());
+    if (ps.prompt !== undefined) document.getElementById('ai-prompt-ta').value = ps.prompt;
+    if (!document.getElementById('ai-prompt-ta')._defaultStored) {
+      document.getElementById('ai-prompt-ta')._default = ps.default;
+      document.getElementById('ai-prompt-ta')._defaultStored = true;
+    }
 
     const channels = [
       { key:'voice', label:'📞 Llamadas' },
@@ -3653,6 +3674,25 @@ async function aiToggle(channel, enabled) {
     if (sp) { sp.textContent = enabled ? 'ACTIVO' : 'INACTIVO'; sp.style.color = enabled ? 'var(--green)' : 'var(--text2)'; }
     showToast(`IA ${channel.toUpperCase()} ${enabled ? 'activada' : 'desactivada'}`);
   } catch { showToast('Error al cambiar configuración'); }
+}
+
+async function aiSavePrompt() {
+  const prompt = document.getElementById('ai-prompt-ta')?.value || '';
+  try {
+    const r = await fetch(`${SERVER_URL}/ai/prompt`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ prompt }) });
+    const d = await r.json();
+    showToast(d.ok ? '✅ Prompt guardado' : '⚠️ Guardado solo en memoria (Railway reinicia el filesystem)');
+  } catch { showToast('Error al guardar prompt'); }
+}
+
+async function aiResetPrompt() {
+  const ta = document.getElementById('ai-prompt-ta');
+  if (!ta) return;
+  const r = await fetch(`${SERVER_URL}/ai/prompt`).then(r=>r.json());
+  if (confirm('¿Restaurar el prompt por defecto? Se perderán tus cambios actuales.')) {
+    ta.value = r.default || '';
+    showToast('Prompt restablecido — recuerda guardar');
+  }
 }
 
 async function aiSaveKnowledge() {

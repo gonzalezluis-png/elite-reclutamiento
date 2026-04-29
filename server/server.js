@@ -4,7 +4,7 @@ const express  = require('express');
 const cors     = require('cors');
 const { chromium } = require('playwright');
 const twilio   = require('twilio');
-const { askClaude, textToSpeech, loadKnowledge, saveKnowledge, conversationHistory, aiEnabled } = require('./ai');
+const { askClaude, textToSpeech, loadKnowledge, saveKnowledge, loadPrompt, savePrompt, DEFAULT_PROMPT, conversationHistory, aiEnabled } = require('./ai');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -601,6 +601,18 @@ app.get('/twilio/calls/by-number', async (req, res) => {
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
+});
+
+// ── AI: Prompt ────────────────────────────────────────────────────────────────
+app.get('/ai/prompt', (req, res) => {
+  res.json({ ok: true, prompt: loadPrompt(), default: DEFAULT_PROMPT });
+});
+
+app.post('/ai/prompt', (req, res) => {
+  const { prompt } = req.body;
+  if (typeof prompt !== 'string') return res.status(400).json({ ok: false, error: 'prompt debe ser texto' });
+  const saved = savePrompt(prompt);
+  res.json({ ok: saved });
 });
 
 // ── AI: Knowledge base ────────────────────────────────────────────────────────
