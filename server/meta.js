@@ -108,17 +108,21 @@ function splitMessage(text, maxLen = 1000) {
 // ── Register routes ───────────────────────────────────────────────────────────
 function registerMetaRoutes(app) {
 
-  // ── Webhook verification (GET) — both apps use same verify token ──────────
-  app.get('/meta/webhook', (req, res) => {
+  // ── Webhook verification (GET) — all three paths ─────────────────────────
+  function verifyWebhook(req, res) {
     const mode      = req.query['hub.mode'];
     const token     = req.query['hub.verify_token'];
     const challenge = req.query['hub.challenge'];
     if (mode === 'subscribe' && token === META_VERIFY_TOKEN) {
-      console.log('[Meta] Webhook verificado ✓');
+      console.log('[Meta] Webhook verificado ✓', req.path);
       return res.status(200).send(challenge);
     }
+    console.warn('[Meta] Verify token incorrecto:', token);
     res.sendStatus(403);
-  });
+  }
+  app.get('/meta/webhook',             verifyWebhook);
+  app.get('/meta/webhook/whatsapp',    verifyWebhook);
+  app.get('/meta/webhook/ig-messenger',verifyWebhook);
 
   // ── WhatsApp webhook (POST) ───────────────────────────────────────────────
   app.post('/meta/webhook/whatsapp', async (req, res) => {
