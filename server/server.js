@@ -6,6 +6,7 @@ const { chromium } = require('playwright');
 const twilio     = require('twilio');
 const nodemailer = require('nodemailer');
 const { askClaude, textToSpeech, loadConfig, loadConfigFromFirestore, saveConfig, DEFAULT_CONFIG, conversationHistory, aiEnabled } = require('./ai');
+const { registerMetaRoutes } = require('./meta');
 
 const WEBINAR_URL  = process.env.WEBINAR_URL || 'https://quintero-partners.webinargeek.com/oportunidad-laboral-webinar-on-demand-q-p';
 const SMTP_USER    = process.env.SMTP_USER;
@@ -932,6 +933,9 @@ app.delete('/ai/history', (req, res) => {
 // ── Health check ──────────────────────────────────────────────────────────────
 app.get('/',       (req, res) => res.json({ status: 'ok', service: 'Elite Webinar Bot' }));
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
+
+// ── Meta (WhatsApp Cloud API + Instagram + Messenger) ─────────────────────────
+registerMetaRoutes(app);
 
 // ── Registro automático ───────────────────────────────────────────────────────
 app.post('/registrar-webinar', async (req, res) => {
