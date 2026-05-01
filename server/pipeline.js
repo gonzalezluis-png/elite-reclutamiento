@@ -286,30 +286,30 @@ async function runWAPipeline(from, historyMap, sendFn, opts) {
     // Always try to extract/update lead data from the conversation
     await extractAndUpdateLead(from, history);
 
-    if (!webinarInviteSent.has(from)) {
-      const wantsWebinar = await detectWebinarIntent(history);
-      if (wantsWebinar) {
-        const phone = rawPhone(from);
-        const doc   = await fsGetLeadByPhone(phone);
-        if (!doc) return;
+    // Get lead doc to check current state
+    const phone = rawPhone(from);
+    const doc   = await fsGetLeadByPhone(phone);
+    if (!doc) return;
 
-        const f      = doc.fields || {};
-        const nombre = f.nombre?.stringValue || '';
-        const correo = f.correo?.stringValue || '';
+    const f           = doc.fields || {};
+    const pipelineId  = f.pipeline_id?.stringValue || '';
+    const nombre      = f.nombre?.stringValue || '';
+    const correo      = f.correo?.stringValue || '';
+    const leadId      = doc.name.split('/').pop();
 
-        // Only proceed if we have both name and email
-        if (!correo || !nombre || nombre.startsWith('WA ') || nombre.startsWith('+')) {
-          console.log(`[Pipeline] Sin correo/nombre para ${from} — esperando más datos`);
-          return;
-        }
+    // Skip if already in webinar pipeline (survives server restarts)
+    if (pipelineId === 'en-webinar' || webinarInviteSent.has(from)) return;
 
-        webinarInviteSent.add(from);
-        const leadId = doc.name.split('/').pop();
-
-        // Move to en-webinar, generate personalized link, send email
-        // Ana's AI response already tells them to wait for the email — no WA link needed here
-        await moveLeadToWebinar(leadId, nombre, correo, WEBINAR_URL);
+    const wantsWebinar = await detectWebinarIntent(history);
+    if (wantsWebinar) {
+      // Need both name and email to register and send personalized link
+      if (!correo || !nombre || nombre.startsWith('WA ') || nombre.startsWith('+')) {
+        console.log(`[Pipeline] Sin correo/nombre para ${from} — esperando más datos`);
+        return;
       }
+
+      webinarInviteSent.add(from);
+      await moveLeadToWebinar(leadId, nombre, correo, WEBINAR_URL);
     }
   } catch (e) {
     console.error('[Pipeline] Error:', e.message);
