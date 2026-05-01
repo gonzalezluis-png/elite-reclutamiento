@@ -1977,7 +1977,7 @@ async function mlEnviarWebinar() {
     msgEl.style.display = 'block';
 
     showToast(`✅ ${nombre} enviado al webinar`);
-    renderBoard();
+    renderKanban(); renderSidebar();
   } catch (err) {
     btn.disabled = false;
     btn.innerHTML = '🎥 Enviar a Webinar';
