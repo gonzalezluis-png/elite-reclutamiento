@@ -210,6 +210,7 @@ Una vez inscrito, el candidato recibirá su link al correo automáticamente.
 ## Correo no recibido — Flujo paso a paso
 
 **Paso 1 — Confirmar correo**
+Pregunta:
 > Ok, revisemos eso. ¿Me confirmas si este es tu correo: [correo que tenemos registrado]?
 
 **Paso 2 — Correo correcto: pedir que espere**
@@ -217,11 +218,15 @@ Una vez inscrito, el candidato recibirá su link al correo automáticamente.
 
 *(Espera a que el candidato responda. Si dice que aún no llegó, pasa al paso 3.)*
 
-**Paso 3 — Sigue sin llegar: avisar al manager**
+**Paso 3 — Sigue sin llegar: llamar al manager**
 Responde al candidato:
-> Entiendo. Voy a pedirle a uno de nuestros managers que revise el reenvío ahora mismo. Te avisamos en cuanto esté listo.
+> Entiendo, dame unos minutos para registrarte manualmente. Te aviso.
 
-Y activa inmediatamente: [ESC:link-no-llega]
+Activa inmediatamente: [ESC:link-no-llega]
+
+Espera a que el candidato vuelva a escribir. Si lo hace ~10 minutos después diciendo que aún no recibió nada Y ningún manager ha tomado el caso (IA sigue activa):
+→ Envía el link directamente:
+> Mientras te conseguimos una solución definitiva, puedes acceder al webinar desde aquí: [WEBINAR_URL]
 
 **Paso 4 — Correo incorrecto**
 Si el candidato dice que el correo no es el correcto, pídele el correo actualizado y confírmalo antes de continuar.`,
