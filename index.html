@@ -2153,7 +2153,7 @@ function renderKanban() {
           <th>#</th><th>Nombre</th><th>Correo</th><th>Teléfono</th><th>Fuente</th>
           <th>Ubicación</th><th>Inscrito por</th><th>Fecha de inscripción</th>
           ${showEtapaCol ? '<th>Etapa</th>' : ''}
-          <th>% Visto</th><th>Tiempo visto</th><th>Link Webinar</th><th>Acciones</th>
+          <th>Avance</th><th>% Visto</th><th>Tiempo visto</th><th>Link Webinar</th><th>Acciones</th>
         </tr></thead>
         <tbody>${rows.length ? rows.map((ld, i) => {
           const accion = ld.webinar_accion || 'sin-registro';
@@ -2182,6 +2182,7 @@ function renderKanban() {
             <td style="color:#c4a8ff;font-weight:600">${esc(ld.inscrito_por||ld.propietario||'—')}</td>
             <td style="color:var(--text2);white-space:nowrap">${fechaIns}</td>
             ${showEtapaCol ? `<td><span style="display:inline-block;padding:2px 9px;border-radius:20px;font-size:10px;font-weight:600;background:${clr}22;color:${clr};border:1px solid ${clr}44">${esc(ld._etapaLabel)}</span></td>` : ''}
+            <td style="white-space:nowrap">${(() => { const p=calcProgreso(ld); const c=p>=100?'#fbbf24':p>=70?'#00c875':p>=40?'#4f7fff':'#8890a4'; return `<span style="font-size:13px;font-weight:800;color:${c};">${p}%</span>`; })()}</td>
             <td>${pctHtml}</td>
             <td>${tiempoHtml}</td>
             <td onclick="event.stopPropagation()" style="white-space:nowrap">
@@ -2253,6 +2254,7 @@ function renderUniversalTable(stageDefs, pipelineId, q, showEtapa) {
         <th>Teléfono</th>
         <th>Fuente</th>
         ${showEtapa ? '<th>Etapa</th>' : ''}
+        <th>Avance</th>
         <th>Propietario</th>
         <th>Ubicación</th>
         <th>Fecha</th>
@@ -2270,6 +2272,7 @@ function renderUniversalTable(stageDefs, pipelineId, q, showEtapa) {
           <td>${esc(ld.telefono||'')}</td>
           <td><span class="lt-badge ${srcClass(ld.fuente)}">${esc(ld.fuente||'')}</span></td>
           ${showEtapa ? `<td><span style="display:inline-block;padding:2px 9px;border-radius:20px;font-size:10px;font-weight:600;background:${clr}22;color:${clr};border:1px solid ${clr}44">${esc(ld._etapaLabel)}</span></td>` : ''}
+          <td style="white-space:nowrap">${(() => { const p=calcProgreso(ld); const c=p>=100?'#fbbf24':p>=70?'#00c875':p>=40?'#4f7fff':'#8890a4'; return `<span style="font-size:13px;font-weight:800;color:${c};">${p}%</span>`; })()}</td>
           <td style="color:var(--text2)">${esc(ld.propietario||'—')}</td>
           <td style="color:var(--text2)">${esc(ld.ubicacion||'—')}</td>
           <td style="color:var(--text2);white-space:nowrap">${date}</td>
@@ -2340,16 +2343,17 @@ function renderCard(l) {
     ${llamadaAlert}
     <div class="kc-top">
       <div class="kc-name">${esc(l.nombre)}</div>
-      <div class="kc-value">$${(l.valor||0).toFixed(2)}</div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:1px;flex-shrink:0;">
+        <span style="font-size:8px;font-weight:700;letter-spacing:.8px;color:var(--text2);text-transform:uppercase;line-height:1;">AVANCE</span>
+        <span style="font-size:20px;font-weight:900;color:${progColor};line-height:1;">${prog}%</span>
+      </div>
+    </div>
+    <div style="height:4px;background:var(--border);border-radius:2px;overflow:hidden;margin:4px 0 6px;">
+      <div style="height:100%;width:${prog}%;background:${progColor};border-radius:2px;transition:width .4s;"></div>
     </div>
     <div class="kc-mid">
       <span class="kc-badge ${sourceBadgeClass}">${esc(l.fuente||'')}</span>
       ${tagsHtml}
-    </div>
-    <div style="display:flex;align-items:center;gap:6px;margin:6px 0 2px;">
-      <span style="font-size:9px;font-weight:700;letter-spacing:.8px;color:var(--text2);text-transform:uppercase;">Avance:</span>
-      <span style="font-size:13px;font-weight:800;color:${progColor};">${prog}%</span>
-      <div style="flex:1;height:3px;background:var(--border);border-radius:2px;overflow:hidden;"><div style="height:100%;width:${prog}%;background:${progColor};border-radius:2px;"></div></div>
     </div>
     <div class="kc-bottom">
       <div class="kc-avatar" title="${esc(l.propietario||'')}">${esc(initials)}</div>
@@ -4083,6 +4087,29 @@ async function showAIPanel() {
       </div>
       <div id="ai-cases-list" style="display:flex;flex-direction:column;gap:12px;"></div>
     </div>
+
+    <!-- Equipo de Escalada -->
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:20px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+        <div>
+          <div style="font-size:13px;font-weight:700;color:#f97316;">🚨 Equipo de Escalada</div>
+          <div style="font-size:11px;color:var(--text2);margin-top:3px;">Cuando Ana no puede resolver una situación, alerta a estos encargados por WhatsApp en cadena.</div>
+        </div>
+      </div>
+      <div style="background:rgba(249,115,22,.07);border:1px solid rgba(249,115,22,.2);border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:11px;color:#fdba74;line-height:1.6;">
+        <strong>Flujo:</strong> Ana detecta el problema → avisa al Encargado 1 → si no responde en 5 min, avisa al Encargado 2 → si no responde en 10 min, avisa al Encargado 3.<br>
+        Cada encargado responde <strong>SI</strong> para tomar el caso (Ana se pausa) o <strong>SIGUIENTE</strong> para pasar al siguiente.
+      </div>
+      <div id="ai-managers-list" style="display:flex;flex-direction:column;gap:10px;">
+        <div style="color:var(--text2);font-size:12px;">Cargando…</div>
+      </div>
+      <div style="margin-top:12px;display:flex;justify-content:flex-end;">
+        <button class="btn-primary" onclick="aiSaveManagers()" id="ai-managers-save-btn" style="font-size:11px;padding:6px 14px;display:none;">💾 Guardar encargados</button>
+      </div>
+      <div style="margin-top:10px;font-size:10px;color:var(--text2);">
+        🔒 Para editar, haz clic en el candado de cada encargado y confirma el cambio.
+      </div>
+    </div>
   </div>`;
   await aiLoadPanel();
 }
@@ -4091,10 +4118,11 @@ let _aiConfig = null;
 
 async function aiLoadPanel() {
   try {
-    const [cs, ss, hs] = await Promise.all([
+    const [cs, ss, hs, ms] = await Promise.all([
       fetch(`${SERVER_URL}/ai/config`).then(r=>r.json()),
       fetch(`${SERVER_URL}/ai/settings`).then(r=>r.json()),
       fetch(`${SERVER_URL}/ai/history`).then(r=>r.json()),
+      fetch(`${SERVER_URL}/ai/managers`).then(r=>r.json()).catch(()=>({managers:[]})),
     ]);
 
     _aiConfig = cs.config || {};
@@ -4102,6 +4130,7 @@ async function aiLoadPanel() {
     document.getElementById('ai-forbidden-ta').value = _aiConfig.forbidden || '';
     aiRenderQA(_aiConfig.qa || []);
     aiRenderCases(_aiConfig.cases || []);
+    aiRenderManagers(ms.managers || []);
 
     const channels = [
       { key:'voice', label:'📞 Llamadas' },
@@ -4258,6 +4287,78 @@ function aiUpdateCase(id, field, value) {
 async function aiSaveCases() {
   if (!_aiConfig) return;
   await _aiSave({ cases: _aiConfig.cases }, 'En caso de');
+}
+
+// ── Escalation managers ──────────────────────────────────────────────────────
+let _aiManagers = [];
+
+function aiRenderManagers(managers) {
+  _aiManagers = managers.length === 3 ? managers : [
+    { level:1, phone:'+584143605411', name:'Encargado 1' },
+    { level:2, phone:'+14695285231',  name:'Encargado 2' },
+    { level:3, phone:'+17863060642',  name:'Luis (Admin)' },
+  ];
+  const el = document.getElementById('ai-managers-list');
+  if (!el) return;
+  const levelColors = ['#22c55e','#f59e0b','#f97316'];
+  const levelIcons  = ['1️⃣','2️⃣','3️⃣'];
+  const levelDesc   = ['Recibe la alerta primero · 5 min para responder','Si el Encargado 1 no responde · 10 min para responder','Última instancia · sin límite de tiempo'];
+  el.innerHTML = _aiManagers.map((m, i) => `
+    <div style="background:var(--card2);border:1px solid var(--border);border-radius:10px;padding:14px 16px;">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+        <span style="font-size:16px;">${levelIcons[i]}</span>
+        <div>
+          <div style="font-size:12px;font-weight:700;color:${levelColors[i]};">${m.name}</div>
+          <div style="font-size:10px;color:var(--text2);">${levelDesc[i]}</div>
+        </div>
+        <button onclick="aiUnlockManager(${i})" title="Editar" style="margin-left:auto;background:none;border:1px solid var(--border);border-radius:6px;padding:4px 10px;color:var(--text2);cursor:pointer;font-size:11px;" id="ai-mgr-lock-${i}">🔒 Editar</button>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <input id="ai-mgr-name-${i}" value="${esc(m.name)}" disabled
+          style="flex:1;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:7px 10px;color:var(--text);font-size:12px;outline:none;"
+          placeholder="Nombre del encargado" />
+        <input id="ai-mgr-phone-${i}" value="${esc(m.phone)}" disabled
+          style="flex:1;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:7px 10px;color:var(--text);font-size:12px;outline:none;font-family:monospace;"
+          placeholder="+1234567890" />
+      </div>
+    </div>`).join('');
+}
+
+function aiUnlockManager(i) {
+  if (!confirm('¿Seguro que quieres editar este encargado?')) return;
+  document.getElementById(`ai-mgr-name-${i}`).disabled  = false;
+  document.getElementById(`ai-mgr-phone-${i}`).disabled = false;
+  document.getElementById(`ai-mgr-lock-${i}`).textContent = '✏️ Editando';
+  document.getElementById(`ai-mgr-lock-${i}`).style.color = '#f97316';
+  const saveBtn = document.getElementById('ai-managers-save-btn');
+  if (saveBtn) saveBtn.style.display = '';
+}
+
+async function aiSaveManagers() {
+  const managers = _aiManagers.map((m, i) => ({
+    level: m.level,
+    name:  document.getElementById(`ai-mgr-name-${i}`)?.value?.trim()  || m.name,
+    phone: document.getElementById(`ai-mgr-phone-${i}`)?.value?.trim() || m.phone,
+  }));
+  for (const m of managers) {
+    if (!m.phone.startsWith('+') || m.phone.length < 10) {
+      showToast(`Número inválido: ${m.phone}. Debe comenzar con + y código de país.`, 'error');
+      return;
+    }
+  }
+  try {
+    const r = await fetch(`${SERVER_URL}/ai/managers`, {
+      method: 'POST', headers: { 'Content-Type':'application/json' },
+      body: JSON.stringify({ managers }),
+    });
+    const d = await r.json();
+    if (d.ok) {
+      showToast('Encargados guardados ✓', 'success');
+      _aiManagers = managers;
+      document.getElementById('ai-managers-save-btn').style.display = 'none';
+      aiRenderManagers(managers);
+    } else { showToast('Error: ' + d.error, 'error'); }
+  } catch(e) { showToast('Error de conexión: ' + e.message, 'error'); }
 }
 
 async function aiToggle(channel, enabled) {

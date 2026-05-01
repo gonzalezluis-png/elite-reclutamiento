@@ -8,6 +8,7 @@ const twilio     = require('twilio');
 const { askClaude, textToSpeech, loadConfig, loadConfigFromFirestore, saveConfig, DEFAULT_CONFIG, conversationHistory, aiEnabled } = require('./ai');
 const { registerMetaRoutes } = require('./meta');
 const { fsLeadExists, fsCreateLeadWA, fsGetLeadByPhone, runWAPipeline, humanDelay } = require('./pipeline');
+const { triggerEscalation, handleManagerReply, isManagerPhone, loadManagers, saveManagers, DEFAULT_MANAGERS } = require('./escalation');
 
 const WEBINAR_URL  = process.env.WEBINAR_URL || 'https://crm.grupoelitework.com/webinar.html';
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
@@ -449,11 +450,26 @@ app.post('/twilio/whatsapp-incoming', async (req, res) => {
   const { From, Body, MessageSid } = req.body;
   console.log(`[WA-IN] ${From}: ${Body} (${MessageSid})`);
 
-  const exists = await fsLeadExists(From.replace('whatsapp:', ''));
+  const cleanFrom = From.replace('whatsapp:', '');
+
+  // Twilio send wrapper for escalation (managers receive whatsapp:+phone format)
+  const twSendWAToManager = async (phone, text) => {
+    const c  = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
+    const to = phone.startsWith('+') ? `whatsapp:${phone}` : `whatsapp:+${phone}`;
+    await c.messages.create({ from: TWILIO_WA_FROM, to, body: text });
+  };
+
+  // Check if it's a manager responding to an escalation
+  if (await isManagerPhone(cleanFrom)) {
+    const handled = await handleManagerReply(cleanFrom, Body || '', twSendWAToManager);
+    if (handled) return res.type('text/xml').send('<Response></Response>');
+  }
+
+  const exists = await fsLeadExists(cleanFrom);
   if (!exists) await fsCreateLeadWA(From);
 
   // Check if IA is paused for this lead
-  const _twLeadData = await fsGetLeadByPhone(From.replace('whatsapp:', ''));
+  const _twLeadData = await fsGetLeadByPhone(cleanFrom);
   if (_twLeadData?.ia_paused) {
     console.log(`[WA-IN] IA pausada para ${From} — mensaje no procesado por IA`);
     return res.type('text/xml').send('<Response></Response>');
@@ -461,7 +477,15 @@ app.post('/twilio/whatsapp-incoming', async (req, res) => {
 
   if (aiEnabled.wa && Body?.trim()) {
     try {
-      const reply = await askClaude(From, Body, 'wa');
+      const rawReply = await askClaude(From, Body, 'wa');
+      const escMatch = rawReply.match(/\[ESC:([^\]]+)\]/);
+      const reply    = rawReply.replace(/\[ESC:[^\]]*\]\n?/g, '').trim();
+
+      if (escMatch) {
+        const leadName = _twLeadData?.nombre || _twLeadData?.fields?.nombre?.stringValue || '';
+        triggerEscalation(cleanFrom, leadName, escMatch[1], Body, twSendWAToManager).catch(e => console.error('[ESC]', e.message));
+      }
+
       console.log(`[WA-AI] Ana → ${From}: "${reply}"`);
       await humanDelay(reply);
       const twilioClient = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
@@ -599,6 +623,21 @@ app.get('/twilio/calls/by-number', async (req, res) => {
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
+});
+
+// ── AI: Escalation managers config ───────────────────────────────────────────
+app.get('/ai/managers', async (req, res) => {
+  const managers = await loadManagers().catch(() => DEFAULT_MANAGERS);
+  res.json({ ok: true, managers });
+});
+
+app.post('/ai/managers', async (req, res) => {
+  const { managers } = req.body;
+  if (!Array.isArray(managers) || managers.length !== 3) {
+    return res.status(400).json({ ok: false, error: 'Se requieren exactamente 3 encargados' });
+  }
+  await saveManagers(managers);
+  res.json({ ok: true });
 });
 
 // ── AI: Config (general prompt + Q&A + forbidden) ────────────────────────────

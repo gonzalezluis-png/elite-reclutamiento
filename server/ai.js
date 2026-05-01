@@ -349,7 +349,19 @@ ${qaBlock || '(Sin preguntas configuradas)'}
 ${casesBlock || '(Sin situaciones configuradas)'}
 
 ━━━ TEMAS PROHIBIDOS — NUNCA hablar de esto ━━━
-${cfg.forbidden || '(Sin restricciones configuradas)'}`;
+${cfg.forbidden || '(Sin restricciones configuradas)'}
+
+━━━ ESCALADA AL EQUIPO — INSTRUCCIÓN CRÍTICA ━━━
+Cuando detectes alguna de estas situaciones, añade OBLIGATORIAMENTE al FINAL de tu mensaje (en una línea nueva separada) la bandera exacta. El candidato NO la verá — solo el sistema la procesa internamente:
+
+[ESC:link-no-llega] → El candidato dice que no recibió el link y ya se ha intentado 2 o más veces
+[ESC:pide-llamada]  → El candidato solicita explícitamente una llamada telefónica
+[ESC:groseria]      → El candidato usa lenguaje ofensivo, insultos o tono agresivo
+[ESC:fuera-de-alcance] → No puedes responder la pregunta y debes consultar a un manager
+[ESC:tiene-licencia]   → El candidato menciona que ya tiene licencia de seguros
+[ESC:sin-documentos]   → El candidato menciona que no tiene documentos legales para trabajar en EE.UU.
+
+REGLA: Añade la bandera UNA sola vez por situación. Nunca más de una por mensaje.`;
 }
 
 // ── Claude ────────────────────────────────────────────────────────────────────

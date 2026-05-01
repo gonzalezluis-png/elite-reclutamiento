@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 const { askClaude, conversationHistory } = require('./ai');
 const { fsLeadExists, fsCreateLeadWA, fsGetLeadByPhone, runWAPipeline, humanDelay } = require('./pipeline');
+const { triggerEscalation, handleManagerReply, checkTimeouts, isManagerPhone } = require('./escalation');
 
 const SERVER_URL  = process.env.SERVER_URL  || 'https://elite-reclutamiento-production.up.railway.app';
 const WEBINAR_URL = process.env.WEBINAR_URL || 'https://crm.grupoelitework.com/webinar.html';
@@ -109,6 +110,14 @@ function splitMessage(text, maxLen = 1000) {
   return parts;
 }
 
+// ── Wrapper: send WA to manager (phone stored with +, Meta needs digits only) ─
+function sendWAToManager(phone, text) {
+  return sendWhatsApp(phone.replace(/^\+/, ''), text);
+}
+
+// ── Escalation timeout checker (every 60s) ────────────────────────────────────
+setInterval(() => checkTimeouts(sendWAToManager).catch(e => console.error('[ESC-Timer]', e.message)), 60_000);
+
 // ── Register routes ───────────────────────────────────────────────────────────
 function registerMetaRoutes(app) {
 
@@ -150,6 +159,12 @@ function registerMetaRoutes(app) {
 
       console.log(`[Meta WA] ← ${from}: ${text}`);
 
+      // Check if message is from a manager responding to an escalation
+      if (await isManagerPhone(from)) {
+        const handled = await handleManagerReply(from, text, sendWAToManager);
+        if (handled) return;
+      }
+
       // Auto-create lead if not in CRM
       const exists = await fsLeadExists(from);
       if (!exists) await fsCreateLeadWA(`wa_meta:${from}`);
@@ -162,7 +177,17 @@ function registerMetaRoutes(app) {
       }
 
       const convKey = `wa_meta:${from}`;
-      const reply   = await askClaude(convKey, text, 'wa');
+      const rawReply = await askClaude(convKey, text, 'wa');
+
+      // Detect and strip escalation flag before sending to client
+      const escMatch = rawReply.match(/\[ESC:([^\]]+)\]/);
+      const reply    = rawReply.replace(/\[ESC:[^\]]*\]\n?/g, '').trim();
+
+      if (escMatch) {
+        const leadName = leadData?.nombre || leadData?.fields?.nombre?.stringValue || '';
+        triggerEscalation(from, leadName, escMatch[1], text, sendWAToManager).catch(e => console.error('[ESC]', e.message));
+      }
+
       console.log(`[Meta WA] → ${from}: ${reply}`);
       await humanDelay(reply);
       await sendWhatsApp(from, reply);
