@@ -9,7 +9,7 @@ const { askClaude, textToSpeech, loadConfig, loadConfigFromFirestore, saveConfig
 const { registerMetaRoutes } = require('./meta');
 const { fsLeadExists, fsCreateLeadWA, runWAPipeline } = require('./pipeline');
 
-const WEBINAR_URL  = process.env.WEBINAR_URL || 'https://quintero-partners.webinargeek.com/oportunidad-laboral-webinar-on-demand-q-p';
+const WEBINAR_URL  = process.env.WEBINAR_URL || 'https://crm.grupoelitework.com/webinar.html';
 const SMTP_USER    = process.env.SMTP_USER;
 const SMTP_PASS    = process.env.SMTP_PASS;
 const SMTP_HOST    = process.env.SMTP_HOST || 'smtp.gmail.com';
@@ -470,7 +470,7 @@ app.post('/twilio/whatsapp-incoming', async (req, res) => {
 
       ;(async () => {
         try {
-          await runWAPipeline(From, conversationHistory, sendFn, { SERVER_URL, WEBINAR_URL });
+          await runWAPipeline(From, conversationHistory, sendFn, { WEBINAR_URL });
         } catch (e) {
           console.error('[BG] Error:', e.message);
         }
@@ -506,7 +506,7 @@ app.post('/twilio/sms-incoming', async (req, res) => {
 
         ;(async () => {
           try {
-            await runWAPipeline(From, conversationHistory, sendFn, { SERVER_URL, WEBINAR_URL });
+            await runWAPipeline(From, conversationHistory, sendFn, { WEBINAR_URL });
           } catch (e) {
             console.error('[BG via SMS hook] Error:', e.message);
           }

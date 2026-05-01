@@ -227,12 +227,15 @@ async function sendWebinarEmail(correo, nombre, WEBINAR_URL) {
   }
 }
 
-// ── Move lead to webinar pipeline + Playwright registration ───────────────────
-// sendFn: async (to, text) — channel-specific send function
-async function moveLeadToWebinar(leadId, nombre, correo, { phone, sendFn, SERVER_URL, WEBINAR_URL }) {
+// ── Move lead to webinar pipeline ─────────────────────────────────────────────
+async function moveLeadToWebinar(leadId, WEBINAR_URL) {
   try {
     const now = new Date().toISOString();
-    await fsUpdateLeadFields(leadId, { pipeline_id: 'en-webinar', etapa: 'Inscrito en Webinar' });
+    await fsUpdateLeadFields(leadId, {
+      pipeline_id: 'en-webinar',
+      etapa:       'Inscrito en Webinar',
+      link_webinar: WEBINAR_URL,
+    });
 
     const doc  = await fetch(`${FS_BASE}/leads/${leadId}?key=${FS_KEY}`).then(r => r.json());
     const hist = (doc.fields?.historial?.arrayValue?.values || []).map(v => ({
@@ -244,35 +247,6 @@ async function moveLeadToWebinar(leadId, nombre, correo, { phone, sendFn, SERVER
     hist.push({ icono: '🎥', accion: 'Inscrito en Webinar automáticamente por Ana (IA)', fecha: now, usuario: 'Ana (IA)' });
     await fsUpdateLeadFields(leadId, { historial: hist });
     console.log(`[Webinar] Lead ${leadId} movido a Inscrito en Webinar`);
-
-    // Auto-register via Playwright if name and email are known
-    if (nombre && correo && !nombre.startsWith('WA ') && !nombre.startsWith('+')) {
-      const phoneRaw = rawPhone(phone);
-      try {
-        const r = await fetch(`${SERVER_URL}/registrar-webinar`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ nombre, correo, telefono: phoneRaw, webinarUrl: WEBINAR_URL }),
-        });
-        const d = await r.json();
-        if (d.ok) {
-          console.log(`[Webinar] Auto-registrado: ${nombre} <${correo}> → ${d.finalUrl}`);
-          const personalUrl = d.finalUrl && d.finalUrl !== WEBINAR_URL ? d.finalUrl : null;
-          // Save personalized link to Firestore
-          await fsUpdateLeadFields(leadId, { link_webinar: personalUrl || WEBINAR_URL });
-          // Send personalized link if different from the static one already sent
-          if (personalUrl && sendFn) {
-            await sendFn(phone, `✅ Quedaste inscrito/a exitosamente. Aquí está tu enlace personal al webinar:\n${personalUrl}`);
-          }
-        } else {
-          console.warn('[Webinar] Auto-registro falló:', d.error);
-          await fsUpdateLeadFields(leadId, { link_webinar: WEBINAR_URL });
-        }
-      } catch (e) {
-        console.error('[Webinar] Error en auto-registro:', e.message);
-        await fsUpdateLeadFields(leadId, { link_webinar: WEBINAR_URL });
-      }
-    }
   } catch (e) {
     console.error('[Webinar] Error moviendo lead:', e.message);
   }
@@ -285,7 +259,7 @@ async function moveLeadToWebinar(leadId, nombre, correo, { phone, sendFn, SERVER
 // sendFn:  async (to, text) → sends WA message back to the user
 // opts:    { SERVER_URL, WEBINAR_URL }
 async function runWAPipeline(from, historyMap, sendFn, opts) {
-  const { SERVER_URL, WEBINAR_URL } = opts;
+  const { WEBINAR_URL } = opts;
   const history = historyMap.get(from) || [];
 
   try {
@@ -304,14 +278,14 @@ async function runWAPipeline(from, historyMap, sendFn, opts) {
           const nombre = f.nombre?.stringValue || '';
           const correo = f.correo?.stringValue || '';
 
-          // Send static link immediately so user isn't waiting on Playwright
+          // Send webinar link via WhatsApp
           await sendFn(from, `🎥 Aquí está el link de tu webinar informativo:\n${WEBINAR_URL}\n\nEs gratuito y dura aproximadamente 60 minutos. ¡Cualquier duda estoy aquí!`);
 
           // Send email invitation if we have the address
           if (correo) await sendWebinarEmail(correo, nombre, WEBINAR_URL);
 
-          // Move lead pipeline + run Playwright (sends personalized link when done)
-          await moveLeadToWebinar(leadId, nombre, correo, { phone: from, sendFn, SERVER_URL, WEBINAR_URL });
+          // Move lead to "en-webinar" pipeline and save link
+          await moveLeadToWebinar(leadId, WEBINAR_URL);
         }
       }
     }

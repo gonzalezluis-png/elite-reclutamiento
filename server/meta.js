@@ -3,7 +3,7 @@ const { askClaude, conversationHistory } = require('./ai');
 const { fsLeadExists, fsCreateLeadWA, runWAPipeline } = require('./pipeline');
 
 const SERVER_URL  = process.env.SERVER_URL  || 'https://elite-reclutamiento-production.up.railway.app';
-const WEBINAR_URL = process.env.WEBINAR_URL || 'https://quintero-partners.webinargeek.com/oportunidad-laboral-webinar-on-demand-q-p';
+const WEBINAR_URL = process.env.WEBINAR_URL || 'https://crm.grupoelitework.com/webinar.html';
 
 // ── Env vars (set in Railway) ─────────────────────────────────────────────────
 const META_VERIFY_TOKEN      = process.env.META_VERIFY_TOKEN      || 'grupoelite2026';
@@ -162,7 +162,7 @@ function registerMetaRoutes(app) {
       // Full pipeline: extract data + detect webinar intent + send link
       ;(async () => {
         try {
-          await runWAPipeline(convKey, conversationHistory, sendWhatsApp, { SERVER_URL, WEBINAR_URL });
+          await runWAPipeline(convKey, conversationHistory, sendWhatsApp, { WEBINAR_URL });
         } catch (e) {
           console.error('[Meta WA Pipeline] Error:', e.message);
         }
