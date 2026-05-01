@@ -228,11 +228,14 @@ async function handleManagerReply(managerPhone, text, sendWAFn) {
   if (!accepted && !goNext) return false;
 
   const pending = await getPendingEscalations();
-  const esc = pending.find(e => e.currentLevel === manager.level);
+  // Match any pending escalation that was sent to this manager (even if already escalated further)
+  const esc = pending.find(e => e[`level${manager.level}SentAt`]);
   if (!esc) {
     await sendWAFn(manager.phone, '✅ No tienes alertas pendientes asignadas en este momento.');
     return true;
   }
+
+  const lateResponse = esc.currentLevel > manager.level;
 
   if (accepted) {
     await updateEscalation(esc._id, {
@@ -241,16 +244,23 @@ async function handleManagerReply(managerPhone, text, sendWAFn) {
       acceptedAt:  new Date().toISOString(),
     });
     await pauseLeadByPhone(esc.leadPhone);
+    const lateNote = lateResponse
+      ? '\n\n_(Respuesta tardía — el caso ya había escalado, pero fue aceptado igualmente.)_'
+      : '';
     await sendWAFn(manager.phone,
-      `✅ Caso tomado. Ana ha sido *pausada* para ${esc.leadName || esc.leadPhone}.\n\nResponde directamente al número: ${esc.leadPhone}`
+      `✅ Caso tomado. Ana ha sido *pausada* para ${esc.leadName || esc.leadPhone}.\n\nResponde directamente al número: ${esc.leadPhone}${lateNote}`
     );
-    // Notify other managers that it was handled
-    for (const m of managers) {
-      if (normalizePhone(m.phone) === clean) continue;
-      if (m.level < manager.level) continue; // only notify levels above
-      // skip — don't flood other managers
+    // Notify managers who were already alerted that someone else took it
+    if (lateResponse) {
+      for (const m of managers) {
+        if (normalizePhone(m.phone) === clean) continue;
+        if (!esc[`level${m.level}SentAt`]) continue;
+        await sendWAFn(m.phone,
+          `ℹ️ El caso de *${esc.leadName || esc.leadPhone}* fue tomado por ${manager.name}. No necesitas hacer nada.`
+        ).catch(() => {});
+      }
     }
-    console.log(`[ESC] Alerta ${esc._id} aceptada por ${manager.name}`);
+    console.log(`[ESC] Alerta ${esc._id} aceptada por ${manager.name}${lateResponse ? ' (tardía)' : ''}`);
     return true;
   }
 
