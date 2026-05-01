@@ -9,6 +9,7 @@ const { askClaude, textToSpeech, loadConfig, loadConfigFromFirestore, saveConfig
 const { registerMetaRoutes } = require('./meta');
 const { fsLeadExists, fsCreateLeadWA, fsGetLeadByPhone, runWAPipeline, humanDelay } = require('./pipeline');
 const { triggerEscalation, handleManagerReply, isManagerPhone, loadManagers, saveManagers, DEFAULT_MANAGERS } = require('./escalation');
+const { loadInterviewConfig, saveInterviewConfig, getAvailableSlots, bookInterview, listInterviews, updateInterview, checkInterviewReminders, DEFAULT_INTERVIEW_CONFIG } = require('./interviews');
 
 const WEBINAR_URL  = process.env.WEBINAR_URL || 'https://crm.grupoelitework.com/webinar.html';
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
@@ -687,6 +688,56 @@ app.delete('/ai/history', (req, res) => {
   conversationHistory.clear();
   res.json({ ok: true });
 });
+
+// ── Interview config ──────────────────────────────────────────────────────────
+app.get('/interviews/config', async (req, res) => {
+  const cfg = await loadInterviewConfig();
+  res.json({ ok: true, config: cfg });
+});
+
+app.post('/interviews/config', async (req, res) => {
+  const current = await loadInterviewConfig();
+  const merged  = { ...current, ...req.body.config };
+  const ok = await saveInterviewConfig(merged);
+  res.json({ ok });
+});
+
+app.get('/interviews/slots', async (req, res) => {
+  const cfg   = await loadInterviewConfig();
+  const from  = req.query.from ? new Date(req.query.from) : new Date();
+  const slots = await getAvailableSlots(cfg, from);
+  res.json({ ok: true, slots });
+});
+
+app.post('/interviews/book', async (req, res) => {
+  const { leadPhone, leadName, slotIso, convKey } = req.body;
+  if (!leadPhone || !slotIso) return res.status(400).json({ ok: false, error: 'leadPhone y slotIso requeridos' });
+  const { id, cfg, doc } = await bookInterview({ leadPhone, leadName, slotIso, convKey });
+  // Notify interviewer via WhatsApp
+  if (cfg.interviewer.phone) {
+    const d    = new Date(slotIso);
+    const hora = d.toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' });
+    const fecha = d.toLocaleDateString('es', { weekday: 'long', day: 'numeric', month: 'long' });
+    const msg  = `📅 Tienes una entrevista programada para el ${fecha} a las ${hora} con ${leadName || 'un candidato'}. Confirma disponibilidad.`;
+    const { sendWhatsApp } = require('./meta');
+    sendWhatsApp(cfg.interviewer.phone.replace(/^\+/, ''), msg).catch(() => {});
+  }
+  res.json({ ok: true, id, doc });
+});
+
+app.get('/interviews', async (req, res) => {
+  const list = await listInterviews();
+  res.json({ ok: true, interviews: list });
+});
+
+app.patch('/interviews/:id', async (req, res) => {
+  const ok = await updateInterview(req.params.id, req.body);
+  res.json({ ok });
+});
+
+// Reminder cron — every minute
+const { sendWhatsApp: _ivSendWA } = require('./meta');
+setInterval(() => checkInterviewReminders(_ivSendWA).catch(e => console.error('[IV-Reminder]', e.message)), 60_000);
 
 // ── Legal data deletion — removes lead + all associated data ──────────────────
 app.delete('/leads/:id', async (req, res) => {
