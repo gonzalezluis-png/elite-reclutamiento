@@ -2338,14 +2338,18 @@ function renderCard(l) {
        ondragend="this.classList.remove('dragging')"
        onclick="openLead('${l.id}')">
     ${llamadaAlert}
-    <div class="kprog-circle" style="color:${progColor};border-color:${progColor};background:${progColor}15;">${prog}<span style="font-size:7px;font-weight:700;">%</span></div>
-    <div class="kc-top" style="padding-right:44px;">
+    <div class="kc-top">
       <div class="kc-name">${esc(l.nombre)}</div>
       <div class="kc-value">$${(l.valor||0).toFixed(2)}</div>
     </div>
     <div class="kc-mid">
       <span class="kc-badge ${sourceBadgeClass}">${esc(l.fuente||'')}</span>
       ${tagsHtml}
+    </div>
+    <div style="display:flex;align-items:center;gap:6px;margin:6px 0 2px;">
+      <span style="font-size:9px;font-weight:700;letter-spacing:.8px;color:var(--text2);text-transform:uppercase;">Avance:</span>
+      <span style="font-size:13px;font-weight:800;color:${progColor};">${prog}%</span>
+      <div style="flex:1;height:3px;background:var(--border);border-radius:2px;overflow:hidden;"><div style="height:100%;width:${prog}%;background:${progColor};border-radius:2px;"></div></div>
     </div>
     <div class="kc-bottom">
       <div class="kc-avatar" title="${esc(l.propietario||'')}">${esc(initials)}</div>
@@ -2359,7 +2363,6 @@ function renderCard(l) {
         <button class="kca-btn-move" title="Mover etapa" onclick="event.stopPropagation();toggleMoveMenu(event,'${l.id}')">Mover ↕</button>
       </div>
     </div>
-    <div class="kprog-bar"><div class="kprog-fill" style="width:${prog}%;background:${progColor};"></div></div>
   </div>`;
 }
 
