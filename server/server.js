@@ -7,6 +7,7 @@ const twilio     = require('twilio');
 const nodemailer = require('nodemailer');
 const { askClaude, textToSpeech, loadConfig, loadConfigFromFirestore, saveConfig, DEFAULT_CONFIG, conversationHistory, aiEnabled } = require('./ai');
 const { registerMetaRoutes } = require('./meta');
+const { fsLeadExists, fsCreateLeadWA, runWAPipeline } = require('./pipeline');
 
 const WEBINAR_URL  = process.env.WEBINAR_URL || 'https://quintero-partners.webinargeek.com/oportunidad-laboral-webinar-on-demand-q-p';
 const SMTP_USER    = process.env.SMTP_USER;
@@ -441,308 +442,35 @@ app.get('/twilio/whatsapp-inbox', async (req, res) => {
   }
 });
 
-// ── Firestore helpers (same REST API as frontend) ─────────────────────────────
+// ── Firestore base URL (used by /registrar-webinar self-call) ─────────────────
 const FS_PROJECT = 'elite-reclutamiento-crm';
 const FS_KEY     = 'AIzaSyCW2t1oHb7xc2Vi6vJROGRM7E7nu-CbU3s';
 const FS_BASE    = `https://firestore.googleapis.com/v1/projects/${FS_PROJECT}/databases/(default)/documents`;
-
-function fsVal(v) {
-  if (v === null || v === undefined) return { nullValue: null };
-  if (typeof v === 'boolean') return { booleanValue: v };
-  if (typeof v === 'number')  return Number.isInteger(v) ? { integerValue: String(v) } : { doubleValue: v };
-  if (typeof v === 'string')  return { stringValue: v };
-  if (Array.isArray(v))       return { arrayValue: { values: v.map(fsVal) } };
-  if (typeof v === 'object')  return { mapValue: { fields: Object.fromEntries(Object.entries(v).map(([k,x]) => [k, fsVal(x)])) } };
-  return { stringValue: String(v) };
-}
-
-async function fsLeadExists(phone) {
-  try {
-    const url = `${FS_BASE}/leads?key=${FS_KEY}&pageSize=500`;
-    const data = await fetch(url).then(r => r.json());
-    const docs = data.documents || [];
-    return docs.some(doc => {
-      const tel = doc.fields?.telefono?.stringValue || '';
-      return toE164(tel) === toE164(phone);
-    });
-  } catch { return false; }
-}
-
-async function fsGetLeadByPhone(phone) {
-  try {
-    const data = await fetch(`${FS_BASE}/leads?key=${FS_KEY}&pageSize=500`).then(r => r.json());
-    return (data.documents || []).find(doc => {
-      const tel = doc.fields?.telefono?.stringValue || '';
-      return toE164(tel) === toE164(phone);
-    }) || null;
-  } catch { return null; }
-}
-
-async function fsUpdateLeadFields(leadId, fields) {
-  const mask = Object.keys(fields).join('&updateMask.fieldPaths=');
-  const body = { fields: Object.fromEntries(Object.entries(fields).map(([k,v]) => [k, fsVal(v)])) };
-  await fetch(`${FS_BASE}/leads/${leadId}?key=${FS_KEY}&updateMask.fieldPaths=${mask}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-}
-
-async function extractAndUpdateLead(phone, conversationHistory) {
-  try {
-    const messages = conversationHistory.slice(-14).map(({ role, content }) => ({ role, content }));
-    if (messages.length < 2) return;
-
-    const Anthropic = require('@anthropic-ai/sdk');
-    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-
-    const extraction = await client.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 300,
-      system: `Eres un extractor de datos. Analiza la conversación y extrae información del candidato.
-Responde SOLO con JSON válido, sin texto adicional:
-{
-  "nombre": "nombre completo o null",
-  "correo": "email o null",
-  "ubicacion": "ciudad, estado o null",
-  "disponibilidad": "tiempo completo / parcial / descripción o null"
-}
-Solo incluye campos que el candidato haya mencionado explícitamente. Si no hay info, pon null.`,
-      messages,
-    });
-
-    let extracted;
-    try {
-      let raw = extraction.content[0].text.trim();
-      // Strip markdown code blocks if present
-      raw = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
-      // Extract first JSON object if there's surrounding text
-      const match = raw.match(/\{[\s\S]*\}/);
-      if (match) raw = match[0];
-      extracted = JSON.parse(raw);
-      console.log(`[AI-Extract] Extraído para ${phone}:`, extracted);
-    } catch (e) {
-      console.error(`[AI-Extract] JSON parse error para ${phone}:`, extraction.content[0].text.slice(0, 200));
-      return;
-    }
-
-    const hasData = Object.values(extracted).some(v => v !== null);
-    if (!hasData) return;
-
-    const rawPhone = phone.replace('whatsapp:', '');
-    const doc = await fsGetLeadByPhone(rawPhone);
-    if (!doc) {
-      console.error(`[AI-Extract] Lead no encontrado en Firestore para ${rawPhone}`);
-      return;
-    }
-
-    const leadId = doc.name.split('/').pop();
-    const existing = doc.fields || {};
-    const updates  = {};
-
-    const existingNombre = existing.nombre?.stringValue || '';
-    const isAutoName = !existingNombre || existingNombre.startsWith('WA ') || existingNombre.startsWith('+');
-    if (extracted.nombre && isAutoName)
-      updates.nombre = extracted.nombre;
-    if (extracted.correo        && !existing.correo?.stringValue)         updates.correo         = extracted.correo;
-    if (extracted.ubicacion     && !existing.ubicacion?.stringValue)      updates.ubicacion      = extracted.ubicacion;
-    if (extracted.disponibilidad && !existing.disponibilidad?.stringValue) updates.disponibilidad = extracted.disponibilidad;
-
-    if (Object.keys(updates).length === 0) return;
-
-    await fsUpdateLeadFields(leadId, updates);
-    console.log(`[AI-Extract] Lead ${leadId} actualizado:`, updates);
-  } catch (e) {
-    console.error('[AI-Extract] Error:', e.message);
-  }
-}
-
-// ── Webinar intent detection ──────────────────────────────────────────────────
-async function detectWebinarIntent(history) {
-  try {
-    const Anthropic = require('@anthropic-ai/sdk');
-    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-    const messages = history.slice(-10).map(({ role, content }) => ({ role, content }));
-    const r = await client.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 10,
-      system: 'Analiza la conversación. Responde SOLO "SI" si el candidato aceptó o mostró interés claro en asistir al webinar/información virtual. Responde SOLO "NO" en cualquier otro caso.',
-      messages,
-    });
-    return r.content[0].text.trim().toUpperCase() === 'SI';
-  } catch { return false; }
-}
-
-// ── Send webinar email ────────────────────────────────────────────────────────
-async function sendWebinarEmail(correo, nombre) {
-  if (!SMTP_USER || !SMTP_PASS || !correo) return false;
-  try {
-    const transporter = nodemailer.createTransport({
-      host: SMTP_HOST, port: SMTP_PORT, secure: SMTP_PORT === 465,
-      auth: { user: SMTP_USER, pass: SMTP_PASS },
-    });
-    await transporter.sendMail({
-      from: `"Grupo Elite Work LLC" <${SMTP_USER}>`,
-      to: correo,
-      subject: '🎥 Tu invitación al Webinar — Grupo Elite Work LLC',
-      html: `
-        <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px;background:#f9fafb;border-radius:12px;">
-          <div style="background:linear-gradient(135deg,#1a1a2e,#16213e);padding:28px;border-radius:10px;text-align:center;margin-bottom:24px;">
-            <h1 style="color:#fff;margin:0;font-size:22px;">Grupo Elite Work LLC</h1>
-            <p style="color:#94a3b8;margin:8px 0 0;">Oportunidad de Carrera — Globe Life Insurance</p>
-          </div>
-          <h2 style="color:#1e293b;">¡Hola${nombre ? ' ' + nombre : ''}! 👋</h2>
-          <p style="color:#475569;line-height:1.6;">Nos da mucho gusto que estés interesado/a en nuestra oportunidad. Te invitamos a nuestro <strong>webinar informativo virtual</strong> donde aprenderás todo sobre cómo construir una carrera exitosa como agente de seguros de vida.</p>
-          <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:20px;margin:20px 0;">
-            <h3 style="color:#1e293b;margin:0 0 12px;">¿Qué verás en el webinar?</h3>
-            <ul style="color:#475569;line-height:1.8;padding-left:20px;">
-              <li>Cómo funciona el modelo de trabajo remoto</li>
-              <li>Estructura de comisiones y potencial de ingresos</li>
-              <li>Proceso para obtener tu licencia estatal</li>
-              <li>Preguntas y respuestas en vivo</li>
-            </ul>
-          </div>
-          <div style="text-align:center;margin:28px 0;">
-            <a href="${WEBINAR_URL}" style="background:linear-gradient(135deg,#0073ea,#0059b3);color:#fff;text-decoration:none;padding:14px 32px;border-radius:8px;font-size:16px;font-weight:700;display:inline-block;">
-              🎥 Acceder al Webinar
-            </a>
-          </div>
-          <p style="color:#64748b;font-size:13px;text-align:center;">Si tienes preguntas, responde a este correo o escríbenos por WhatsApp.</p>
-          <hr style="border:none;border-top:1px solid #e2e8f0;margin:20px 0;">
-          <p style="color:#94a3b8;font-size:11px;text-align:center;">Grupo Elite Work LLC — Globe Life Insurance</p>
-        </div>`,
-    });
-    console.log(`[Email] Enviado a ${correo}`);
-    return true;
-  } catch (e) {
-    console.error('[Email] Error:', e.message);
-    return false;
-  }
-}
-
-// ── Move lead to webinar pipeline ─────────────────────────────────────────────
-async function moveLeadToWebinar(leadId, nombre, correo) {
-  try {
-    const now = new Date().toISOString();
-    await fsUpdateLeadFields(leadId, {
-      pipeline_id:  'en-webinar',
-      etapa:        'Inscrito en Webinar',
-    });
-    // Add historial entry
-    const doc = await fetch(`${FS_BASE}/leads/${leadId}?key=${FS_KEY}`).then(r => r.json());
-    const hist = (doc.fields?.historial?.arrayValue?.values || []).map(v => ({
-      icono: v.mapValue?.fields?.icono?.stringValue || '📋',
-      accion: v.mapValue?.fields?.accion?.stringValue || '',
-      fecha: v.mapValue?.fields?.fecha?.stringValue || now,
-      usuario: v.mapValue?.fields?.usuario?.stringValue || '',
-    }));
-    hist.push({ icono: '🎥', accion: 'Inscrito en Webinar automáticamente por Ana (IA)', fecha: now, usuario: 'Ana (IA)' });
-    await fsUpdateLeadFields(leadId, { historial: hist });
-    console.log(`[Webinar] Lead ${leadId} movido a Inscrito en Webinar`);
-
-    // Auto-register in webinar if we have name and email
-    if (nombre && correo && !nombre.startsWith('WA ')) {
-      const phone = doc.fields?.telefono?.stringValue || '';
-      fetch(`${SERVER_URL}/registrar-webinar`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nombre, correo, telefono: phone, webinarUrl: WEBINAR_URL }),
-      }).then(r => r.json()).then(d => {
-        if (d.ok) console.log(`[Webinar] Auto-registrado: ${nombre} <${correo}>`);
-        else console.warn('[Webinar] Auto-registro falló:', d.error);
-      }).catch(() => {});
-    }
-  } catch (e) {
-    console.error('[Webinar] Error moviendo lead:', e.message);
-  }
-}
-
-async function fsCreateLead(phone) {
-  const id  = 'lead-wa-' + Date.now();
-  const now = new Date().toISOString();
-  const doc = {
-    fields: {
-      nombre:      fsVal(`WA ${phone}`),
-      telefono:    fsVal(toE164(phone.replace('whatsapp:', ''))),
-      fuente:      fsVal('WhatsApp Inbound'),
-      etapa:       fsVal('New Lead'),
-      pipeline_id: fsVal('postulados-whatsapp-meta'),
-      estado:      fsVal('abierto'),
-      valor:       fsVal(0),
-      propietario: fsVal('Ana (IA)'),
-      created_at:  fsVal(now),
-      notas:       fsVal([]),
-      tareas:      fsVal([]),
-      pagos:       fsVal([]),
-      etiquetas:   fsVal([]),
-      historial:   fsVal([{ icono: '📱', accion: 'Lead creado automáticamente por WhatsApp entrante', fecha: now, usuario: 'Ana (IA)' }]),
-    }
-  };
-  try {
-    await fetch(`${FS_BASE}/leads/${id}?key=${FS_KEY}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(doc),
-    });
-    console.log(`[WA-AI] Lead auto-creado: ${id} para ${phone}`);
-  } catch (e) {
-    console.error('[WA-AI] Error creando lead:', e.message);
-  }
-}
 
 // ── WhatsApp: Incoming webhook ────────────────────────────────────────────────
 app.post('/twilio/whatsapp-incoming', async (req, res) => {
   const { From, Body, MessageSid } = req.body;
   console.log(`[WA-IN] ${From}: ${Body} (${MessageSid})`);
 
-  // Auto-create lead if number not in CRM
   const exists = await fsLeadExists(From.replace('whatsapp:', ''));
-  if (!exists) await fsCreateLead(From);
+  if (!exists) await fsCreateLeadWA(From);
 
   if (aiEnabled.wa && Body?.trim()) {
     try {
       const reply = await askClaude(From, Body, 'wa');
       console.log(`[WA-AI] Ana → ${From}: "${reply}"`);
-      const client = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
-      await client.messages.create({ from: TWILIO_WA_FROM, to: From, body: reply });
+      const twilioClient = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
+      await twilioClient.messages.create({ from: TWILIO_WA_FROM, to: From, body: reply });
 
-      // Extract lead info + detect webinar intent in background
-      const history = conversationHistory.get(From) || [];
+      // Build Twilio-specific sendFn for the pipeline
+      const sendFn = async (to, text) => {
+        const c = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
+        await c.messages.create({ from: TWILIO_WA_FROM, to, body: text });
+      };
+
       ;(async () => {
         try {
-          await extractAndUpdateLead(From, history);
-
-          // Detect webinar interest only if invite not already sent
-          if (!webinarInviteSent.has(From)) {
-            const wantsWebinar = await detectWebinarIntent(history);
-            if (wantsWebinar) {
-              webinarInviteSent.add(From);
-
-              // Get fresh lead data
-              const rawPhone = From.replace('whatsapp:', '');
-              const doc = await fsGetLeadByPhone(rawPhone);
-              if (doc) {
-                const leadId = doc.name.split('/').pop();
-                const f      = doc.fields || {};
-                const nombre = f.nombre?.stringValue || '';
-                const correo = f.correo?.stringValue || '';
-
-                // 1. Send webinar link via WhatsApp
-                const twilioClient = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
-                await twilioClient.messages.create({
-                  from: TWILIO_WA_FROM,
-                  to:   From,
-                  body: `🎥 Aquí está el link de tu webinar informativo:\n${WEBINAR_URL}\n\nEs gratuito y dura aproximadamente 60 minutos. ¡Cualquier duda estoy aquí! 😊`,
-                });
-
-                // 2. Send email invitation
-                if (correo) await sendWebinarEmail(correo, nombre);
-
-                // 3. Move lead to "Inscrito en Webinar" + auto-register
-                await moveLeadToWebinar(leadId, nombre, correo);
-              }
-            }
-          }
+          await runWAPipeline(From, conversationHistory, sendFn, { SERVER_URL, WEBINAR_URL });
         } catch (e) {
           console.error('[BG] Error:', e.message);
         }
@@ -762,44 +490,23 @@ app.post('/twilio/sms-incoming', async (req, res) => {
   // If the message comes from a WhatsApp number, run full WA pipeline
   if (From?.startsWith('whatsapp:')) {
     const exists = await fsLeadExists(From.replace('whatsapp:', ''));
-    if (!exists) await fsCreateLead(From);
+    if (!exists) await fsCreateLeadWA(From);
 
     if (aiEnabled.wa && Body?.trim()) {
       try {
         const reply = await askClaude(From, Body, 'wa');
         console.log(`[WA-AI via SMS hook] Ana → ${From}: "${reply}"`);
-        const client = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
-        await client.messages.create({ from: TWILIO_WA_FROM, to: From, body: reply });
+        const twilioClient = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
+        await twilioClient.messages.create({ from: TWILIO_WA_FROM, to: From, body: reply });
 
-        const history = conversationHistory.get(From) || [];
+        const sendFn = async (to, text) => {
+          const c = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
+          await c.messages.create({ from: TWILIO_WA_FROM, to, body: text });
+        };
+
         ;(async () => {
           try {
-            await extractAndUpdateLead(From, history);
-
-            if (!webinarInviteSent.has(From)) {
-              const wantsWebinar = await detectWebinarIntent(history);
-              if (wantsWebinar) {
-                webinarInviteSent.add(From);
-                const rawPhone = From.replace('whatsapp:', '');
-                const doc = await fsGetLeadByPhone(rawPhone);
-                if (doc) {
-                  const leadId = doc.name.split('/').pop();
-                  const f      = doc.fields || {};
-                  const nombre = f.nombre?.stringValue || '';
-                  const correo = f.correo?.stringValue || '';
-
-                  const twilioClient = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
-                  await twilioClient.messages.create({
-                    from: TWILIO_WA_FROM,
-                    to:   From,
-                    body: `🎥 Aquí está el link de tu webinar informativo:\n${WEBINAR_URL}\n\nEs gratuito y dura aproximadamente 60 minutos. ¡Cualquier duda estoy aquí! 😊`,
-                  });
-
-                  if (correo) await sendWebinarEmail(correo, nombre);
-                  await moveLeadToWebinar(leadId, nombre, correo);
-                }
-              }
-            }
+            await runWAPipeline(From, conversationHistory, sendFn, { SERVER_URL, WEBINAR_URL });
           } catch (e) {
             console.error('[BG via SMS hook] Error:', e.message);
           }

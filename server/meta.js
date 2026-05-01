@@ -1,5 +1,9 @@
 const crypto = require('crypto');
 const { askClaude, conversationHistory } = require('./ai');
+const { fsLeadExists, fsCreateLeadWA, runWAPipeline } = require('./pipeline');
+
+const SERVER_URL  = process.env.SERVER_URL  || 'https://elite-reclutamiento-production.up.railway.app';
+const WEBINAR_URL = process.env.WEBINAR_URL || 'https://quintero-partners.webinargeek.com/oportunidad-laboral-webinar-on-demand-q-p';
 
 // ── Env vars (set in Railway) ─────────────────────────────────────────────────
 const META_VERIFY_TOKEN      = process.env.META_VERIFY_TOKEN      || 'grupoelite2026';
@@ -145,9 +149,24 @@ function registerMetaRoutes(app) {
       if (!text) return;
 
       console.log(`[Meta WA] ← ${from}: ${text}`);
-      const reply = await askClaude(`wa_meta:${from}`, text, 'wa');
+
+      // Auto-create lead if not in CRM
+      const exists = await fsLeadExists(from);
+      if (!exists) await fsCreateLeadWA(`wa_meta:${from}`);
+
+      const convKey = `wa_meta:${from}`;
+      const reply   = await askClaude(convKey, text, 'wa');
       console.log(`[Meta WA] → ${from}: ${reply}`);
       await sendWhatsApp(from, reply);
+
+      // Full pipeline: extract data + detect webinar intent + send link
+      ;(async () => {
+        try {
+          await runWAPipeline(convKey, conversationHistory, sendWhatsApp, { SERVER_URL, WEBINAR_URL });
+        } catch (e) {
+          console.error('[Meta WA Pipeline] Error:', e.message);
+        }
+      })();
     } catch (e) {
       console.error('[Meta WA] Error:', e.message);
     }
