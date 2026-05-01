@@ -2644,21 +2644,40 @@ async function sendToWebinar() {
   const lead = leads.find(l => l.id === leadId);
   if (!lead) return;
 
+  if (lead.pipeline_id === 'en-webinar') {
+    showToast('ℹ️ Este lead ya está en En Webinar');
+    return;
+  }
+
   pushUndo('lead_change', JSON.parse(JSON.stringify(lead)));
-  const prev = lead.etapa;
-  lead.pipeline_id = 'en-webinar';
-  lead.etapa       = 'Inscrito en Webinar';
+  const prev        = lead.etapa;
+  const personalUrl = `${location.origin}/webinar.html?id=${lead.id}&nombre=${encodeURIComponent(lead.nombre||'')}&correo=${encodeURIComponent(lead.correo||'')}`;
+
+  lead.pipeline_id               = 'en-webinar';
+  lead.etapa                     = 'Inscrito en Webinar';
   lead.fecha_inscripcion_webinar = new Date().toISOString();
-  addHistorial(lead.id, `Enviado a Webinar (desde ${prev})`, '🎥');
+  lead.link_webinar              = personalUrl;
+  addHistorial(lead.id, `Enviado a Webinar (desde ${prev}) — link personalizado generado`, '🎥');
   saveLeads(lead.id);
 
-  // 1. Abrir página de registro
-  const wUrl = `/webinar.html?id=${lead.id}&nombre=${encodeURIComponent(lead.nombre||'')}&correo=${encodeURIComponent(lead.correo||'')}`;
-  const _a = Object.assign(document.createElement('a'), { href: wUrl, target: '_blank', rel: 'noopener' });
-  document.body.appendChild(_a); _a.click(); document.body.removeChild(_a);
-
-  // 2. Enviar email con el link
-  if (lead.correo) enviarLinkPorCorreo(lead.id);
+  // Enviar correo con link personalizado via servidor
+  if (lead.correo) {
+    try {
+      await fetch(`${SERVER_URL}/send-webinar-email`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ correo: lead.correo, nombre: lead.nombre || '', personalUrl }),
+      });
+      addHistorial(lead.id, `Link del webinar enviado por correo a ${lead.correo}`, '📧');
+      lead.webinar_email_enviado = new Date().toISOString();
+      saveLeads(lead.id);
+      showToast(`✅ Correo enviado a ${lead.correo}`);
+    } catch(e) {
+      showToast('⚠️ Lead movido a En Webinar pero falló el correo');
+    }
+  } else {
+    showToast('⚠️ Lead movido a En Webinar — sin correo para enviar link');
+  }
 
   celebrateWebinar();
   renderKanban();
