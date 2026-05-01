@@ -209,6 +209,9 @@ tr.lead-resuelto td:last-child { pointer-events:none;opacity:.4; }
 .kcard-llamada-dismiss:hover { color:#fdab3d; }
 .kcard--alert { border-color:rgba(253,171,61,.35) !important; }
 .tr-llamada-alert { background:rgba(253,171,61,.06) !important; border-left:3px solid #fdab3d; }
+.kcard-sinmgr-alert { display:flex;align-items:center;gap:6px;margin:-10px -11px 8px;padding:6px 10px;background:linear-gradient(90deg,rgba(239,68,68,.14),rgba(185,28,28,.08));border-bottom:1px solid rgba(239,68,68,.3);border-radius:8px 8px 0 0;font-size:11px;font-weight:600;color:#f87171; }
+.kcard--sinmgr { border-color:rgba(239,68,68,.4) !important; }
+.tr-sinmgr-alert { background:rgba(239,68,68,.06) !important; border-left:3px solid #ef4444; }
 .kcard.dragging { opacity:.5;transform:rotate(2deg); }
 .kprog-bar { height:4px; background:var(--border); border-radius:0 0 8px 8px; margin:8px -11px -10px; overflow:hidden; }
 .kprog-fill { height:100%; border-radius:0 0 8px 8px; transition:width .4s; }
@@ -2172,9 +2175,12 @@ function renderKanban() {
           const llamadaBadge = ld.quiere_entrevista
             ? `<span onclick="event.stopPropagation();dismissLlamada('${ld.id}')" title="Clic para marcar como atendido" style="display:inline-flex;align-items:center;gap:4px;background:rgba(253,171,61,.15);border:1px solid rgba(253,171,61,.4);color:#fdab3d;font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;cursor:pointer;animation:blink-dot 1.4s ease-in-out infinite;">🔔 Quiere llamada</span>`
             : '';
-          return `<tr class="${resuelto}${ld.quiere_entrevista ? ' tr-llamada-alert' : ''}" onclick="${resuelto?'':` openLead('${ld.id}')`}">
+          const sinMgrBadge = ld.sin_manager
+            ? `<span onclick="event.stopPropagation();dismissSinManager('${ld.id}')" title="Marcar como atendido" style="display:inline-flex;align-items:center;gap:4px;background:rgba(239,68,68,.15);border:1px solid rgba(239,68,68,.4);color:#f87171;font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;cursor:pointer;animation:blink-dot 1.4s ease-in-out infinite;">🚨 Sin manager</span>`
+            : '';
+          return `<tr class="${resuelto}${ld.quiere_entrevista ? ' tr-llamada-alert' : ''}${ld.sin_manager ? ' tr-sinmgr-alert' : ''}" onclick="${resuelto?'':` openLead('${ld.id}')`}">
             <td style="color:var(--text2);display:flex;align-items:center;gap:6px;min-height:36px">${icon}${i+1}</td>
-            <td style="font-weight:600;color:#fff">${esc(ld.nombre)}${llamadaBadge ? '<br>'+llamadaBadge : ''}</td>
+            <td style="font-weight:600;color:#fff">${esc(ld.nombre)}${sinMgrBadge ? '<br>'+sinMgrBadge : ''}${llamadaBadge ? '<br>'+llamadaBadge : ''}</td>
             <td style="color:var(--text2)">${esc(ld.correo||'')}</td>
             <td>${esc(ld.telefono||'')}</td>
             <td><span class="lt-badge ${srcClass(ld.fuente)}">${esc(ld.fuente||'')}</span></td>
@@ -2332,15 +2338,23 @@ function renderCard(l) {
        </div>`
     : '';
 
+  const sinMgrAlert = l.sin_manager
+    ? `<div class="kcard-sinmgr-alert">
+        <span class="kcard-llamada-dot" style="background:#ef4444"></span>
+        Sin manager disponible
+        <button class="kcard-llamada-dismiss" style="color:rgba(239,68,68,.6)" title="Marcar como atendido" onclick="event.stopPropagation();dismissSinManager('${l.id}')">✕</button>
+       </div>`
+    : '';
+
   const prog = calcProgreso(l);
   const progColor = prog >= 100 ? '#fbbf24' : prog >= 70 ? '#00c875' : prog >= 40 ? '#4f7fff' : '#8890a4';
 
   return `
-  <div class="kcard${l.quiere_entrevista ? ' kcard--alert' : ''}" draggable="true" id="kcard-${l.id}"
+  <div class="kcard${l.quiere_entrevista ? ' kcard--alert' : ''}${l.sin_manager ? ' kcard--sinmgr' : ''}" draggable="true" id="kcard-${l.id}"
        ondragstart="handleDragStart(event,'${l.id}')"
        ondragend="this.classList.remove('dragging')"
        onclick="openLead('${l.id}')">
-    ${llamadaAlert}
+    ${sinMgrAlert}${llamadaAlert}
     <div class="kc-top">
       <div class="kc-name">${esc(l.nombre)}</div>
       <div style="display:flex;flex-direction:column;align-items:flex-end;gap:1px;flex-shrink:0;">
@@ -3499,6 +3513,23 @@ async function dismissLlamada(leadId) {
   try {
     const fields = { quiere_entrevista: { booleanValue: false } };
     await fetch(`${FS_BASE}/leads/${leadId}?key=${FS_KEY}&updateMask.fieldPaths=quiere_entrevista`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fields }),
+    });
+  } catch(e) {}
+}
+
+async function dismissSinManager(leadId) {
+  const lead = leads.find(l => l.id === leadId);
+  if (!lead) return;
+  lead.sin_manager = false;
+  addHistorial(leadId, 'Alerta sin manager atendida', '🚨');
+  renderKanban();
+  renderSidebar();
+  try {
+    const fields = { sin_manager: { booleanValue: false } };
+    await fetch(`${FS_BASE}/leads/${leadId}?key=${FS_KEY}&updateMask.fieldPaths=sin_manager`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ fields }),

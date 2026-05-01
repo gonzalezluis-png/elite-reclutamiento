@@ -21,8 +21,13 @@ const REASON_LABELS = {
   'sin-documentos':  '⚠️ Sin documentos legales para trabajar en EE.UU.',
 };
 
-// Timeouts por nivel (ms)
-const TIMEOUTS = { 1: 5 * 60 * 1000, 2: 10 * 60 * 1000 };
+// Timeouts por nivel y ronda (ms) — cada ronda da más tiempo
+const TIMEOUTS = {
+  1: { 1:  5*60*1000, 2: 20*60*1000, 3:  60*60*1000 },
+  2: { 1: 10*60*1000, 2: 30*60*1000, 3:  90*60*1000 },
+  3: { 1: 15*60*1000, 2: 40*60*1000, 3: 120*60*1000 },
+};
+const MAX_ROUNDS = 3;
 
 // ── Firestore helpers ─────────────────────────────────────────────────────────
 function fsVal(v) {
@@ -196,6 +201,7 @@ async function triggerEscalation(leadPhone, leadName, reason, lastUserMsg, sendW
       summary:     (lastUserMsg || '').slice(0, 300),
       status:      'pending',
       currentLevel: 1,
+      round:        1,
       createdAt:   now,
       level1SentAt: now,
       level2SentAt: '',
@@ -284,6 +290,25 @@ async function handleManagerReply(managerPhone, text, sendWAFn) {
   return false;
 }
 
+// ── Mark lead with no-manager alert in Firestore ─────────────────────────────
+async function markLeadSinManager(phone) {
+  try {
+    const clean = normalizePhone(phone);
+    const res   = await fetch(`${FS_BASE}/leads?key=${FS_KEY}&pageSize=500`);
+    const data  = await res.json();
+    const doc   = (data.documents || []).find(d => {
+      const t = d.fields?.telefono?.stringValue || '';
+      return normalizePhone(t) === clean || t.includes(clean);
+    });
+    if (!doc) return;
+    const leadId = doc.name.split('/').pop();
+    await fsPatch(`leads/${leadId}`, { sin_manager: true });
+    console.log(`[ESC] Lead ${leadId} marcado sin_manager`);
+  } catch (e) {
+    console.error('[ESC] markLeadSinManager error:', e.message);
+  }
+}
+
 // ── Timeout checker (call every 60s) ─────────────────────────────────────────
 async function checkTimeouts(sendWAFn) {
   try {
@@ -293,7 +318,10 @@ async function checkTimeouts(sendWAFn) {
 
     for (const esc of pending) {
       const level  = esc.currentLevel || 1;
-      const timeout = TIMEOUTS[level];
+      const round  = esc.round || 1;
+      const roundTimeouts = TIMEOUTS[level];
+      if (!roundTimeouts) continue;
+      const timeout = roundTimeouts[round];
       if (!timeout) continue;
 
       const sentKey = `level${level}SentAt`;
@@ -302,14 +330,46 @@ async function checkTimeouts(sendWAFn) {
 
       const nextLevel   = level + 1;
       const nextManager = managers.find(m => m.level === nextLevel);
-      if (!nextManager) continue;
 
-      const sentNextKey = `level${nextLevel}SentAt`;
-      await updateEscalation(esc._id, { currentLevel: nextLevel, [sentNextKey]: new Date().toISOString() });
-      const isLast = nextLevel === managers[managers.length - 1].level;
-      const msg    = buildAlertMsg(esc, nextManager.name, isLast);
-      await sendWAFn(nextManager.phone, msg);
-      console.log(`[ESC] Timeout: alerta ${esc._id} escalada automáticamente → nivel ${nextLevel}`);
+      if (nextManager) {
+        // Escalate to next level within same round
+        const sentNextKey = `level${nextLevel}SentAt`;
+        await updateEscalation(esc._id, { currentLevel: nextLevel, [sentNextKey]: new Date().toISOString() });
+        const isLast = nextLevel === managers[managers.length - 1].level;
+        const msg = buildAlertMsg(esc, nextManager.name, isLast);
+        await sendWAFn(nextManager.phone, msg);
+        console.log(`[ESC] Alerta ${esc._id} → nivel ${nextLevel} (ronda ${round})`);
+
+      } else {
+        // Last level timed out — start new round or give up
+        const nextRound = round + 1;
+
+        if (nextRound <= MAX_ROUNDS) {
+          // Restart cycle with next round (longer timeouts)
+          const m1 = managers.find(m => m.level === 1) || managers[0];
+          await updateEscalation(esc._id, {
+            currentLevel:  1,
+            round:         nextRound,
+            level1SentAt:  new Date().toISOString(),
+            level2SentAt:  '',
+            level3SentAt:  '',
+          });
+          const isLast = managers.length === 1;
+          const msg = buildAlertMsg(esc, m1.name, isLast);
+          await sendWAFn(m1.phone, msg);
+          console.log(`[ESC] Alerta ${esc._id} reinicia → ronda ${nextRound}`);
+
+        } else {
+          // All 3 rounds exhausted — give up
+          await updateEscalation(esc._id, { status: 'exhausted' });
+          await markLeadSinManager(esc.leadPhone);
+          // Send Ana's fallback message to the client
+          await sendWAFn(esc.leadPhone,
+            `Hola${esc.leadName ? ' ' + esc.leadName.split(' ')[0] : ''}, soy Ana de Grupo Élite. Aún no he podido contactar a uno de nuestros reclutadores para atender tu consulta, pero en cuanto uno esté disponible te haremos saber. ¡Gracias por tu paciencia!`
+          ).catch(() => {});
+          console.log(`[ESC] Alerta ${esc._id} agotada — 3 rondas sin respuesta`);
+        }
+      }
     }
   } catch (e) {
     console.error('[ESC] checkTimeouts error:', e.message);
