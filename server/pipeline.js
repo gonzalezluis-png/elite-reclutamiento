@@ -119,9 +119,15 @@ Responde SOLO con JSON válido, sin texto adicional:
   "nombre": "nombre completo o null",
   "correo": "email o null",
   "ubicacion": "ciudad, estado o null",
-  "disponibilidad": "tiempo completo / parcial / descripción o null"
+  "disponibilidad": "tiempo completo / parcial / descripción o null",
+  "tiene_experiencia": true/false/null,
+  "tiene_papeles": true/false/null,
+  "mayor_edad": true/false/null
 }
-Solo incluye campos que el candidato haya mencionado explícitamente. Si no hay info, pon null.`,
+- tiene_experiencia: true si el candidato mencionó experiencia laboral o trabajo previo. false si dijo que no tiene experiencia. null si no se mencionó.
+- tiene_papeles: true si confirmó que tiene documentos legales para trabajar (SSN, permiso, ciudadanía, etc). false si dijo que no. null si no se mencionó.
+- mayor_edad: true si es mayor de 18 años. false si es menor. null si no se sabe.
+Solo incluye campos que el candidato haya mencionado explícitamente. Si no hay info clara, pon null.`,
       messages,
     });
 
@@ -150,10 +156,16 @@ Solo incluye campos que el candidato haya mencionado explícitamente. Si no hay 
 
     const existingNombre = existing.nombre?.stringValue || '';
     const isAutoName = !existingNombre || existingNombre.startsWith('WA ') || existingNombre.startsWith('+');
-    if (extracted.nombre        && isAutoName)                              updates.nombre         = extracted.nombre;
-    if (extracted.correo        && !existing.correo?.stringValue)           updates.correo         = extracted.correo;
-    if (extracted.ubicacion     && !existing.ubicacion?.stringValue)        updates.ubicacion      = extracted.ubicacion;
-    if (extracted.disponibilidad && !existing.disponibilidad?.stringValue)  updates.disponibilidad = extracted.disponibilidad;
+    if (extracted.nombre         && isAutoName)                               updates.nombre          = extracted.nombre;
+    if (extracted.correo         && !existing.correo?.stringValue)            updates.correo          = extracted.correo;
+    if (extracted.ubicacion      && !existing.ubicacion?.stringValue)         updates.ubicacion       = extracted.ubicacion;
+    if (extracted.disponibilidad && !existing.disponibilidad?.stringValue)    updates.disponibilidad  = extracted.disponibilidad;
+    if (extracted.tiene_experiencia !== null && extracted.tiene_experiencia !== undefined && existing.tiene_experiencia?.booleanValue !== true)
+                                                                              updates.tiene_experiencia = extracted.tiene_experiencia;
+    if (extracted.tiene_papeles !== null && extracted.tiene_papeles !== undefined && existing.tiene_papeles?.booleanValue !== true)
+                                                                              updates.tiene_papeles   = extracted.tiene_papeles;
+    if (extracted.mayor_edad !== null && extracted.mayor_edad !== undefined && existing.mayor_edad?.booleanValue !== true)
+                                                                              updates.mayor_edad      = extracted.mayor_edad;
 
     if (!Object.keys(updates).length) return null;
     await fsUpdateLeadFields(leadId, updates);

@@ -210,6 +210,9 @@ tr.lead-resuelto td:last-child { pointer-events:none;opacity:.4; }
 .kcard--alert { border-color:rgba(253,171,61,.35) !important; }
 .tr-llamada-alert { background:rgba(253,171,61,.06) !important; border-left:3px solid #fdab3d; }
 .kcard.dragging { opacity:.5;transform:rotate(2deg); }
+.kprog-bar { height:3px; background:var(--border); border-radius:0 0 8px 8px; margin:-10px -11px 0; overflow:hidden; margin-top:8px; }
+.kprog-fill { height:100%; border-radius:0 0 8px 8px; transition:width .4s; }
+.kprog-badge { font-size:9px; font-weight:800; letter-spacing:.3px; padding:1px 5px; border-radius:10px; }
 .kc-top { display:flex;align-items:flex-start;justify-content:space-between;gap:6px;margin-bottom:5px; }
 .kc-name { font-size:12.5px;font-weight:600;color:#fff;line-height:1.3;flex:1; }
 .kc-value { font-size:11px;color:var(--text2);white-space:nowrap; }
@@ -964,6 +967,9 @@ tr.lead-resuelto td:last-child { pointer-events:none;opacity:.4; }
               <div class="field"><label>Fecha Webinar</label><input type="date" id="ml-fecha-inscripcion-webinar" /></div>
               <div class="field"><label>Seguidores</label><input id="ml-seguidores" placeholder="Nombres" /></div>
             </div>
+
+            <!-- Progreso del funnel -->
+            <div id="ml-progreso-tracker" style="margin-top:16px;margin-bottom:4px;"></div>
 
             <!-- Enviar a Webinar -->
             <div style="margin-top:12px;">
@@ -2283,6 +2289,30 @@ function renderUniversalTable(stageDefs, pipelineId, q, showEtapa) {
     </table>`;
 }
 
+function calcProgreso(lead) {
+  const etapa = (lead.etapa || '').toLowerCase();
+  let max = 5;
+  // 10%
+  if (lead.nombre && !lead.nombre.startsWith('WA ') && !lead.nombre.startsWith('+') && lead.ubicacion) max = Math.max(max, 10);
+  // 20%
+  if (lead.tiene_experiencia === true) max = Math.max(max, 20);
+  // 45%
+  if (lead.webinar_intent === true) max = Math.max(max, 45);
+  // 50%
+  if (lead.tiene_papeles === true && lead.mayor_edad === true) max = Math.max(max, 50);
+  // 60%
+  if (lead.correo) max = Math.max(max, 60);
+  // 70%
+  if (lead.webinar_visto === true || (lead.pipeline_id === 'en-webinar' && lead.etapa !== 'Inscrito en Webinar')) max = Math.max(max, 70);
+  // 80%
+  if ((lead.cita && lead.cita.fecha) || ['entrevistas-generales','caritza-rojas','maria-lugo','brayan-alexander'].includes(lead.pipeline_id)) max = Math.max(max, 80);
+  // 90%
+  if (/confirm/i.test(lead.etapa || '')) max = Math.max(max, 90);
+  // 100%
+  if (/asist|ENTREVISTADO|ENTREVISTADA/i.test(lead.etapa || '')) max = Math.max(max, 100);
+  return max;
+}
+
 function renderCard(l) {
   const sourceBadgeClass = {
     'Meta / Facebook':'meta','Instagram':'ig','WhatsApp':'wa','Referido':'ref','LinkedIn':'otro','OCC / Indeed':'otro','Otro':'otro'
@@ -2298,6 +2328,9 @@ function renderCard(l) {
         <button class="kcard-llamada-dismiss" title="Marcar como visto" onclick="event.stopPropagation();dismissLlamada('${l.id}')">✕</button>
        </div>`
     : '';
+
+  const prog = calcProgreso(l);
+  const progColor = prog >= 100 ? '#fbbf24' : prog >= 70 ? '#00c875' : prog >= 40 ? '#4f7fff' : '#8890a4';
 
   return `
   <div class="kcard${l.quiere_entrevista ? ' kcard--alert' : ''}" draggable="true" id="kcard-${l.id}"
@@ -2315,6 +2348,7 @@ function renderCard(l) {
     </div>
     <div class="kc-bottom">
       <div class="kc-avatar" title="${esc(l.propietario||'')}">${esc(initials)}</div>
+      <span class="kprog-badge" style="color:${progColor};background:${progColor}18;">${prog}%</span>
       <div class="kc-date">${dateStr}</div>
       <div class="kc-actions">
         <button class="kca-btn" title="Llamar" onclick="event.stopPropagation();quickAction('call','${l.id}')">📞</button>
@@ -2325,6 +2359,7 @@ function renderCard(l) {
         <button class="kca-btn-move" title="Mover etapa" onclick="event.stopPropagation();toggleMoveMenu(event,'${l.id}')">Mover ↕</button>
       </div>
     </div>
+    <div class="kprog-bar"><div class="kprog-fill" style="width:${prog}%;background:${progColor};"></div></div>
   </div>`;
 }
 
@@ -2896,6 +2931,7 @@ function openLead(id, tabName) {
   document.getElementById('ml-inscrito-por').value = lead.inscrito_por || '';
   document.getElementById('ml-ubicacion').value = lead.ubicacion || '';
   document.getElementById('ml-fecha-inscripcion-webinar').value = lead.fecha_inscripcion_webinar || '';
+  _mlRenderProgreso(lead);
   document.getElementById('ml-fuente').value = lead.fuente || 'Meta / Facebook';
   document.getElementById('ml-seguidores').value = (lead.seguidores||[]).join(', ');
 
@@ -2968,9 +3004,47 @@ function saveLead() {
   saveLeads(currentLeadId);
   _mlSnapshot = null;
   _mlSetMode(false); // return to view (locked) mode
+  _mlRenderProgreso(lead);
   renderKanban();
   renderSidebar();
   showToast('✏️ Aplicante guardado', true);
+}
+
+function _mlRenderProgreso(lead) {
+  const el = document.getElementById('ml-progreso-tracker');
+  if (!el) return;
+  const steps = [
+    { pct: 5,   label: 'Aplicó',               check: () => true },
+    { pct: 10,  label: 'Nombre y ciudad',       check: l => l.nombre && !l.nombre.startsWith('WA ') && !l.nombre.startsWith('+') && l.ubicacion },
+    { pct: 20,  label: 'Experiencia laboral',   check: l => l.tiene_experiencia },
+    { pct: 45,  label: 'Interés en webinar',    check: l => l.webinar_intent },
+    { pct: 50,  label: 'Papeles y mayoría',     check: l => l.tiene_papeles && l.mayor_edad },
+    { pct: 60,  label: 'Correo registrado',     check: l => !!l.correo },
+    { pct: 70,  label: 'Vio el webinar',        check: l => l.webinar_visto || (l.pipeline_id === 'en-webinar' && l.etapa !== 'Inscrito en Webinar') },
+    { pct: 80,  label: 'Entrevista agendada',   check: l => !!(l.cita?.fecha) || ['entrevistas-generales','caritza-rojas','maria-lugo','brayan-alexander'].includes(l.pipeline_id) },
+    { pct: 90,  label: 'Confirmó asistencia',   check: l => /confirm/i.test(l.etapa||'') },
+    { pct: 100, label: 'Asistió a entrevista',  check: l => /asist|ENTREVISTADO|ENTREVISTADA/i.test(l.etapa||'') },
+  ];
+  const current = calcProgreso(lead);
+  el.innerHTML = `
+    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text2);margin-bottom:10px;">Progreso del funnel</div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+      <div style="flex:1;height:6px;background:var(--border);border-radius:3px;overflow:hidden;">
+        <div style="height:100%;width:${current}%;background:${current>=100?'#fbbf24':current>=70?'#00c875':'#4f7fff'};border-radius:3px;transition:width .5s;"></div>
+      </div>
+      <span style="font-size:16px;font-weight:800;color:${current>=100?'#fbbf24':current>=70?'#00c875':'#4f7fff'};">${current}%</span>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:5px;">
+      ${steps.map(s => {
+        const done = s.check(lead);
+        const active = s.pct === current;
+        return `<div style="display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:7px;background:${done?'rgba(0,200,117,.06)':active?'rgba(79,127,255,.06)':'transparent'};border:1px solid ${done?'rgba(0,200,117,.15)':active?'rgba(79,127,255,.15)':'transparent'};">
+          <span style="font-size:13px;">${done?'✅':active?'🔵':'⬜'}</span>
+          <span style="font-size:12px;color:${done?'#e2fef3':active?'#c4d9ff':'var(--text2)'};">${s.label}</span>
+          <span style="margin-left:auto;font-size:10px;font-weight:700;color:${done?'#00c875':active?'#4f7fff':'var(--text2)'};">${s.pct}%</span>
+        </div>`;
+      }).join('')}
+    </div>`;
 }
 
 function deleteLead() {
