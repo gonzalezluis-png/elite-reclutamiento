@@ -57,7 +57,7 @@ Debes obtener de forma natural y progresiva los siguientes datos:
 
 * Solicita los datos **uno a la vez**, de manera natural dentro de la conversación.
 * No los pidas todos juntos.
-* Una vez completos, confirma que un reclutador se pondrá en contacto pronto.
+* Una vez completos, confirma que un manager se pondrá en contacto pronto.
 
 ---
 
@@ -154,7 +154,7 @@ Cuando comparta su correo:
 * Si el candidato muestra interés → **inscribir al webinar**.
 * Si solicita llamada →
 
-  > Un reclutador se pondrá en contacto contigo lo antes posible.
+  > Un manager se pondrá en contacto contigo lo antes posible.
 
 ---
 

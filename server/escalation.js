@@ -365,7 +365,7 @@ async function checkTimeouts(sendWAFn) {
           await markLeadSinManager(esc.leadPhone);
           // Send Ana's fallback message to the client
           await sendWAFn(esc.leadPhone,
-            `Hola${esc.leadName ? ' ' + esc.leadName.split(' ')[0] : ''}, soy Ana de Grupo Élite. Aún no he podido contactar a uno de nuestros reclutadores para atender tu consulta, pero en cuanto uno esté disponible te haremos saber. ¡Gracias por tu paciencia!`
+            `Hola${esc.leadName ? ' ' + esc.leadName.split(' ')[0] : ''}, soy Ana de Grupo Élite. Aún no he podido contactar a uno de nuestros managers para atender tu consulta, pero en cuanto uno esté disponible te haremos saber. ¡Gracias por tu paciencia!`
           ).catch(() => {});
           console.log(`[ESC] Alerta ${esc._id} agotada — 3 rondas sin respuesta`);
         }
