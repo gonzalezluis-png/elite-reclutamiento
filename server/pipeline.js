@@ -155,16 +155,26 @@ Solo incluye campos que el candidato haya mencionado explícitamente. Si no hay 
     if (extracted.ubicacion     && !existing.ubicacion?.stringValue)        updates.ubicacion      = extracted.ubicacion;
     if (extracted.disponibilidad && !existing.disponibilidad?.stringValue)  updates.disponibilidad = extracted.disponibilidad;
 
-    if (!Object.keys(updates).length) return;
+    if (!Object.keys(updates).length) return null;
     await fsUpdateLeadFields(leadId, updates);
     console.log(`[AI-Extract] Lead ${leadId} actualizado:`, updates);
 
-    // If email was just captured, check if this lead needs webinar registration
+    // If correo was just captured and lead had pending webinar intent → register now
     if (updates.correo) {
-      const allFields = { ...existing };
-      for (const [k, v] of Object.entries(updates)) allFields[k] = { stringValue: v };
-      return { leadId, fields: allFields };
+      const nombre       = updates.nombre || existing.nombre?.stringValue || '';
+      const correo       = updates.correo;
+      const pipelineId   = existing.pipeline_id?.stringValue || '';
+      const webinarIntent = existing.webinar_intent?.booleanValue || false;
+
+      if (webinarIntent && pipelineId !== 'en-webinar' &&
+          nombre && !nombre.startsWith('WA ') && !nombre.startsWith('+')) {
+        console.log(`[AI-Extract] Correo recibido con webinar_intent pendiente — registrando ${leadId}`);
+        await fsUpdateLeadFields(leadId, { webinar_intent: false });
+        const WEBINAR_URL = process.env.WEBINAR_URL || 'https://crm.grupoelitework.com/webinar.html';
+        await moveLeadToWebinar(leadId, nombre, correo, WEBINAR_URL);
+      }
     }
+    return null;
   } catch (e) {
     console.error('[AI-Extract] Error:', e.message);
   }
@@ -297,18 +307,26 @@ async function runWAPipeline(from, historyMap, sendFn, opts) {
     const correo      = f.correo?.stringValue || '';
     const leadId      = doc.name.split('/').pop();
 
-    // Skip if already in webinar pipeline (survives server restarts)
+    // Skip if already registered
     if (pipelineId === 'en-webinar' || webinarInviteSent.has(from)) return;
 
-    const wantsWebinar = await detectWebinarIntent(history);
+    const webinarIntent = f.webinar_intent?.booleanValue || false;
+    const wantsWebinar  = webinarIntent || await detectWebinarIntent(history);
+
     if (wantsWebinar) {
-      // Need both name and email to register and send personalized link
       if (!correo || !nombre || nombre.startsWith('WA ') || nombre.startsWith('+')) {
-        console.log(`[Pipeline] Sin correo/nombre para ${from} — esperando más datos`);
+        // Save intent flag to Firestore so it persists across restarts and
+        // is picked up automatically when the correo arrives later
+        if (!webinarIntent) {
+          await fsUpdateLeadFields(leadId, { webinar_intent: true });
+          console.log(`[Pipeline] Intención webinar guardada para ${from} — esperando correo`);
+        }
         return;
       }
 
       webinarInviteSent.add(from);
+      // Clear the flag now that we're processing it
+      await fsUpdateLeadFields(leadId, { webinar_intent: false });
       await moveLeadToWebinar(leadId, nombre, correo, WEBINAR_URL);
     }
   } catch (e) {
