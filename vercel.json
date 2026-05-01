@@ -1,11 +1,21 @@
 {
   "version": 2,
   "builds": [
-    { "src": "index.html",   "use": "@vercel/static" },
-    { "src": "webinar.html", "use": "@vercel/static" }
+    { "src": "index.html",    "use": "@vercel/static" },
+    { "src": "webinar.html",  "use": "@vercel/static" },
+    { "src": "registro.html", "use": "@vercel/static" }
   ],
   "routes": [
-    { "src": "/webinar.html", "dest": "/webinar.html" },
-    { "src": "/(.*)",         "dest": "/index.html"   }
+    { "src": "/webinar.html",  "dest": "/webinar.html"  },
+    { "src": "/registro.html", "dest": "/registro.html" },
+    { "src": "/(.*)",          "dest": "/index.html"    }
+  ],
+  "headers": [
+    {
+      "source": "/(.*).html",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }
+      ]
+    }
   ]
 }

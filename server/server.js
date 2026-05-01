@@ -710,8 +710,12 @@ app.get('/interviews/slots', async (req, res) => {
 });
 
 app.post('/interviews/book', async (req, res) => {
-  const { leadPhone, leadName, slotIso, convKey } = req.body;
-  if (!leadPhone || !slotIso) return res.status(400).json({ ok: false, error: 'leadPhone y slotIso requeridos' });
+  // Accept both frontend field names (phone/slot/name) and internal names (leadPhone/slotIso/leadName)
+  const leadPhone = req.body.leadPhone || req.body.phone;
+  const leadName  = req.body.leadName  || req.body.name;
+  const slotIso   = req.body.slotIso   || req.body.slot;
+  const convKey   = req.body.convKey;
+  if (!leadPhone || !slotIso) return res.status(400).json({ ok: false, error: 'phone y slot requeridos' });
   const { id, cfg, doc } = await bookInterview({ leadPhone, leadName, slotIso, convKey });
   // Notify interviewer via WhatsApp
   if (cfg.interviewer.phone) {
@@ -722,11 +726,15 @@ app.post('/interviews/book', async (req, res) => {
     const { sendWhatsApp } = require('./meta');
     sendWhatsApp(cfg.interviewer.phone.replace(/^\+/, ''), msg).catch(() => {});
   }
-  res.json({ ok: true, id, doc });
+  res.json({ ok: true, id, doc, interview: { id, slot: slotIso, zoom_link: doc.zoomLink, status: doc.status } });
 });
 
 app.get('/interviews', async (req, res) => {
-  const list = await listInterviews();
+  let list = await listInterviews();
+  if (req.query.phone) {
+    const phone = req.query.phone.replace(/^\+/, '');
+    list = list.filter(i => (i.leadPhone || '').replace(/^\+/, '') === phone);
+  }
   res.json({ ok: true, interviews: list });
 });
 

@@ -993,6 +993,24 @@ tr.lead-resuelto td:last-child { pointer-events:none;opacity:.4; }
           </div>
         </div>
 
+        <!-- Agendar entrevista (solo En Webinar) -->
+        <div id="ml-entrevista-section" style="display:none;border-top:1px solid rgba(255,255,255,.06);">
+          <div class="ml-cita-hdr" onclick="lcToggleEntrevista(this)">
+            <span>🎙 Agendar Entrevista</span><span id="ml-entrevista-arrow">▸</span>
+          </div>
+          <div class="ml-cita-body" id="ml-entrevista-body">
+            <div id="iv-slots-status" style="font-size:12px;color:var(--text2);margin-bottom:10px;">Haz clic en "Ver disponibilidad" para ver los horarios.</div>
+            <button class="btn-secondary" onclick="ivLoadSlots()" style="font-size:11px;padding:5px 12px;margin-bottom:10px;">🔍 Ver disponibilidad</button>
+            <div id="iv-slots-list" style="display:flex;flex-direction:column;gap:6px;"></div>
+            <!-- Entrevista ya agendada -->
+            <div id="iv-booked-info" style="display:none;background:rgba(99,102,241,.1);border:1px solid rgba(99,102,241,.3);border-radius:8px;padding:10px 12px;margin-top:8px;">
+              <div style="font-size:11px;font-weight:700;color:#a5b4fc;margin-bottom:4px;">✅ Entrevista agendada</div>
+              <div id="iv-booked-detail" style="font-size:12px;color:var(--text);"></div>
+              <button onclick="ivCancelBooking()" style="margin-top:8px;background:rgba(226,68,92,.15);border:none;color:var(--red);border-radius:5px;padding:3px 10px;cursor:pointer;font-size:11px;">Cancelar entrevista</button>
+            </div>
+          </div>
+        </div>
+
         <!-- Cita collapsible -->
         <div class="ml-cita-hdr" onclick="lcToggleCita(this)">
           <span>📅 Cita</span><span id="ml-cita-arrow">▸</span>
@@ -2971,6 +2989,9 @@ function openLead(id, tabName) {
   // tareas, notas, historial
   renderNotas(lead.notas || []);
 
+  // entrevista section
+  ivInitSection(lead);
+
   document.getElementById('lead-modal').classList.remove('hidden');
   _mlSetMode(false);
   lcOpen();
@@ -3279,6 +3300,137 @@ function lcToggleCita(hdr) {
   const arrow = document.getElementById('ml-cita-arrow');
   const open  = body.classList.toggle('open');
   if (arrow) arrow.textContent = open ? '▾' : '▸';
+}
+
+// ════════════════════════════════════════════
+//  ENTREVISTAS (manual scheduling from lead modal)
+// ════════════════════════════════════════════
+let _ivCurrentLeadPhone = null;
+let _ivCurrentLeadName  = null;
+let _ivCurrentInterview = null;
+
+function lcToggleEntrevista(hdr) {
+  const body  = document.getElementById('ml-entrevista-body');
+  const arrow = document.getElementById('ml-entrevista-arrow');
+  const open  = body.classList.toggle('open');
+  if (arrow) arrow.textContent = open ? '▾' : '▸';
+}
+
+async function ivInitSection(lead) {
+  _ivCurrentLeadPhone = lead.telefono || '';
+  _ivCurrentLeadName  = lead.nombre  || lead.contacto || '';
+  _ivCurrentInterview = null;
+
+  const sec    = document.getElementById('ml-entrevista-section');
+  const booked = document.getElementById('iv-booked-info');
+  const list   = document.getElementById('iv-slots-list');
+  const status = document.getElementById('iv-slots-status');
+
+  if (lead.pipeline_id !== 'en-webinar') { sec.style.display = 'none'; return; }
+  sec.style.display = 'block';
+
+  // Reset state
+  list.innerHTML = '';
+  booked.style.display = 'none';
+  status.textContent = 'Haz clic en "Ver disponibilidad" para ver los horarios.';
+
+  // Check if lead already has a booked interview
+  try {
+    const res  = await fetch(`/interviews?phone=${encodeURIComponent(_ivCurrentLeadPhone)}`);
+    const data = await res.json();
+    const raw = (data.interviews || []).find(i => i.status === 'scheduled' || i.status === 'booked');
+    if (raw) {
+      const active = { ...raw, slot: raw.slot || raw.slotIso, zoom_link: raw.zoom_link || raw.zoomLink };
+      _ivCurrentInterview = active;
+      _ivShowBookedInfo(active);
+      status.textContent = '';
+    }
+  } catch (e) { /* ignore */ }
+}
+
+function _ivShowBookedInfo(interview) {
+  const booked = document.getElementById('iv-booked-info');
+  const detail = document.getElementById('iv-booked-detail');
+  const list   = document.getElementById('iv-slots-list');
+  const btnVer = document.querySelector('#ml-entrevista-body button');
+
+  booked.style.display = 'block';
+  if (btnVer) btnVer.style.display = 'none';
+
+  const d = new Date(interview.slot);
+  const fmt = d.toLocaleString('es-MX', { weekday:'long', year:'numeric', month:'long', day:'numeric', hour:'2-digit', minute:'2-digit' });
+  detail.innerHTML = `<div>${fmt}</div>${interview.zoom_link ? `<div style="margin-top:4px;"><a href="${esc(interview.zoom_link)}" target="_blank" style="color:#a5b4fc;font-size:11px;">🔗 Enlace Zoom</a></div>` : ''}`;
+  list.innerHTML = '';
+}
+
+async function ivLoadSlots() {
+  const list   = document.getElementById('iv-slots-list');
+  const status = document.getElementById('iv-slots-status');
+  list.innerHTML = '<div style="font-size:12px;color:var(--text2);">Cargando horarios...</div>';
+  status.textContent = '';
+  try {
+    const res  = await fetch('/interviews/slots');
+    const data = await res.json();
+    const slots = data.slots || [];
+    if (!slots.length) {
+      list.innerHTML = '<div style="font-size:12px;color:var(--text2);">No hay horarios disponibles. Revisa la configuración del calendario.</div>';
+      return;
+    }
+    list.innerHTML = slots.map((s, i) => {
+      const d   = new Date(s);
+      const lbl = d.toLocaleString('es-MX', { weekday:'short', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
+      return `<button onclick="ivBookSlot('${s}')" style="text-align:left;background:rgba(99,102,241,.12);border:1px solid rgba(99,102,241,.3);color:var(--text);border-radius:6px;padding:6px 10px;cursor:pointer;font-size:12px;">📅 ${lbl}</button>`;
+    }).join('');
+  } catch (e) {
+    list.innerHTML = '<div style="font-size:12px;color:var(--red);">Error cargando horarios.</div>';
+  }
+}
+
+async function ivBookSlot(slot) {
+  const d   = new Date(slot);
+  const lbl = d.toLocaleString('es-MX', { weekday:'long', month:'long', day:'numeric', hour:'2-digit', minute:'2-digit' });
+  if (!confirm(`¿Confirmar entrevista el ${lbl}?`)) return;
+
+  const status = document.getElementById('iv-slots-status');
+  status.textContent = 'Agendando...';
+  document.getElementById('iv-slots-list').innerHTML = '';
+
+  try {
+    const res  = await fetch('/interviews/book', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone: _ivCurrentLeadPhone, name: _ivCurrentLeadName, slot }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Error');
+    _ivCurrentInterview = data.interview;
+    _ivShowBookedInfo(data.interview);
+    status.textContent = '';
+    showToast('Entrevista agendada ✓');
+  } catch (e) {
+    status.textContent = `Error: ${e.message}`;
+  }
+}
+
+async function ivCancelBooking() {
+  if (!_ivCurrentInterview) return;
+  if (!confirm('¿Cancelar la entrevista agendada?')) return;
+
+  try {
+    await fetch(`/interviews/${_ivCurrentInterview.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'cancelled' }),
+    });
+    _ivCurrentInterview = null;
+    document.getElementById('iv-booked-info').style.display = 'none';
+    const btnVer = document.querySelector('#ml-entrevista-body button');
+    if (btnVer) btnVer.style.display = '';
+    document.getElementById('iv-slots-status').textContent = 'Haz clic en "Ver disponibilidad" para ver los horarios.';
+    showToast('Entrevista cancelada');
+  } catch (e) {
+    showToast('Error cancelando entrevista');
+  }
 }
 
 // ════════════════════════════════════════════
