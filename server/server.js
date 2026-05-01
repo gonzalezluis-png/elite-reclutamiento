@@ -643,6 +643,16 @@ app.delete('/ai/history', (req, res) => {
 app.get('/',       (req, res) => res.json({ status: 'ok', service: 'Elite Webinar Bot' }));
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
 
+// ── Send webinar email manually (from CRM button) ─────────────────────────────
+app.post('/send-webinar-email', async (req, res) => {
+  const { correo, nombre, personalUrl } = req.body;
+  if (!correo) return res.status(400).json({ ok: false, error: 'correo requerido' });
+  const { sendWebinarEmail } = require('./pipeline');
+  const url = personalUrl || WEBINAR_URL;
+  const ok  = await sendWebinarEmail(correo, nombre || '', url);
+  res.json({ ok });
+});
+
 // ── Meta (WhatsApp Cloud API + Instagram + Messenger) ─────────────────────────
 registerMetaRoutes(app);
 

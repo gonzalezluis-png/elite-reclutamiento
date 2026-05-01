@@ -964,6 +964,14 @@ tr.lead-resuelto td:last-child { pointer-events:none;opacity:.4; }
               <div class="field"><label>Fecha Webinar</label><input type="date" id="ml-fecha-inscripcion-webinar" /></div>
               <div class="field"><label>Seguidores</label><input id="ml-seguidores" placeholder="Nombres" /></div>
             </div>
+
+            <!-- Enviar a Webinar -->
+            <div style="margin-top:12px;">
+              <button id="ml-webinar-btn" onclick="mlEnviarWebinar()" style="width:100%;padding:10px;background:linear-gradient(135deg,#4f7fff,#7c5cff);border:none;border-radius:9px;color:#fff;font-family:var(--font);font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px;transition:opacity .2s;">
+                🎥 Enviar a Webinar
+              </button>
+              <div id="ml-webinar-msg" style="display:none;margin-top:8px;font-size:12px;border-radius:7px;padding:8px 12px;"></div>
+            </div>
           </div>
 
           <!-- Notes -->
@@ -1871,6 +1879,114 @@ function copyRwLink() {
   navigator.clipboard.writeText(_rwPersonalLink)
     .then(() => { document.getElementById('rw-copy-btn').textContent = '✅ ¡Copiado!'; setTimeout(() => { document.getElementById('rw-copy-btn').textContent = '📋 Copiar link personalizado'; }, 2000); })
     .catch(() => showToast('⚠️ No se pudo copiar'));
+}
+
+// ── Enviar lead a Webinar desde el panel de conversación ──────────────────────
+async function mlEnviarWebinar() {
+  const lead = leads.find(l => l.id === currentLeadId);
+  if (!lead) return;
+
+  const btn    = document.getElementById('ml-webinar-btn');
+  const msgEl  = document.getElementById('ml-webinar-msg');
+  msgEl.style.display = 'none';
+
+  if (lead.pipeline_id === 'en-webinar') {
+    msgEl.style.background = 'rgba(0,200,117,.1)';
+    msgEl.style.color = '#00c875';
+    msgEl.style.border = '1px solid rgba(0,200,117,.25)';
+    msgEl.textContent = '✓ Este lead ya está en el pipeline En Webinar.';
+    msgEl.style.display = 'block';
+    return;
+  }
+
+  const nombre = lead.nombre || '';
+  const correo = lead.correo || '';
+  if (!correo) {
+    msgEl.style.background = 'rgba(248,113,113,.08)';
+    msgEl.style.color = '#f87171';
+    msgEl.style.border = '1px solid rgba(248,113,113,.25)';
+    msgEl.textContent = '⚠️ Este lead no tiene correo. Agrégalo antes de enviarlo al webinar.';
+    msgEl.style.display = 'block';
+    return;
+  }
+
+  btn.disabled = true;
+  btn.innerHTML = '⏳ Enviando…';
+
+  try {
+    const FS_PROJECT = 'elite-reclutamiento-crm';
+    const FS_KEY     = 'AIzaSyCW2t1oHb7xc2Vi6vJROGRM7E7nu-CbU3s';
+    const FS_BASE    = `https://firestore.googleapis.com/v1/projects/${FS_PROJECT}/databases/(default)/documents`;
+    const WURL       = 'https://crm.grupoelitework.com/webinar.html';
+
+    const personalUrl = `${WURL}?id=${lead.id}&nombre=${encodeURIComponent(nombre)}&correo=${encodeURIComponent(correo)}`;
+    const now         = new Date().toISOString();
+
+    function fsV(v) {
+      if (v === null || v === undefined) return { nullValue: null };
+      if (typeof v === 'boolean') return { booleanValue: v };
+      if (typeof v === 'number')  return { doubleValue: v };
+      if (typeof v === 'string')  return { stringValue: v };
+      if (Array.isArray(v))       return { arrayValue: { values: v.map(fsV) } };
+      if (typeof v === 'object')  return { mapValue: { fields: Object.fromEntries(Object.entries(v).map(([k,x])=>[k,fsV(x)])) } };
+      return { stringValue: String(v) };
+    }
+
+    // Build new historial entry
+    const hist = (lead.historial || []).concat([{
+      icono: '🎥',
+      accion: `Enviado a Webinar manualmente por ${currentUser?.nombre || 'Admin'} — link personalizado generado`,
+      fecha:   now,
+      usuario: currentUser?.nombre || 'Admin',
+    }]);
+
+    const fields = {
+      pipeline_id:  fsV('en-webinar'),
+      etapa:        fsV('Inscrito en Webinar'),
+      link_webinar: fsV(personalUrl),
+      historial:    fsV(hist),
+    };
+    const mask = Object.keys(fields).join('&updateMask.fieldPaths=');
+
+    await fetch(`${FS_BASE}/leads/${lead.id}?key=${FS_KEY}&updateMask.fieldPaths=${mask}`, {
+      method:  'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ fields }),
+    });
+
+    // Also send the email via the server
+    try {
+      await fetch(`${SERVER_URL}/send-webinar-email`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ correo, nombre, personalUrl }),
+      });
+    } catch (_) {}
+
+    // Update local lead object
+    lead.pipeline_id  = 'en-webinar';
+    lead.etapa        = 'Inscrito en Webinar';
+    lead.link_webinar = personalUrl;
+    lead.historial    = hist;
+
+    btn.innerHTML = '✅ Enviado a Webinar';
+    msgEl.style.background = 'rgba(0,200,117,.1)';
+    msgEl.style.color = '#00c875';
+    msgEl.style.border = '1px solid rgba(0,200,117,.25)';
+    msgEl.innerHTML = `✓ Lead movido a <strong>En Webinar</strong>. Correo enviado a ${correo}.`;
+    msgEl.style.display = 'block';
+
+    showToast(`✅ ${nombre} enviado al webinar`);
+    renderBoard();
+  } catch (err) {
+    btn.disabled = false;
+    btn.innerHTML = '🎥 Enviar a Webinar';
+    msgEl.style.background = 'rgba(248,113,113,.08)';
+    msgEl.style.color = '#f87171';
+    msgEl.style.border = '1px solid rgba(248,113,113,.25)';
+    msgEl.textContent = '❌ Error: ' + err.message;
+    msgEl.style.display = 'block';
+  }
 }
 
 function calGoToday() { calYear = new Date().getFullYear(); calMonth = new Date().getMonth(); renderCalendario(); }
