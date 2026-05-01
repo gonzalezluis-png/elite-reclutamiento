@@ -1121,6 +1121,7 @@ tr.lead-resuelto td:last-child { pointer-events:none;opacity:.4; }
       <div id="wa-number" style="font-size:11px;color:rgba(255,255,255,.6);margin-top:1px">—</div>
     </div>
     <span style="font-size:10px;background:rgba(255,255,255,.15);color:#fff;padding:2px 7px;border-radius:20px;font-weight:600">WhatsApp</span>
+    <button id="wa-ia-toggle" onclick="waToggleIA()" title="Pausar/reanudar respuestas automáticas de Ana" style="background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.2);border-radius:20px;color:#fff;font-size:10px;font-weight:700;cursor:pointer;padding:2px 9px;white-space:nowrap;transition:background .2s;">🤖 IA activa</button>
     <button onclick="waClose()" style="background:none;border:none;color:rgba(255,255,255,.6);font-size:18px;cursor:pointer;padding:0 4px;line-height:1">✕</button>
   </div>
   <!-- Template selector -->
@@ -1825,6 +1826,7 @@ async function submitRegistroWebinar() {
     const leadId = 'lead-reg-' + Date.now();
     const now    = new Date().toISOString();
     const WURL   = 'https://crm.grupoelitework.com/webinar.html';
+    const personalUrl = `${WURL}?id=${leadId}&nombre=${encodeURIComponent(nombre)}&correo=${encodeURIComponent(correo)}`;
 
     function fsV(v) {
       if (v === null || v === undefined) return { nullValue: null };
@@ -1853,17 +1855,38 @@ async function submitRegistroWebinar() {
         estado:       fsV('abierto'),
         valor:        fsV(0),
         propietario:  fsV(currentUser?.nombre || 'Admin'),
-        link_webinar: fsV(WURL),
+        link_webinar: fsV(personalUrl),
+        webinar_email_enviado: fsV(now),
         created_at:   fsV(now),
         notas: fsV([]), tareas: fsV([]), pagos: fsV([]), etiquetas: fsV([]),
         historial: fsV([{ icono:'📝', accion:`Inscrito manualmente en el webinar por ${currentUser?.nombre||'Admin'}`, fecha:now, usuario:currentUser?.nombre||'Admin' }]),
       }}),
     });
 
-    _rwPersonalLink = `${WURL}?id=${leadId}&nombre=${encodeURIComponent(nombre)}&correo=${encodeURIComponent(correo)}`;
+    // Enviar correo con link personalizado
+    fetch(`${SERVER_URL}/send-webinar-email`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ correo, nombre, personalUrl }),
+    }).catch(() => {});
+
+    // Add to local leads array
+    leads.push({
+      id: leadId, nombre, telefono, correo,
+      fuente: 'Registro Manual Webinar', etapa: 'Inscrito en Webinar',
+      pipeline_id: 'en-webinar', estado: 'abierto', valor: 0,
+      propietario: currentUser?.nombre || 'Admin',
+      link_webinar: personalUrl, webinar_email_enviado: now,
+      created_at: now, notas: [], tareas: [], pagos: [], etiquetas: [],
+      historial: [{ icono:'📝', accion:`Inscrito manualmente en el webinar por ${currentUser?.nombre||'Admin'}`, fecha:now, usuario:currentUser?.nombre||'Admin' }],
+    });
+    localStorage.setItem('er_leads', JSON.stringify(leads));
+    renderKanban(); renderSidebar();
+
+    _rwPersonalLink = personalUrl;
     document.getElementById('rw-webinar-link').href = _rwPersonalLink;
     document.getElementById('rw-success-msg').textContent =
-      `${nombre} fue inscrito/a exitosamente. Comparte el link personalizado o ábrelo directamente.`;
+      `${nombre} fue inscrito/a exitosamente. Correo enviado a ${correo}.`;
     document.getElementById('rw-form-body').style.display = 'none';
     document.getElementById('rw-success').style.display   = 'block';
   } catch(err) {
@@ -2636,6 +2659,45 @@ function confirmNoCalifica() {
   showToast('🚫 Movido a No Califica', true);
 }
 
+// ── Core: move lead to En Webinar + send email ────────────────────────────────
+async function _registrarEnWebinar(lead, prevEtapa) {
+  if (lead.webinar_email_enviado) return; // already sent, skip duplicate
+  const personalUrl = `${location.origin}/webinar.html?id=${lead.id}&nombre=${encodeURIComponent(lead.nombre||'')}&correo=${encodeURIComponent(lead.correo||'')}`;
+
+  lead.pipeline_id               = 'en-webinar';
+  lead.etapa                     = 'Inscrito en Webinar';
+  lead.fecha_inscripcion_webinar = lead.fecha_inscripcion_webinar || new Date().toISOString();
+  lead.link_webinar              = personalUrl;
+  addHistorial(lead.id, `Inscrito en Webinar${prevEtapa ? ` (desde ${prevEtapa})` : ''} — link personalizado generado`, '🎥');
+  saveLeads(lead.id);
+
+  if (lead.correo) {
+    try {
+      const r = await fetch(`${SERVER_URL}/send-webinar-email`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ correo: lead.correo, nombre: lead.nombre || '', personalUrl }),
+      });
+      const data = await r.json().catch(() => ({}));
+      if (r.ok && data.ok) {
+        addHistorial(lead.id, `Link del webinar enviado por correo a ${lead.correo}`, '📧');
+        lead.webinar_email_enviado = new Date().toISOString();
+        saveLeads(lead.id);
+        showToast(`✅ Correo de webinar enviado a ${lead.correo}`);
+      } else {
+        const motivo = data.error || `HTTP ${r.status}`;
+        console.error('[Webinar Email]', motivo);
+        showToast(`❌ Correo no enviado: ${motivo}`);
+      }
+    } catch(e) {
+      console.error('[Webinar Email]', e);
+      showToast('❌ Error de red al enviar correo del webinar');
+    }
+  } else {
+    showToast('⚠️ Lead en Webinar — sin correo registrado');
+  }
+}
+
 async function sendToWebinar() {
   const leadId = _openMenuLeadId || currentLeadId;
   if (!leadId) return;
@@ -2650,35 +2712,8 @@ async function sendToWebinar() {
   }
 
   pushUndo('lead_change', JSON.parse(JSON.stringify(lead)));
-  const prev        = lead.etapa;
-  const personalUrl = `${location.origin}/webinar.html?id=${lead.id}&nombre=${encodeURIComponent(lead.nombre||'')}&correo=${encodeURIComponent(lead.correo||'')}`;
-
-  lead.pipeline_id               = 'en-webinar';
-  lead.etapa                     = 'Inscrito en Webinar';
-  lead.fecha_inscripcion_webinar = new Date().toISOString();
-  lead.link_webinar              = personalUrl;
-  addHistorial(lead.id, `Enviado a Webinar (desde ${prev}) — link personalizado generado`, '🎥');
-  saveLeads(lead.id);
-
-  // Enviar correo con link personalizado via servidor
-  if (lead.correo) {
-    try {
-      await fetch(`${SERVER_URL}/send-webinar-email`, {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ correo: lead.correo, nombre: lead.nombre || '', personalUrl }),
-      });
-      addHistorial(lead.id, `Link del webinar enviado por correo a ${lead.correo}`, '📧');
-      lead.webinar_email_enviado = new Date().toISOString();
-      saveLeads(lead.id);
-      showToast(`✅ Correo enviado a ${lead.correo}`);
-    } catch(e) {
-      showToast('⚠️ Lead movido a En Webinar pero falló el correo');
-    }
-  } else {
-    showToast('⚠️ Lead movido a En Webinar — sin correo para enviar link');
-  }
-
+  const prev = lead.etapa;
+  await _registrarEnWebinar(lead, prev);
   celebrateWebinar();
   renderKanban();
   renderSidebar();
@@ -2723,6 +2758,11 @@ function moveLead(leadId, newEtapa) {
   const transition = AUTO_TRANSITIONS.find(t => t.match(newEtapa));
   if (transition) {
     const prevEtapa = lead.etapa;
+    if (transition.pipeline === 'en-webinar') {
+      _registrarEnWebinar(lead, prevEtapa).then(() => { renderKanban(); renderSidebar(); celebrateWebinar(); });
+      showToast('🎥 Inscribiendo en Webinar…', true);
+      return;
+    }
     lead.pipeline_id = transition.pipeline;
     lead.etapa       = transition.etapa;
     addHistorial(leadId, `Movido de ${prevEtapa} → ${transition.etapa} (${PIPELINES.find(p=>p.id===transition.pipeline)?.nombre||transition.pipeline})`, '↕️');
@@ -2895,7 +2935,7 @@ function saveLead() {
 
   pushUndo('lead_change', JSON.parse(JSON.stringify(lead)));
   const oldPipeline = lead.pipeline_id;
-  const oldEtapa = lead.etapa;
+  const oldEtapa    = lead.etapa;
 
   lead.nombre      = document.getElementById('ml-nombre').value.trim();
   lead.pipeline_id = document.getElementById('ml-pipeline').value;
@@ -2910,13 +2950,22 @@ function saveLead() {
   lead.fuente                    = document.getElementById('ml-fuente').value;
   lead.seguidores  = document.getElementById('ml-seguidores').value.split(',').map(s=>s.trim()).filter(Boolean);
 
+  // Si se mueve a En Webinar y antes no estaba ahí, registrar y enviar correo
+  if (lead.pipeline_id === 'en-webinar' && oldPipeline !== 'en-webinar') {
+    _registrarEnWebinar(lead, oldEtapa).then(() => { renderKanban(); renderSidebar(); });
+    _mlSnapshot = null;
+    _mlSetMode(false);
+    showToast('🎥 Inscribiendo en Webinar y enviando correo…');
+    return;
+  }
+
   if (oldEtapa !== lead.etapa || oldPipeline !== lead.pipeline_id) {
     const pipeName = PIPELINES.find(p => p.id === lead.pipeline_id)?.nombre || lead.pipeline_id;
     addHistorial(lead.id, `Movido a: ${pipeName} → ${lead.etapa}`, '↕️');
   } else {
     addHistorial(lead.id, 'Información actualizada', '✏️');
   }
-  saveLeads();
+  saveLeads(currentLeadId);
   _mlSnapshot = null;
   _mlSetMode(false); // return to view (locked) mode
   renderKanban();
@@ -3379,13 +3428,23 @@ async function dismissLlamada(leadId) {
 async function fsSaveLead(lead) {
   try {
     const doc = toFsDoc(lead);
-    const fields = Object.keys(doc.fields).join('&updateMask.fieldPaths=');
-    await fetch(`${FS_BASE}/leads/${lead.id}?key=${FS_KEY}&updateMask.fieldPaths=${fields}`, {
+    const res = await fetch(`${FS_BASE}/leads/${lead.id}?key=${FS_KEY}`, {
       method: 'PATCH',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify(doc)
     });
-  } catch(e) { console.warn('Firestore save failed', e); }
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      console.warn('Firestore save error:', res.status, err);
+      showToast(`❌ Error al guardar en Firestore (${res.status})`);
+      return false;
+    }
+    return true;
+  } catch(e) {
+    console.warn('Firestore save failed', e);
+    showToast('❌ Error de red al guardar');
+    return false;
+  }
 }
 
 function fsSaveAll() {
@@ -3431,8 +3490,11 @@ function renderHistorial(historial) {
   }).join('');
 }
 
+let _lastSaveTs = 0;
+
 function saveLeads(changedLeadId) {
   localStorage.setItem('er_leads', JSON.stringify(leads));
+  _lastSaveTs = Date.now();
   if (changedLeadId) {
     const lead = leads.find(l => l.id === changedLeadId);
     if (lead) fsSaveLead(lead);
@@ -3664,8 +3726,9 @@ function autoMoverVistos() {
   }
 })();
 
-// Sync automático cada 2 minutos para detectar nuevas visualizaciones
+// Sync automático para detectar nuevas visualizaciones
 setInterval(async () => {
+  if (Date.now() - _lastSaveTs < 10000) return; // skip if a save just happened
   try {
     const fsLeads = await fsLoadLeads();
     if (fsLeads.length > 0) {
@@ -4895,6 +4958,7 @@ function waOpen() {
   ];
   panel.style.right = (24 + others.reduce((a,b) => a+b, 0)) + 'px';
   waRenderThread(lead.whatsapp);
+  _waUpdateIABtn(lead.ia_paused);
   clearInterval(_waPollInt);
   _waPollInt = setInterval(() => waPoll(raw), 8000);
 }
@@ -4903,6 +4967,29 @@ function waClose() {
   document.getElementById('wa-panel').style.display = 'none';
   clearInterval(_waPollInt);
   _waPollInt = null;
+}
+
+function _waUpdateIABtn(paused) {
+  const btn = document.getElementById('wa-ia-toggle');
+  if (!btn) return;
+  if (paused) {
+    btn.textContent = '⏸ IA pausada';
+    btn.style.background = 'rgba(248,113,113,.25)';
+    btn.style.borderColor = 'rgba(248,113,113,.5)';
+  } else {
+    btn.textContent = '🤖 IA activa';
+    btn.style.background = 'rgba(0,0,0,.3)';
+    btn.style.borderColor = 'rgba(255,255,255,.2)';
+  }
+}
+
+async function waToggleIA() {
+  const lead = leads.find(l => l.id === _waLeadId);
+  if (!lead) return;
+  lead.ia_paused = !lead.ia_paused;
+  _waUpdateIABtn(lead.ia_paused);
+  saveLeads(lead.id);
+  showToast(lead.ia_paused ? '⏸ IA pausada — responderás tú manualmente' : '🤖 IA reactivada');
 }
 
 function waRenderThread(messages) {

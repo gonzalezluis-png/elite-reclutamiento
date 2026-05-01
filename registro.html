@@ -259,6 +259,15 @@ async function submitForm(e) {
     // Construir URL del webinar con datos del lead
     const webinarUrl = `webinar.html?id=${leadId}&nombre=${encodeURIComponent(nombre)}&correo=${encodeURIComponent(correo)}`;
 
+    // Enviar correo con link personalizado
+    const SERVER_URL  = 'https://elite-reclutamiento-production.up.railway.app';
+    const personalUrl = `${location.origin}/${webinarUrl}`;
+    fetch(`${SERVER_URL}/send-webinar-email`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ correo, nombre, personalUrl }),
+    }).catch(() => {});
+
     // Mostrar pantalla de éxito
     document.getElementById('card-form').style.display = 'none';
     document.getElementById('success-msg').textContent =

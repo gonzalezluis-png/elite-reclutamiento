@@ -1,6 +1,6 @@
 const crypto = require('crypto');
 const { askClaude, conversationHistory } = require('./ai');
-const { fsLeadExists, fsCreateLeadWA, runWAPipeline, humanDelay } = require('./pipeline');
+const { fsLeadExists, fsCreateLeadWA, fsGetLeadByPhone, runWAPipeline, humanDelay } = require('./pipeline');
 
 const SERVER_URL  = process.env.SERVER_URL  || 'https://elite-reclutamiento-production.up.railway.app';
 const WEBINAR_URL = process.env.WEBINAR_URL || 'https://crm.grupoelitework.com/webinar.html';
@@ -153,6 +153,13 @@ function registerMetaRoutes(app) {
       // Auto-create lead if not in CRM
       const exists = await fsLeadExists(from);
       if (!exists) await fsCreateLeadWA(`wa_meta:${from}`);
+
+      // Check if IA is paused for this lead
+      const leadData = await fsGetLeadByPhone(from);
+      if (leadData?.ia_paused) {
+        console.log(`[Meta WA] IA pausada para ${from} — mensaje no procesado por IA`);
+        return;
+      }
 
       const convKey = `wa_meta:${from}`;
       const reply   = await askClaude(convKey, text, 'wa');

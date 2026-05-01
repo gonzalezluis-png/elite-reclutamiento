@@ -4,16 +4,13 @@ const express    = require('express');
 const cors       = require('cors');
 const { chromium } = require('playwright');
 const twilio     = require('twilio');
-const nodemailer = require('nodemailer');
+// nodemailer removed — usando Resend API
 const { askClaude, textToSpeech, loadConfig, loadConfigFromFirestore, saveConfig, DEFAULT_CONFIG, conversationHistory, aiEnabled } = require('./ai');
 const { registerMetaRoutes } = require('./meta');
-const { fsLeadExists, fsCreateLeadWA, runWAPipeline, humanDelay } = require('./pipeline');
+const { fsLeadExists, fsCreateLeadWA, fsGetLeadByPhone, runWAPipeline, humanDelay } = require('./pipeline');
 
 const WEBINAR_URL  = process.env.WEBINAR_URL || 'https://crm.grupoelitework.com/webinar.html';
-const SMTP_USER    = process.env.SMTP_USER;
-const SMTP_PASS    = process.env.SMTP_PASS;
-const SMTP_HOST    = process.env.SMTP_HOST || 'smtp.gmail.com';
-const SMTP_PORT    = parseInt(process.env.SMTP_PORT || '465');
+const RESEND_API_KEY = process.env.RESEND_API_KEY;
 
 // Track phones that already received webinar invite (resets on restart)
 const webinarInviteSent = new Set();
@@ -455,6 +452,13 @@ app.post('/twilio/whatsapp-incoming', async (req, res) => {
   const exists = await fsLeadExists(From.replace('whatsapp:', ''));
   if (!exists) await fsCreateLeadWA(From);
 
+  // Check if IA is paused for this lead
+  const _twLeadData = await fsGetLeadByPhone(From.replace('whatsapp:', ''));
+  if (_twLeadData?.ia_paused) {
+    console.log(`[WA-IN] IA pausada para ${From} — mensaje no procesado por IA`);
+    return res.type('text/xml').send('<Response></Response>');
+  }
+
   if (aiEnabled.wa && Body?.trim()) {
     try {
       const reply = await askClaude(From, Body, 'wa');
@@ -492,6 +496,12 @@ app.post('/twilio/sms-incoming', async (req, res) => {
   if (From?.startsWith('whatsapp:')) {
     const exists = await fsLeadExists(From.replace('whatsapp:', ''));
     if (!exists) await fsCreateLeadWA(From);
+
+    const _smsLeadData = await fsGetLeadByPhone(From.replace('whatsapp:', ''));
+    if (_smsLeadData?.ia_paused) {
+      console.log(`[SMS-IN] IA pausada para ${From} — mensaje no procesado por IA`);
+      return res.type('text/xml').send('<Response></Response>');
+    }
 
     if (aiEnabled.wa && Body?.trim()) {
       try {
@@ -647,10 +657,26 @@ app.get('/health', (req, res) => res.json({ status: 'ok' }));
 app.post('/send-webinar-email', async (req, res) => {
   const { correo, nombre, personalUrl } = req.body;
   if (!correo) return res.status(400).json({ ok: false, error: 'correo requerido' });
+  if (!RESEND_API_KEY) {
+    console.error('[Email] RESEND_API_KEY no configurado en variables de entorno');
+    return res.status(500).json({ ok: false, error: 'RESEND_API_KEY no configurado en Railway' });
+  }
   const { sendWebinarEmail } = require('./pipeline');
   const url = personalUrl || WEBINAR_URL;
   const ok  = await sendWebinarEmail(correo, nombre || '', url);
-  res.json({ ok });
+  if (!ok) return res.status(500).json({ ok: false, error: 'Fallo al enviar — revisa logs del servidor' });
+  res.json({ ok: true });
+});
+
+// ── Test email ────────────────────────────────────────────────────────────────
+app.get('/test-email', async (req, res) => {
+  if (!RESEND_API_KEY) {
+    return res.json({ ok: false, error: 'RESEND_API_KEY no configurado', hint: 'Agrega RESEND_API_KEY en Railway variables de entorno' });
+  }
+  const destino = req.query.to || process.env.EMAIL_FROM || 'gonzalezluis@grupoelitework.com';
+  const { sendWebinarEmail } = require('./pipeline');
+  const ok = await sendWebinarEmail(destino, 'Prueba', 'https://crm.grupoelitework.com/webinar.html');
+  res.json({ ok, enviado_a: destino, mensaje: ok ? '✅ Correo enviado exitosamente' : '❌ Falló — revisa logs de Railway' });
 });
 
 // ── Meta (WhatsApp Cloud API + Instagram + Messenger) ─────────────────────────

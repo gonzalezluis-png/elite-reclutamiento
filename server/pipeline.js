@@ -1,6 +1,6 @@
 // Shared WA pipeline: lead management, webinar detection, Playwright registration
 
-const nodemailer = require('nodemailer');
+// nodemailer removed — using Resend API
 const Anthropic  = require('@anthropic-ai/sdk');
 
 const FS_PROJECT = 'elite-reclutamiento-crm';
@@ -197,49 +197,62 @@ async function detectWebinarIntent(history) {
 }
 
 // ── Email: send webinar invitation ────────────────────────────────────────────
-async function sendWebinarEmail(correo, nombre, WEBINAR_URL) {
-  const SMTP_USER = process.env.SMTP_USER;
-  const SMTP_PASS = process.env.SMTP_PASS;
-  const SMTP_HOST = process.env.SMTP_HOST || 'smtp.gmail.com';
-  const SMTP_PORT = parseInt(process.env.SMTP_PORT || '465');
-  if (!SMTP_USER || !SMTP_PASS || !correo) return false;
+async function sendWebinarEmail(correo, nombre, webinarUrl) {
+  const RESEND_API_KEY = process.env.RESEND_API_KEY;
+  if (!RESEND_API_KEY) {
+    console.error('[Email] RESEND_API_KEY no configurado');
+    return false;
+  }
+  if (!correo) {
+    console.warn('[Email] No se proporcionó correo destinatario');
+    return false;
+  }
+  const FROM_EMAIL = process.env.EMAIL_FROM || 'webinar@grupoelitework.com';
   try {
-    const transporter = nodemailer.createTransport({
-      host: SMTP_HOST, port: SMTP_PORT, secure: SMTP_PORT === 465,
-      auth: { user: SMTP_USER, pass: SMTP_PASS },
-    });
-    await transporter.sendMail({
-      from: `"Grupo Elite Work LLC" <${SMTP_USER}>`,
-      to:   correo,
-      subject: '🎥 Tu invitación al Webinar — Grupo Elite Work LLC',
-      html: `
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${RESEND_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: `Grupo Elite Work LLC <${FROM_EMAIL}>`,
+        to:   [correo],
+        subject: '🎥 Tu acceso al Webinar — Grupo Elite Work LLC',
+        html: `
         <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px;background:#f9fafb;border-radius:12px;">
           <div style="background:linear-gradient(135deg,#1a1a2e,#16213e);padding:28px;border-radius:10px;text-align:center;margin-bottom:24px;">
             <h1 style="color:#fff;margin:0;font-size:22px;">Grupo Elite Work LLC</h1>
             <p style="color:#94a3b8;margin:8px 0 0;">Oportunidad de Carrera — Globe Life Insurance</p>
           </div>
-          <h2 style="color:#1e293b;">¡Hola${nombre ? ' ' + nombre : ''}! 👋</h2>
-          <p style="color:#475569;line-height:1.6;">Nos da mucho gusto que estés interesado/a en nuestra oportunidad. Te invitamos a nuestro <strong>webinar informativo virtual</strong> donde aprenderás todo sobre cómo construir una carrera exitosa como agente de seguros de vida.</p>
+          <h2 style="color:#1e293b;">¡Hola${nombre ? ', ' + nombre : ''}! 👋</h2>
+          <p style="color:#475569;line-height:1.6;">Nos da mucho gusto que estés interesado/a en nuestra oportunidad. Te compartimos tu acceso personal al <strong>webinar informativo virtual</strong> donde aprenderás todo sobre cómo construir una carrera exitosa como agente de seguros de vida.</p>
           <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:20px;margin:20px 0;">
             <h3 style="color:#1e293b;margin:0 0 12px;">¿Qué verás en el webinar?</h3>
             <ul style="color:#475569;line-height:1.8;padding-left:20px;">
               <li>Cómo funciona el modelo de trabajo remoto</li>
               <li>Estructura de comisiones y potencial de ingresos</li>
               <li>Proceso para obtener tu licencia estatal</li>
-              <li>Preguntas y respuestas en vivo</li>
+              <li>Preguntas y respuestas frecuentes</li>
             </ul>
           </div>
           <div style="text-align:center;margin:28px 0;">
-            <a href="${WEBINAR_URL}" style="background:linear-gradient(135deg,#0073ea,#0059b3);color:#fff;text-decoration:none;padding:14px 32px;border-radius:8px;font-size:16px;font-weight:700;display:inline-block;">
-              🎥 Acceder al Webinar
+            <a href="${webinarUrl}" style="background:linear-gradient(135deg,#0073ea,#0059b3);color:#fff;text-decoration:none;padding:14px 32px;border-radius:8px;font-size:16px;font-weight:700;display:inline-block;">
+              🎥 Ver Webinar Ahora
             </a>
           </div>
-          <p style="color:#64748b;font-size:13px;text-align:center;">Si tienes preguntas, responde a este correo o escríbenos por WhatsApp.</p>
+          <p style="color:#64748b;font-size:13px;text-align:center;">Este link es personal y único para ti. Si tienes preguntas, responde a este correo o escríbenos por WhatsApp.</p>
           <hr style="border:none;border-top:1px solid #e2e8f0;margin:20px 0;">
           <p style="color:#94a3b8;font-size:11px;text-align:center;">Grupo Elite Work LLC — Globe Life Insurance</p>
         </div>`,
+      }),
     });
-    console.log(`[Email] Enviado a ${correo}`);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      console.error('[Email] Resend error:', JSON.stringify(data));
+      return false;
+    }
+    console.log(`[Email] Enviado a ${correo} (id: ${data.id})`);
     return true;
   } catch (e) {
     console.error('[Email] Error:', e.message);
