@@ -7,7 +7,7 @@ const twilio     = require('twilio');
 const nodemailer = require('nodemailer');
 const { askClaude, textToSpeech, loadConfig, loadConfigFromFirestore, saveConfig, DEFAULT_CONFIG, conversationHistory, aiEnabled } = require('./ai');
 const { registerMetaRoutes } = require('./meta');
-const { fsLeadExists, fsCreateLeadWA, runWAPipeline } = require('./pipeline');
+const { fsLeadExists, fsCreateLeadWA, runWAPipeline, humanDelay } = require('./pipeline');
 
 const WEBINAR_URL  = process.env.WEBINAR_URL || 'https://crm.grupoelitework.com/webinar.html';
 const SMTP_USER    = process.env.SMTP_USER;
@@ -459,6 +459,7 @@ app.post('/twilio/whatsapp-incoming', async (req, res) => {
     try {
       const reply = await askClaude(From, Body, 'wa');
       console.log(`[WA-AI] Ana → ${From}: "${reply}"`);
+      await humanDelay(reply);
       const twilioClient = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
       await twilioClient.messages.create({ from: TWILIO_WA_FROM, to: From, body: reply });
 
@@ -496,6 +497,7 @@ app.post('/twilio/sms-incoming', async (req, res) => {
       try {
         const reply = await askClaude(From, Body, 'wa');
         console.log(`[WA-AI via SMS hook] Ana → ${From}: "${reply}"`);
+        await humanDelay(reply);
         const twilioClient = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
         await twilioClient.messages.create({ from: TWILIO_WA_FROM, to: From, body: reply });
 

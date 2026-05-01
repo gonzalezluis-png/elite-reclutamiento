@@ -10,6 +10,16 @@ const FS_BASE    = `https://firestore.googleapis.com/v1/projects/${FS_PROJECT}/d
 // Phones that already received a webinar invite this session
 const webinarInviteSent = new Set();
 
+// ── Human-like typing delay ───────────────────────────────────────────────────
+// ~50 ms per character, min 2 s, max 40 s, with ±25 % random jitter
+function humanDelay(text) {
+  const len  = (text || '').length;
+  const base = 2000 + len * 50;              // 2 s + 50 ms/char
+  const ms   = Math.min(base, 40000);        // cap at 40 s
+  const jitter = ms * (0.75 + Math.random() * 0.5); // ±25 %
+  return new Promise(resolve => setTimeout(resolve, Math.round(jitter)));
+}
+
 // ── Utils ─────────────────────────────────────────────────────────────────────
 function toE164(raw) {
   const digits = (raw || '').replace(/\D/g, '');
@@ -307,6 +317,7 @@ async function runWAPipeline(from, historyMap, sendFn, opts) {
 }
 
 module.exports = {
+  humanDelay,
   toE164,
   rawPhone,
   fsVal,

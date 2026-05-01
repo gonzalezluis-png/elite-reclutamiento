@@ -1,6 +1,6 @@
 const crypto = require('crypto');
 const { askClaude, conversationHistory } = require('./ai');
-const { fsLeadExists, fsCreateLeadWA, runWAPipeline } = require('./pipeline');
+const { fsLeadExists, fsCreateLeadWA, runWAPipeline, humanDelay } = require('./pipeline');
 
 const SERVER_URL  = process.env.SERVER_URL  || 'https://elite-reclutamiento-production.up.railway.app';
 const WEBINAR_URL = process.env.WEBINAR_URL || 'https://crm.grupoelitework.com/webinar.html';
@@ -157,6 +157,7 @@ function registerMetaRoutes(app) {
       const convKey = `wa_meta:${from}`;
       const reply   = await askClaude(convKey, text, 'wa');
       console.log(`[Meta WA] → ${from}: ${reply}`);
+      await humanDelay(reply);
       await sendWhatsApp(from, reply);
 
       // Full pipeline: extract data + detect webinar intent + send link
