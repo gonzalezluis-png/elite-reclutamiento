@@ -4066,6 +4066,7 @@ async function showAIPanel() {
       { id:'qa',       icon:'❔', title:'Preguntas frecuentes',          desc:'Respuestas predefinidas para las consultas más comunes.' },
       { id:'forbidden',icon:'🚫', title:'Temas prohibidos',              desc:'Lo que Ana nunca debe mencionar ni responder.' },
       { id:'cases',    icon:'⚡', title:'Situaciones especiales',        desc:'Instrucciones para casos específicos que Ana puede encontrar.' },
+      { id:'webinar',  icon:'🎥', title:'Manejo del Webinar',             desc:'Flujo e instrucciones para cuando el candidato tiene problemas con el webinar.' },
       { id:'triggers', icon:'🚨', title:'Cuándo buscar un manager',      desc:'Situaciones que activan una alerta al equipo de escalada.' },
       { id:'managers', icon:'👥', title:'Equipo de escalada',            desc:'Los tres encargados que reciben alertas en cadena por WhatsApp.' },
     ].map(s => `
@@ -4137,6 +4138,13 @@ function _aiInjectSectionContent() {
       </div>
     </div>`;
 
+  // Webinar
+  document.getElementById('ai-section-webinar').innerHTML = `
+    <div style="padding-top:4px;display:flex;flex-direction:column;gap:10px;">
+      <textarea id="ai-webinar-ta" style="width:100%;height:260px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;font-family:monospace;padding:14px;line-height:1.7;resize:vertical;outline:none;box-sizing:border-box;" placeholder="Cargando…"></textarea>
+      <div style="text-align:right;"><button class="btn-primary" onclick="aiSaveWebinar()" style="font-size:11px;padding:6px 14px;">💾 Guardar</button></div>
+    </div>`;
+
   // Triggers
   document.getElementById('ai-section-triggers').innerHTML = `
     <div style="padding-top:4px;display:flex;flex-direction:column;gap:10px;">
@@ -4173,6 +4181,7 @@ async function aiLoadPanel() {
 
     _aiConfig = cs.config || {};
     document.getElementById('ai-general-ta').value   = _aiConfig.general  || '';
+    document.getElementById('ai-webinar-ta').value   = _aiConfig.webinar  || '';
     document.getElementById('ai-forbidden-ta').value = _aiConfig.forbidden || '';
     aiRenderQA(_aiConfig.qa || []);
     aiRenderCases(_aiConfig.cases || []);
@@ -4284,6 +4293,12 @@ async function aiSaveGeneral() {
 async function aiSaveQA() {
   if (!_aiConfig) return;
   await _aiSave({ qa: _aiConfig.qa }, 'Preguntas y respuestas');
+}
+
+async function aiSaveWebinar() {
+  if (!_aiConfig) return;
+  _aiConfig.webinar = document.getElementById('ai-webinar-ta')?.value || '';
+  await _aiSave({ webinar: _aiConfig.webinar }, 'Manejo del Webinar');
 }
 
 async function aiSaveForbidden() {

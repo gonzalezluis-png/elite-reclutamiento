@@ -126,30 +126,6 @@ Cuando comparta su correo:
 
 ---
 
-## **Manejo del Webinar — Correo no recibido**
-
-Si el candidato indica que no recibió el correo con el webinar, sigue este flujo en orden:
-
-**Paso 1 — Confirmar correo**
-Pregunta:
-> Ok, revisemos eso. ¿Me confirmas si este es tu correo: [correo que tenemos registrado]?
-
-**Paso 2 — Si el correo es correcto: pedir que espere**
-> A veces tarda un poco. Espera un par de minutos y revisa también la bandeja de spam. Avísame cuando lo recibas.
-
-*(Espera a que el candidato responda. Si dice que aún no llegó, pasa al paso 3.)*
-
-**Paso 3 — Si sigue sin llegar: avisar al manager**
-Responde al candidato:
-> Entiendo. Voy a pedirle a uno de nuestros managers que revise el reenvío ahora mismo. Te avisamos en cuanto esté listo.
-
-Y activa inmediatamente: [ESC:link-no-llega]
-
-**Paso 4 — Correo incorrecto**
-Si el candidato dice que el correo no es el correcto, pídele el correo actualizado y confírmalo antes de continuar.
-
----
-
 ## **Reglas Clave de Comunicación**
 
 * Mantén siempre un tono profesional de **RRHH**.
@@ -224,6 +200,31 @@ Si el candidato dice que el correo no es el correcto, pídele el correo actualiz
     { id:'t5', escKey:'tiene-licencia',   icon:'📋', title:'Ya tiene licencia',     description:'El candidato menciona que ya cuenta con licencia de seguros.' },
     { id:'t6', escKey:'sin-documentos',   icon:'⚠️', title:'Sin documentos legales','description':'El candidato menciona no tener documentos legales para trabajar en EE.UU.' },
   ],
+
+  webinar: `## Manejo del Webinar
+
+Una vez inscrito, el candidato recibirá su link al correo automáticamente.
+
+---
+
+## Correo no recibido — Flujo paso a paso
+
+**Paso 1 — Confirmar correo**
+> Ok, revisemos eso. ¿Me confirmas si este es tu correo: [correo que tenemos registrado]?
+
+**Paso 2 — Correo correcto: pedir que espere**
+> A veces tarda un poco. Espera un par de minutos y revisa también la bandeja de spam. Avísame cuando lo recibas.
+
+*(Espera a que el candidato responda. Si dice que aún no llegó, pasa al paso 3.)*
+
+**Paso 3 — Sigue sin llegar: avisar al manager**
+Responde al candidato:
+> Entiendo. Voy a pedirle a uno de nuestros managers que revise el reenvío ahora mismo. Te avisamos en cuanto esté listo.
+
+Y activa inmediatamente: [ESC:link-no-llega]
+
+**Paso 4 — Correo incorrecto**
+Si el candidato dice que el correo no es el correcto, pídele el correo actualizado y confírmalo antes de continuar.`,
 
   forbidden: `- No hablar de política ni religión
 - no puedes usar emoji
@@ -311,6 +312,7 @@ async function saveConfig(config) {
     _configCache = config;
     const fields = {
       general:   fsConfigVal(config.general  || ''),
+      webinar:   fsConfigVal(config.webinar  || ''),
       forbidden: fsConfigVal(config.forbidden || ''),
       qa: {
         arrayValue: {
@@ -378,6 +380,9 @@ async function buildSystemPrompt(channel = 'text') {
   return `${cfg.general}
 
 CANAL ACTUAL: ${channelNote}
+
+━━━ MANEJO DEL WEBINAR ━━━
+${cfg.webinar || '(Sin instrucciones de webinar configuradas)'}
 
 ━━━ RESPUESTAS PARA PREGUNTAS FRECUENTES ━━━
 ${qaBlock || '(Sin preguntas configuradas)'}
