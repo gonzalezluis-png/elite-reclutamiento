@@ -227,16 +227,22 @@ async function sendWebinarEmail(correo, nombre, WEBINAR_URL) {
   }
 }
 
-// ── Move lead to webinar pipeline ─────────────────────────────────────────────
-async function moveLeadToWebinar(leadId, WEBINAR_URL) {
+// ── Move lead to webinar: generate personalized link, save, send email ────────
+// Returns the personalized webinar URL
+async function moveLeadToWebinar(leadId, nombre, correo, baseWebinarUrl) {
   try {
     const now = new Date().toISOString();
+
+    // Build personalized URL so webinar.html can track this specific viewer
+    const personalUrl = `${baseWebinarUrl}?id=${leadId}&nombre=${encodeURIComponent(nombre)}&correo=${encodeURIComponent(correo)}`;
+
     await fsUpdateLeadFields(leadId, {
-      pipeline_id: 'en-webinar',
-      etapa:       'Inscrito en Webinar',
-      link_webinar: WEBINAR_URL,
+      pipeline_id:  'en-webinar',
+      etapa:        'Inscrito en Webinar',
+      link_webinar: personalUrl,
     });
 
+    // Append historial entry
     const doc  = await fetch(`${FS_BASE}/leads/${leadId}?key=${FS_KEY}`).then(r => r.json());
     const hist = (doc.fields?.historial?.arrayValue?.values || []).map(v => ({
       icono:   v.mapValue?.fields?.icono?.stringValue   || '📋',
@@ -244,49 +250,55 @@ async function moveLeadToWebinar(leadId, WEBINAR_URL) {
       fecha:   v.mapValue?.fields?.fecha?.stringValue   || now,
       usuario: v.mapValue?.fields?.usuario?.stringValue || '',
     }));
-    hist.push({ icono: '🎥', accion: 'Inscrito en Webinar automáticamente por Ana (IA)', fecha: now, usuario: 'Ana (IA)' });
+    hist.push({ icono: '🎥', accion: 'Inscrito en Webinar — link personalizado generado y enviado por correo', fecha: now, usuario: 'Ana (IA)' });
     await fsUpdateLeadFields(leadId, { historial: hist });
-    console.log(`[Webinar] Lead ${leadId} movido a Inscrito en Webinar`);
+
+    // Send email with personalized link
+    await sendWebinarEmail(correo, nombre, personalUrl);
+
+    console.log(`[Webinar] Lead ${leadId} → en-webinar | link: ${personalUrl}`);
+    return personalUrl;
   } catch (e) {
-    console.error('[Webinar] Error moviendo lead:', e.message);
+    console.error('[Webinar] Error:', e.message);
+    return baseWebinarUrl;
   }
 }
 
 // ── Full background WA pipeline ───────────────────────────────────────────────
-// Call this after replying to a WhatsApp message.
-// from:    conversationHistory key (e.g. "wa_meta:521..." or "whatsapp:+1...")
-// history: the Map from conversationHistory
-// sendFn:  async (to, text) → sends WA message back to the user
-// opts:    { SERVER_URL, WEBINAR_URL }
+// from:   conversationHistory key ("wa_meta:521..." or "whatsapp:+1...")
+// sendFn: async (to, text) — channel-specific send function (NOT used for link)
+// opts:   { WEBINAR_URL }
 async function runWAPipeline(from, historyMap, sendFn, opts) {
   const { WEBINAR_URL } = opts;
   const history = historyMap.get(from) || [];
 
   try {
-    const extractResult = await extractAndUpdateLead(from, history);
+    // Always try to extract/update lead data from the conversation
+    await extractAndUpdateLead(from, history);
 
     if (!webinarInviteSent.has(from)) {
       const wantsWebinar = await detectWebinarIntent(history);
       if (wantsWebinar) {
-        webinarInviteSent.add(from);
-
         const phone = rawPhone(from);
         const doc   = await fsGetLeadByPhone(phone);
-        if (doc) {
-          const leadId = doc.name.split('/').pop();
-          const f      = doc.fields || {};
-          const nombre = f.nombre?.stringValue || '';
-          const correo = f.correo?.stringValue || '';
+        if (!doc) return;
 
-          // Send webinar link via WhatsApp
-          await sendFn(from, `🎥 Aquí está el link de tu webinar informativo:\n${WEBINAR_URL}\n\nEs gratuito y dura aproximadamente 60 minutos. ¡Cualquier duda estoy aquí!`);
+        const f      = doc.fields || {};
+        const nombre = f.nombre?.stringValue || '';
+        const correo = f.correo?.stringValue || '';
 
-          // Send email invitation if we have the address
-          if (correo) await sendWebinarEmail(correo, nombre, WEBINAR_URL);
-
-          // Move lead to "en-webinar" pipeline and save link
-          await moveLeadToWebinar(leadId, WEBINAR_URL);
+        // Only proceed if we have both name and email
+        if (!correo || !nombre || nombre.startsWith('WA ') || nombre.startsWith('+')) {
+          console.log(`[Pipeline] Sin correo/nombre para ${from} — esperando más datos`);
+          return;
         }
+
+        webinarInviteSent.add(from);
+        const leadId = doc.name.split('/').pop();
+
+        // Move to en-webinar, generate personalized link, send email
+        // Ana's AI response already tells them to wait for the email — no WA link needed here
+        await moveLeadToWebinar(leadId, nombre, correo, WEBINAR_URL);
       }
     }
   } catch (e) {
