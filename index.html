@@ -1310,25 +1310,8 @@ function makePostuladosTabs() {
 
 const PIPELINES = [
   { id:'postulados-meta', nombre:'POSTULADOS POR META', icon:'📌', visible:true,
-    tabs: [
-      { id:'all', nombre:'Todos', sidebar:false,
-        etapas:[
-          {v:'New Lead',                  l:'New Lead'},
-          {v:'1er intento de contacto',   l:'1er intento de contacto'},
-          {v:'2do intento de contacto',   l:'2do intento de contacto'},
-          {v:'3er intento de contacto',   l:'3er intento de contacto'},
-          {v:'65 con inf',                l:'65 con inf'},
-        ]},
-      { id:'1er', nombre:'1er intento de contacto', sidebar:true,
-        etapas:[{v:'1er intento de contacto', l:'1er intento de contacto'}] },
-      { id:'2do', nombre:'2do intento de contacto', sidebar:true,
-        etapas:[{v:'2do intento de contacto', l:'2do intento de contacto'}] },
-      { id:'3er', nombre:'3er intento de contacto', sidebar:true,
-        etapas:[{v:'3er intento de contacto', l:'3er intento de contacto'}] },
-      { id:'65-con-inf', nombre:'65 con inf', sidebar:true,
-        etapas:[{v:'65 con inf', l:'65 con inf'}] },
-    ],
-    etapas:['New Lead','1er intento de contacto','2do intento de contacto','3er intento de contacto','65 con inf'] },
+    tabs: makePostuladosTabs(),
+    etapas:['New Lead','1er intento de contacto','2do intento de contacto','3er intento de contacto'] },
   { id:'postulados-indeed', nombre:'POSTULADOS POR INDEED', icon:'📋', visible:true,
     tabs: makePostuladosTabs(),
     etapas:['New Lead','1er intento de contacto','2do intento de contacto','3er intento de contacto'] },
