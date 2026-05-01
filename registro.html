@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Registro al Webinar — Grupo Elite Work</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+:root {
+  --bg:      #080a0f;
+  --surface: #0e1117;
+  --card:    #131720;
+  --border:  #1e2330;
+  --accent:  #4f7fff;
+  --green:   #00c875;
+  --red:     #f87171;
+  --text:    #f0f2ff;
+  --text2:   #5a6070;
+  --text3:   #8890a4;
+  --font:    'Inter', system-ui, sans-serif;
+}
+
+html, body { min-height: 100%; }
+body { font-family: var(--font); background: var(--bg); color: var(--text); display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; padding: 24px 16px; }
+
+/* ── CARD ── */
+.card {
+  width: 100%; max-width: 460px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 40px 36px;
+  box-shadow: 0 32px 80px rgba(0,0,0,.7);
+  position: relative;
+  overflow: hidden;
+}
+.card::before {
+  content: '';
+  position: absolute; top: -80px; left: 50%; transform: translateX(-50%);
+  width: 400px; height: 200px;
+  background: radial-gradient(ellipse, rgba(79,127,255,.1) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+/* ── LOGO AREA ── */
+.logo-area {
+  text-align: center; margin-bottom: 28px;
+}
+.logo-badge {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: rgba(79,127,255,.12); border: 1px solid rgba(79,127,255,.2);
+  border-radius: 99px; padding: 6px 16px; margin-bottom: 16px;
+  color: var(--accent); font-size: 11px; font-weight: 700; letter-spacing: .8px; text-transform: uppercase;
+}
+.logo-badge::before { content: ''; width: 6px; height: 6px; background: var(--accent); border-radius: 50%; animation: blink 2s infinite; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+.card-title { font-size: 22px; font-weight: 800; color: #fff; line-height: 1.2; margin-bottom: 6px; }
+.card-sub { font-size: 13px; color: var(--text3); line-height: 1.6; }
+
+/* ── FORM ── */
+.form-group { margin-bottom: 16px; }
+label { display: block; font-size: 12px; font-weight: 600; color: var(--text3); margin-bottom: 7px; letter-spacing: .3px; }
+input {
+  width: 100%; background: var(--surface); border: 1px solid var(--border);
+  border-radius: 9px; padding: 12px 14px;
+  color: var(--text); font-family: var(--font); font-size: 14px;
+  outline: none; transition: border-color .2s, box-shadow .2s;
+}
+input::placeholder { color: var(--text2); }
+input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(79,127,255,.12); }
+input.error { border-color: var(--red); }
+
+.btn-submit {
+  width: 100%; padding: 14px;
+  background: linear-gradient(135deg, #4f7fff, #7c5cff);
+  border: none; border-radius: 10px; color: #fff;
+  font-family: var(--font); font-size: 15px; font-weight: 700;
+  cursor: pointer; margin-top: 8px;
+  box-shadow: 0 8px 28px rgba(79,127,255,.28);
+  transition: transform .15s, box-shadow .15s, opacity .2s;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+}
+.btn-submit:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 12px 36px rgba(79,127,255,.38); }
+.btn-submit:active:not(:disabled) { transform: none; }
+.btn-submit:disabled { opacity: .5; cursor: not-allowed; }
+
+/* spinner */
+.spinner {
+  width: 18px; height: 18px; border: 2px solid rgba(255,255,255,.3);
+  border-top-color: #fff; border-radius: 50%;
+  animation: spin .7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── SUCCESS ── */
+.success-screen {
+  display: none; text-align: center;
+}
+.success-icon {
+  width: 64px; height: 64px; border-radius: 50%;
+  background: rgba(0,200,117,.15); border: 2px solid rgba(0,200,117,.3);
+  display: flex; align-items: center; justify-content: center;
+  margin: 0 auto 20px; font-size: 28px;
+}
+.success-title { font-size: 20px; font-weight: 800; color: #fff; margin-bottom: 8px; }
+.success-sub { font-size: 13.5px; color: var(--text3); line-height: 1.7; margin-bottom: 28px; }
+.btn-webinar {
+  display: inline-flex; align-items: center; justify-content: center; gap: 9px;
+  padding: 13px 28px; background: linear-gradient(135deg, #4f7fff, #7c5cff);
+  border: none; border-radius: 10px; color: #fff; text-decoration: none;
+  font-family: var(--font); font-size: 15px; font-weight: 700;
+  cursor: pointer; width: 100%;
+  box-shadow: 0 8px 28px rgba(79,127,255,.28);
+  transition: transform .15s, box-shadow .15s;
+}
+.btn-webinar:hover { transform: translateY(-2px); box-shadow: 0 12px 36px rgba(79,127,255,.38); }
+
+/* ── ERROR MESSAGE ── */
+.msg-error {
+  background: rgba(248,113,113,.08); border: 1px solid rgba(248,113,113,.25);
+  border-radius: 8px; padding: 10px 14px; color: var(--red);
+  font-size: 13px; margin-top: 12px; display: none;
+}
+
+/* footer */
+.page-footer { margin-top: 24px; font-size: 11px; color: var(--text2); text-align: center; }
+
+@media (max-width: 480px) {
+  .card { padding: 28px 20px; }
+}
+</style>
+</head>
+<body>
+
+<div class="card" id="card-form">
+  <div class="logo-area">
+    <div class="logo-badge">Webinar informativo</div>
+    <div class="card-title">Regístrate al Webinar</div>
+    <p class="card-sub">Completa tus datos y accede al webinar de oportunidad laboral de Grupo Elite Work.</p>
+  </div>
+
+  <form id="reg-form" onsubmit="submitForm(event)" novalidate>
+    <div class="form-group">
+      <label for="f-nombre">Nombre completo</label>
+      <input id="f-nombre" type="text" placeholder="Tu nombre completo" autocomplete="name" required />
+    </div>
+    <div class="form-group">
+      <label for="f-telefono">Teléfono</label>
+      <input id="f-telefono" type="tel" placeholder="Tu número de teléfono" autocomplete="tel" required />
+    </div>
+    <div class="form-group">
+      <label for="f-correo">Correo electrónico</label>
+      <input id="f-correo" type="email" placeholder="tu@correo.com" autocomplete="email" required />
+    </div>
+
+    <button class="btn-submit" type="submit" id="btn-submit">
+      Acceder al Webinar →
+    </button>
+    <div class="msg-error" id="msg-error"></div>
+  </form>
+</div>
+
+<div class="card success-screen" id="card-success">
+  <div class="success-icon">🎉</div>
+  <div class="success-title">¡Registro exitoso!</div>
+  <p class="success-sub" id="success-msg">Bienvenido/a. Haz clic abajo para ver el webinar ahora mismo.</p>
+  <a class="btn-webinar" id="btn-ir-webinar" href="webinar.html">
+    🎥 Ver Webinar Ahora
+  </a>
+</div>
+
+<p class="page-footer">© 2026 Grupo Elite Work LLC · Todos los derechos reservados</p>
+
+<script>
+const FS_PROJECT = 'elite-reclutamiento-crm';
+const FS_KEY     = 'AIzaSyCW2t1oHb7xc2Vi6vJROGRM7E7nu-CbU3s';
+const FS_BASE    = `https://firestore.googleapis.com/v1/projects/${FS_PROJECT}/databases/(default)/documents`;
+
+function fsVal(v) {
+  if (v === null || v === undefined) return { nullValue: null };
+  if (typeof v === 'boolean') return { booleanValue: v };
+  if (typeof v === 'number')  return { doubleValue: v };
+  if (typeof v === 'string')  return { stringValue: v };
+  if (Array.isArray(v))       return { arrayValue: { values: v.map(fsVal) } };
+  if (typeof v === 'object')  return { mapValue: { fields: Object.fromEntries(Object.entries(v).map(([k,x]) => [k, fsVal(x)])) } };
+  return { stringValue: String(v) };
+}
+
+async function submitForm(e) {
+  e.preventDefault();
+
+  const nombre   = document.getElementById('f-nombre').value.trim();
+  const telefono = document.getElementById('f-telefono').value.trim();
+  const correo   = document.getElementById('f-correo').value.trim();
+  const btn      = document.getElementById('btn-submit');
+  const errBox   = document.getElementById('msg-error');
+
+  // Validar
+  errBox.style.display = 'none';
+  let ok = true;
+  ['f-nombre','f-telefono','f-correo'].forEach(id => document.getElementById(id).classList.remove('error'));
+
+  if (!nombre)   { document.getElementById('f-nombre').classList.add('error');   ok = false; }
+  if (!telefono) { document.getElementById('f-telefono').classList.add('error'); ok = false; }
+  if (!correo || !/\S+@\S+\.\S+/.test(correo)) { document.getElementById('f-correo').classList.add('error'); ok = false; }
+
+  if (!ok) {
+    errBox.textContent = 'Por favor completa todos los campos correctamente.';
+    errBox.style.display = 'block';
+    return;
+  }
+
+  // Loading state
+  btn.disabled = true;
+  btn.innerHTML = '<div class="spinner"></div> Registrando…';
+
+  try {
+    const leadId = 'lead-reg-' + Date.now();
+    const now    = new Date().toISOString();
+    const WEBINAR_URL = 'https://crm.grupoelitework.com/webinar.html';
+
+    const doc = {
+      fields: {
+        nombre:       fsVal(nombre),
+        telefono:     fsVal(telefono),
+        correo:       fsVal(correo),
+        fuente:       fsVal('Registro Webinar'),
+        etapa:        fsVal('Inscrito en Webinar'),
+        pipeline_id:  fsVal('en-webinar'),
+        estado:       fsVal('abierto'),
+        valor:        fsVal(0),
+        propietario:  fsVal('Ana (IA)'),
+        link_webinar: fsVal(WEBINAR_URL),
+        created_at:   fsVal(now),
+        notas:        fsVal([]),
+        tareas:       fsVal([]),
+        pagos:        fsVal([]),
+        etiquetas:    fsVal([]),
+        historial:    fsVal([{
+          icono:   '📝',
+          accion:  'Lead registrado manualmente en el webinar vía formulario público',
+          fecha:   now,
+          usuario: 'Formulario Web',
+        }]),
+      }
+    };
+
+    const res = await fetch(`${FS_BASE}/leads/${leadId}?key=${FS_KEY}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(doc),
+    });
+
+    if (!res.ok) throw new Error('Error guardando datos');
+
+    // Construir URL del webinar con datos del lead
+    const webinarUrl = `webinar.html?id=${leadId}&nombre=${encodeURIComponent(nombre)}&correo=${encodeURIComponent(correo)}`;
+
+    // Mostrar pantalla de éxito
+    document.getElementById('card-form').style.display = 'none';
+    document.getElementById('success-msg').textContent =
+      `¡Bienvenido/a, ${nombre.split(' ')[0]}! Haz clic abajo para ver el webinar ahora mismo.`;
+    document.getElementById('btn-ir-webinar').href = webinarUrl;
+    document.getElementById('card-success').style.display = 'block';
+
+  } catch (err) {
+    btn.disabled = false;
+    btn.innerHTML = 'Acceder al Webinar →';
+    errBox.textContent = 'Ocurrió un error. Por favor intenta de nuevo.';
+    errBox.style.display = 'block';
+  }
+}
+</script>
+</body>
+</html>

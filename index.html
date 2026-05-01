@@ -742,7 +742,7 @@ tr.lead-resuelto td:last-child { pointer-events:none;opacity:.4; }
       <div class="sidebar-item" onclick="showConversations()" id="nav-conversations">📞 &nbsp;Conversaciones</div>
       <div class="sidebar-item" onclick="showMessaging()" id="nav-messaging">💬 &nbsp;Mensajería</div>
       <div class="sidebar-item" onclick="openExternalApplicant()" style="color:#60a5fa;">📥 &nbsp;Aplicantes Externos</div>
-      <a id="sidebar-webinar-link" class="sidebar-item sidebar-webinar-link" href="https://quintero-partners.webinargeek.com/oportunidad-laboral-webinar-on-demand-q-p" target="_blank" rel="noopener">🔗 &nbsp;Link de Webinar</a>
+      <a class="sidebar-item sidebar-webinar-link" href="/registro.html" target="_blank" rel="noopener">📝 &nbsp;Registro Webinar</a>
       <div class="sidebar-item" onclick="showAIPanel()" id="nav-ai">🤖 &nbsp;Asistente IA</div>
       <div class="sidebar-item sidebar-config-btn" id="sidebar-config-btn" onclick="showConfig()">⚙️ &nbsp;Configuraciones</div>
       <div class="sidebar-item" onclick="resetAllLeads()" style="color:#f87171;">🗑️ &nbsp;Borrar todos los leads</div>
@@ -1312,7 +1312,7 @@ const SERVER_URL = localStorage.getItem('er_server_url') || 'https://elite-reclu
 
 let currentUser = { name:'Luis González', role:'Administrador' };
 let activePipelineId = 'postulados-meta';
-let webinarLink = localStorage.getItem('er_webinar_link') || 'https://quintero-partners.webinargeek.com/oportunidad-laboral-webinar-on-demand-q-p';
+const webinarLink = 'https://crm.grupoelitework.com/webinar.html';
 let activeView = 'kanban'; // 'kanban' | 'calendario'
 if (new URLSearchParams(location.search).get('reset') === 'leads') {
   localStorage.removeItem('er_leads');
@@ -1675,19 +1675,20 @@ function renderConfig() {
         <button class="cfg-save-btn" onclick="saveConfigProfile()">Guardar cambios</button>
       </div>
 
-      <!-- LINK DE WEBINAR -->
+      <!-- FORMULARIO DE REGISTRO WEBINAR -->
       <div class="cfg-section">
-        <div class="cfg-section-title">🔗 Link de Webinar</div>
-        <div class="cfg-field" style="margin-bottom:12px;">
-          <label>URL del webinar</label>
-          <input id="cfg-webinar-url" value="${webinarLink}" placeholder="https://..." style="width:100%;box-sizing:border-box;" />
+        <div class="cfg-section-title">📝 Formulario de Registro Webinar</div>
+        <p style="font-size:13px;color:var(--text3);margin-bottom:14px;line-height:1.6;">
+          Comparte este enlace con candidatos o terceros para que se registren al webinar. Al completar el formulario quedan inscritos automáticamente en el CRM.
+        </p>
+        <div style="display:flex;align-items:center;gap:8px;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 14px;">
+          <span id="reg-url-text" style="font-size:13px;color:var(--accent);flex:1;word-break:break-all;">https://crm.grupoelitework.com/registro.html</span>
+          <button onclick="copyRegUrl()" style="background:rgba(79,127,255,.15);border:1px solid rgba(79,127,255,.3);color:var(--accent);border-radius:6px;padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;font-family:var(--font);">Copiar</button>
         </div>
-        <div class="cfg-field" style="margin-bottom:12px;">
-          <label>Contraseña para confirmar cambio</label>
-          <input id="cfg-webinar-pass" type="password" placeholder="Tu contraseña actual" />
+        <div style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap;">
+          <a href="/registro.html" target="_blank" rel="noopener" style="font-size:12px;color:var(--green);text-decoration:none;">↗ Abrir formulario</a>
+          <a href="/webinar.html" target="_blank" rel="noopener" style="font-size:12px;color:var(--text3);text-decoration:none;">↗ Abrir webinar</a>
         </div>
-        <button class="cfg-save-btn" onclick="saveWebinarLink()">Guardar link</button>
-        <a href="${webinarLink}" target="_blank" rel="noopener" style="display:inline-block;margin-left:12px;font-size:12px;color:#00c875;text-decoration:none;">↗ Abrir webinar</a>
       </div>
 
       <!-- SERVIDOR WEBINAR (BACKEND) -->
@@ -1721,20 +1722,10 @@ function saveConfigProfile() {
 }
 
 
-function saveWebinarLink() {
-  const newUrl  = document.getElementById('cfg-webinar-url').value.trim();
-  const passVal = document.getElementById('cfg-webinar-pass').value;
-  if (!newUrl) { showToast('⚠️ El link no puede estar vacío'); return; }
-  if (!passVal) { showToast('⚠️ Ingresa tu contraseña para confirmar'); return; }
-  if (currentUser?.password && passVal !== currentUser.password) {
-    showToast('❌ Contraseña incorrecta'); return;
-  }
-  webinarLink = newUrl;
-  localStorage.setItem('er_webinar_link', webinarLink);
-  const sidebarLink = document.getElementById('sidebar-webinar-link');
-  if (sidebarLink) sidebarLink.href = webinarLink;
-  showToast('✅ Link de webinar actualizado');
-  renderConfig();
+function copyRegUrl() {
+  navigator.clipboard.writeText('https://crm.grupoelitework.com/registro.html')
+    .then(() => showToast('✅ Enlace copiado'))
+    .catch(() => showToast('⚠️ No se pudo copiar'));
 }
 
 function calGoToday() { calYear = new Date().getFullYear(); calMonth = new Date().getMonth(); renderCalendario(); }
