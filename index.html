@@ -4011,112 +4011,143 @@ async function showAIPanel() {
   el.style.display = 'block';
   renderSidebar();
   el.innerHTML = `<div style="max-width:860px;margin:0 auto;">
-    <div style="display:flex;align-items:center;gap:14px;margin-bottom:28px;">
-      <div style="width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,#784bd1,#00bcd4);display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0;">🤖</div>
+    <!-- Header -->
+    <div style="display:flex;align-items:center;gap:14px;margin-bottom:20px;">
+      <div style="width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,#784bd1,#00bcd4);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;">🤖</div>
       <div>
-        <h2 style="font-size:20px;font-weight:800;color:#fff;margin:0">Asistente IA — Ana</h2>
-        <p style="font-size:12px;color:var(--text2);margin:3px 0 0">Responde llamadas, SMS y WhatsApp automáticamente con Claude + ElevenLabs</p>
+        <h2 style="font-size:18px;font-weight:800;color:#fff;margin:0">Asistente IA — Ana</h2>
+        <p style="font-size:11px;color:var(--text2);margin:2px 0 0">Responde WA, SMS y llamadas automáticamente</p>
       </div>
     </div>
 
-    <!-- Canales + Historia -->
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
-      <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:18px;">
-        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text2);margin-bottom:12px;">Canales activos</div>
-        <div style="display:flex;flex-direction:column;gap:8px;" id="ai-toggles"><div style="color:var(--text2);font-size:12px;">Cargando…</div></div>
+    <!-- Canales + Historia (siempre visible) -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text2);margin-bottom:10px;">Canales activos</div>
+        <div style="display:flex;flex-direction:column;gap:7px;" id="ai-toggles"><div style="color:var(--text2);font-size:12px;">Cargando…</div></div>
       </div>
-      <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:18px;">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
           <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text2);">Conversaciones activas</div>
-          <button class="btn-secondary" onclick="aiClearHistory()" style="font-size:10px;padding:4px 10px;">🗑️ Borrar</button>
+          <button class="btn-secondary" onclick="aiClearHistory()" style="font-size:10px;padding:3px 8px;">🗑️ Borrar</button>
         </div>
-        <div id="ai-history-list" style="font-size:12px;color:var(--text2);max-height:180px;overflow-y:auto;">Cargando…</div>
+        <div id="ai-history-list" style="font-size:12px;color:var(--text2);max-height:140px;overflow-y:auto;">Cargando…</div>
       </div>
     </div>
 
-    <!-- Prompt general -->
-    <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:20px;">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
-        <div>
-          <div style="font-size:13px;font-weight:700;color:#c4b5fd;">🧠 Prompt general</div>
-          <div style="font-size:11px;color:var(--text2);margin-top:3px;">Personalidad, misión e instrucciones generales de Ana.</div>
-        </div>
-        <button class="btn-primary" onclick="aiSaveGeneral()" style="font-size:11px;padding:6px 14px;">💾 Guardar</button>
+    <!-- Cuadro: Cuándo buscar un encargado (siempre visible) -->
+    <div style="background:linear-gradient(135deg,rgba(249,115,22,.1),rgba(239,68,68,.08));border:1px solid rgba(249,115,22,.3);border-radius:12px;padding:16px;margin-bottom:12px;">
+      <div style="font-size:12px;font-weight:800;color:#fb923c;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;">🚨 Cuándo Ana busca un encargado</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+        ${[
+          ['🔗','Link no llega','El candidato reporta que no recibió el link después de 2+ intentos'],
+          ['📞','Pide llamada','El candidato solicita explícitamente hablar por teléfono'],
+          ['🤬','Lenguaje ofensivo','El candidato usa insultos o tono muy agresivo'],
+          ['❓','Fuera de alcance','Ana no puede responder la pregunta y necesita a un manager'],
+          ['📋','Ya tiene licencia','El candidato menciona que ya tiene licencia de seguros'],
+          ['⚠️','Sin documentos','El candidato menciona no tener documentos legales en EE.UU.'],
+        ].map(([icon, title, desc]) => `
+          <div style="background:rgba(0,0,0,.2);border-radius:8px;padding:9px 12px;display:flex;gap:8px;align-items:flex-start;">
+            <span style="font-size:15px;line-height:1;flex-shrink:0;">${icon}</span>
+            <div>
+              <div style="font-size:11px;font-weight:700;color:#fff;">${title}</div>
+              <div style="font-size:10px;color:var(--text2);margin-top:2px;line-height:1.4;">${desc}</div>
+            </div>
+          </div>`).join('')}
       </div>
-      <textarea id="ai-general-ta" style="width:100%;height:220px;background:#0d0f1a;border:1px solid rgba(120,75,209,.35);border-radius:8px;color:#e2d9f3;font-size:12px;font-family:monospace;padding:14px;line-height:1.7;resize:vertical;outline:none;box-sizing:border-box;" placeholder="Cargando…"></textarea>
+      <div style="margin-top:10px;font-size:10px;color:#fdba74;line-height:1.5;">
+        Al detectar alguna situación, Ana responde normalmente al candidato y envía alerta al <strong>Encargado 1</strong>.
+        Si no responde en <strong>5 min</strong> → Encargado 2. Si no responde en <strong>10 min</strong> → Encargado 3.
+      </div>
     </div>
 
-    <!-- Q&A pairs -->
-    <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:20px;">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
-        <div>
-          <div style="font-size:13px;font-weight:700;color:#6ee7b7;">💬 Preguntas y Respuestas</div>
-          <div style="font-size:11px;color:var(--text2);margin-top:3px;">Agrega preguntas frecuentes con sus respuestas exactas. Ana las usará como guía.</div>
+    <!-- Secciones colapsables -->
+    ${[
+      { id:'general',  color:'#c4b5fd', icon:'🧠', title:'Prompt general',         desc:'Personalidad, misión e instrucciones de Ana.' },
+      { id:'qa',       color:'#6ee7b7', icon:'💬', title:'Preguntas y Respuestas',  desc:'Respuestas exactas para preguntas frecuentes.' },
+      { id:'forbidden',color:'#fca5a5', icon:'🚫', title:'Temas prohibidos',        desc:'Lo que Ana nunca debe mencionar.' },
+      { id:'cases',    color:'#fcd34d', icon:'⚡', title:'En caso de…',             desc:'Situaciones específicas y cómo reaccionar.' },
+      { id:'managers', color:'#fb923c', icon:'👥', title:'Equipo de Escalada',      desc:'Los 3 encargados que reciben alertas en cadena.' },
+    ].map(s => `
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;margin-bottom:8px;overflow:hidden;">
+      <div onclick="aiToggleSection('${s.id}')" style="display:flex;align-items:center;gap:10px;padding:14px 18px;cursor:pointer;user-select:none;">
+        <span style="font-size:15px;">${s.icon}</span>
+        <div style="flex:1;">
+          <div style="font-size:13px;font-weight:700;color:${s.color};">${s.title}</div>
+          <div style="font-size:10px;color:var(--text2);margin-top:1px;">${s.desc}</div>
         </div>
-        <div style="display:flex;gap:8px;">
-          <button class="btn-secondary" onclick="aiAddQA()"  style="font-size:11px;padding:6px 12px;">+ Agregar</button>
-          <button class="btn-primary"   onclick="aiSaveQA()" style="font-size:11px;padding:6px 14px;">💾 Guardar</button>
-        </div>
+        <span id="ai-chevron-${s.id}" style="color:var(--text2);font-size:11px;transition:transform .2s;">▼</span>
       </div>
-      <div id="ai-qa-list" style="display:flex;flex-direction:column;gap:12px;"></div>
-    </div>
-
-    <!-- Forbidden -->
-    <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:20px;">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
-        <div>
-          <div style="font-size:13px;font-weight:700;color:#fca5a5;">🚫 Detalles prohibidos</div>
-          <div style="font-size:11px;color:var(--text2);margin-top:3px;">Temas que Ana nunca debe mencionar ni responder.</div>
-        </div>
-        <button class="btn-primary" onclick="aiSaveForbidden()" style="font-size:11px;padding:6px 14px;">💾 Guardar</button>
+      <div id="ai-section-${s.id}" style="display:none;padding:0 18px 18px;border-top:1px solid var(--border);">
+        <!-- content injected below -->
       </div>
-      <textarea id="ai-forbidden-ta" style="width:100%;height:160px;background:#1a0d0d;border:1px solid rgba(226,68,92,.3);border-radius:8px;color:#fca5a5;font-size:12px;font-family:monospace;padding:14px;line-height:1.7;resize:vertical;outline:none;box-sizing:border-box;" placeholder="Cargando…"></textarea>
-    </div>
-
-    <!-- En caso de -->
-    <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:20px;">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
-        <div>
-          <div style="font-size:13px;font-weight:700;color:#fcd34d;">⚡ En caso de…</div>
-          <div style="font-size:11px;color:var(--text2);margin-top:3px;">Situaciones específicas y cómo debe reaccionar Ana ante cada una.</div>
-        </div>
-        <div style="display:flex;gap:8px;">
-          <button class="btn-secondary" onclick="aiAddCase()" style="font-size:11px;padding:6px 12px;">+ Agregar</button>
-          <button class="btn-primary" onclick="aiSaveCases()" style="font-size:11px;padding:6px 14px;">💾 Guardar</button>
-        </div>
-      </div>
-      <div id="ai-cases-list" style="display:flex;flex-direction:column;gap:12px;"></div>
-    </div>
-
-    <!-- Equipo de Escalada -->
-    <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:20px;">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
-        <div>
-          <div style="font-size:13px;font-weight:700;color:#f97316;">🚨 Equipo de Escalada</div>
-          <div style="font-size:11px;color:var(--text2);margin-top:3px;">Cuando Ana no puede resolver una situación, alerta a estos encargados por WhatsApp en cadena.</div>
-        </div>
-      </div>
-      <div style="background:rgba(249,115,22,.07);border:1px solid rgba(249,115,22,.2);border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:11px;color:#fdba74;line-height:1.6;">
-        <strong>Flujo:</strong> Ana detecta el problema → avisa al Encargado 1 → si no responde en 5 min, avisa al Encargado 2 → si no responde en 10 min, avisa al Encargado 3.<br>
-        Cada encargado responde <strong>SI</strong> para tomar el caso (Ana se pausa) o <strong>SIGUIENTE</strong> para pasar al siguiente.
-      </div>
-      <div id="ai-managers-list" style="display:flex;flex-direction:column;gap:10px;">
-        <div style="color:var(--text2);font-size:12px;">Cargando…</div>
-      </div>
-      <div style="margin-top:12px;display:flex;justify-content:flex-end;">
-        <button class="btn-primary" onclick="aiSaveManagers()" id="ai-managers-save-btn" style="font-size:11px;padding:6px 14px;display:none;">💾 Guardar encargados</button>
-      </div>
-      <div style="margin-top:10px;font-size:10px;color:var(--text2);">
-        🔒 Para editar, haz clic en el candado de cada encargado y confirma el cambio.
-      </div>
-    </div>
+    </div>`).join('')}
   </div>`;
   await aiLoadPanel();
 }
 
 let _aiConfig = null;
 
+function aiToggleSection(id) {
+  const pane    = document.getElementById(`ai-section-${id}`);
+  const chevron = document.getElementById(`ai-chevron-${id}`);
+  if (!pane) return;
+  const open = pane.style.display === 'none';
+  pane.style.display    = open ? 'block' : 'none';
+  chevron.style.transform = open ? 'rotate(180deg)' : '';
+}
+
+function _aiInjectSectionContent() {
+  // Prompt general
+  document.getElementById('ai-section-general').innerHTML = `
+    <div style="padding-top:14px;display:flex;flex-direction:column;gap:10px;">
+      <textarea id="ai-general-ta" style="width:100%;height:220px;background:#0d0f1a;border:1px solid rgba(120,75,209,.35);border-radius:8px;color:#e2d9f3;font-size:12px;font-family:monospace;padding:14px;line-height:1.7;resize:vertical;outline:none;box-sizing:border-box;" placeholder="Cargando…"></textarea>
+      <div style="text-align:right;"><button class="btn-primary" onclick="aiSaveGeneral()" style="font-size:11px;padding:6px 14px;">💾 Guardar</button></div>
+    </div>`;
+
+  // Q&A
+  document.getElementById('ai-section-qa').innerHTML = `
+    <div style="padding-top:14px;display:flex;flex-direction:column;gap:10px;">
+      <div id="ai-qa-list" style="display:flex;flex-direction:column;gap:12px;"></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;">
+        <button class="btn-secondary" onclick="aiAddQA()" style="font-size:11px;padding:6px 12px;">+ Agregar</button>
+        <button class="btn-primary" onclick="aiSaveQA()" style="font-size:11px;padding:6px 14px;">💾 Guardar</button>
+      </div>
+    </div>`;
+
+  // Forbidden
+  document.getElementById('ai-section-forbidden').innerHTML = `
+    <div style="padding-top:14px;display:flex;flex-direction:column;gap:10px;">
+      <textarea id="ai-forbidden-ta" style="width:100%;height:160px;background:#1a0d0d;border:1px solid rgba(226,68,92,.3);border-radius:8px;color:#fca5a5;font-size:12px;font-family:monospace;padding:14px;line-height:1.7;resize:vertical;outline:none;box-sizing:border-box;" placeholder="Cargando…"></textarea>
+      <div style="text-align:right;"><button class="btn-primary" onclick="aiSaveForbidden()" style="font-size:11px;padding:6px 14px;">💾 Guardar</button></div>
+    </div>`;
+
+  // Cases
+  document.getElementById('ai-section-cases').innerHTML = `
+    <div style="padding-top:14px;display:flex;flex-direction:column;gap:10px;">
+      <div id="ai-cases-list" style="display:flex;flex-direction:column;gap:12px;"></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;">
+        <button class="btn-secondary" onclick="aiAddCase()" style="font-size:11px;padding:6px 12px;">+ Agregar</button>
+        <button class="btn-primary" onclick="aiSaveCases()" style="font-size:11px;padding:6px 14px;">💾 Guardar</button>
+      </div>
+    </div>`;
+
+  // Managers
+  document.getElementById('ai-section-managers').innerHTML = `
+    <div style="padding-top:14px;display:flex;flex-direction:column;gap:10px;">
+      <div style="background:rgba(249,115,22,.07);border:1px solid rgba(249,115,22,.2);border-radius:8px;padding:10px 14px;font-size:11px;color:#fdba74;line-height:1.6;">
+        Responde <strong>SI</strong> u <strong>OK</strong> para tomar el caso (Ana se pausa) · <strong>SIGUIENTE</strong> para pasar al próximo encargado.
+      </div>
+      <div id="ai-managers-list" style="display:flex;flex-direction:column;gap:10px;"><div style="color:var(--text2);font-size:12px;">Cargando…</div></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;">
+        <span style="font-size:10px;color:var(--text2);">🔒 Haz clic en Editar en cada encargado para cambiar sus datos.</span>
+        <button class="btn-primary" onclick="aiSaveManagers()" id="ai-managers-save-btn" style="font-size:11px;padding:6px 14px;display:none;">💾 Guardar encargados</button>
+      </div>
+    </div>`;
+}
+
 async function aiLoadPanel() {
+  _aiInjectSectionContent();
   try {
     const [cs, ss, hs, ms] = await Promise.all([
       fetch(`${SERVER_URL}/ai/config`).then(r=>r.json()),
