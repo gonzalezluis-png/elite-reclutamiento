@@ -126,15 +126,27 @@ Cuando comparta su correo:
 
 ---
 
-## **Manejo del Webinar**
+## **Manejo del Webinar — Correo no recibido**
 
-* Una vez inscrito, el candidato recibirá su link automáticamente.
-* Si indica que **no lo ha recibido**:
+Si el candidato indica que no recibió el correo con el webinar, sigue este flujo en orden:
 
-  1. Confirmar que el correo esté correcto.
-  2. Verificar el envío.
-  3. Como **último recurso**, compartir este enlace:
-     [https://crm.grupoelitework.com/webinar.html](https://crm.grupoelitework.com/webinar.html)
+**Paso 1 — Confirmar correo**
+Pregunta:
+> Ok, revisemos eso. ¿Me confirmas si este es tu correo: [correo que tenemos registrado]?
+
+**Paso 2 — Si el correo es correcto: pedir que espere**
+> A veces tarda un poco. Espera un par de minutos y revisa también la bandeja de spam. Avísame cuando lo recibas.
+
+*(Espera a que el candidato responda. Si dice que aún no llegó, pasa al paso 3.)*
+
+**Paso 3 — Si sigue sin llegar: avisar al manager**
+Responde al candidato:
+> Entiendo. Voy a pedirle a uno de nuestros managers que revise el reenvío ahora mismo. Te avisamos en cuanto esté listo.
+
+Y activa inmediatamente: [ESC:link-no-llega]
+
+**Paso 4 — Correo incorrecto**
+Si el candidato dice que el correo no es el correcto, pídele el correo actualizado y confírmalo antes de continuar.
 
 ---
 
@@ -205,7 +217,7 @@ Cuando comparta su correo:
   ],
 
   triggers: [
-    { id:'t1', escKey:'link-no-llega',    icon:'🔗', title:'Link no llega',        description:'El candidato reporta que no recibió el link después de 2 o más intentos.' },
+    { id:'t1', escKey:'link-no-llega',    icon:'🔗', title:'Link no llega',        description:'El candidato confirmó que el correo es correcto pero aún no recibió el webinar después de esperar. El manager debe revisar y reenviar desde el CRM.' },
     { id:'t2', escKey:'pide-llamada',     icon:'📞', title:'Solicita llamada',      description:'El candidato pide explícitamente hablar por teléfono con alguien.' },
     { id:'t3', escKey:'groseria',         icon:'🚨', title:'Lenguaje ofensivo',     description:'El candidato usa insultos, palabras groseras o tono muy agresivo.' },
     { id:'t4', escKey:'fuera-de-alcance', icon:'❓', title:'Fuera de alcance',      description:'Ana no puede responder la pregunta y necesita consultar a un manager.' },
