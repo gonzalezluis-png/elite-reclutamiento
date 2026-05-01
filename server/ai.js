@@ -204,6 +204,15 @@ Cuando comparta su correo:
     },
   ],
 
+  triggers: [
+    { id:'t1', escKey:'link-no-llega',    icon:'🔗', title:'Link no llega',        description:'El candidato reporta que no recibió el link después de 2 o más intentos.' },
+    { id:'t2', escKey:'pide-llamada',     icon:'📞', title:'Solicita llamada',      description:'El candidato pide explícitamente hablar por teléfono con alguien.' },
+    { id:'t3', escKey:'groseria',         icon:'🚨', title:'Lenguaje ofensivo',     description:'El candidato usa insultos, palabras groseras o tono muy agresivo.' },
+    { id:'t4', escKey:'fuera-de-alcance', icon:'❓', title:'Fuera de alcance',      description:'Ana no puede responder la pregunta y necesita consultar a un manager.' },
+    { id:'t5', escKey:'tiene-licencia',   icon:'📋', title:'Ya tiene licencia',     description:'El candidato menciona que ya cuenta con licencia de seguros.' },
+    { id:'t6', escKey:'sin-documentos',   icon:'⚠️', title:'Sin documentos legales','description':'El candidato menciona no tener documentos legales para trabajar en EE.UU.' },
+  ],
+
   forbidden: `- No hablar de política ni religión
 - no puedes usar emoji
 - no puedes usar mensajes muy largo en un solo mensaje de ser necesario, dividirlo en dos o tres partes
@@ -269,6 +278,9 @@ async function loadConfigFromFirestore() {
       if (data.fields.cases?.arrayValue?.values) {
         cfg.cases = data.fields.cases.arrayValue.values.map(v => fsConfigParse(v.mapValue?.fields || {}));
       }
+      if (data.fields.triggers?.arrayValue?.values) {
+        cfg.triggers = data.fields.triggers.arrayValue.values.map(v => fsConfigParse(v.mapValue?.fields || {}));
+      }
       return { ...DEFAULT_CONFIG, ...cfg };
     }
   } catch {}
@@ -306,6 +318,19 @@ async function saveConfig(config) {
               id:        fsConfigVal(item.id        || ''),
               situation: fsConfigVal(item.situation || ''),
               response:  fsConfigVal(item.response  || ''),
+            }}
+          }))
+        }
+      },
+      triggers: {
+        arrayValue: {
+          values: (config.triggers || []).map(item => ({
+            mapValue: { fields: {
+              id:          fsConfigVal(item.id          || ''),
+              escKey:      fsConfigVal(item.escKey      || ''),
+              icon:        fsConfigVal(item.icon        || ''),
+              title:       fsConfigVal(item.title       || ''),
+              description: fsConfigVal(item.description || ''),
             }}
           }))
         }
@@ -354,12 +379,7 @@ ${cfg.forbidden || '(Sin restricciones configuradas)'}
 ━━━ ESCALADA AL EQUIPO — INSTRUCCIÓN CRÍTICA ━━━
 Cuando detectes alguna de estas situaciones, añade OBLIGATORIAMENTE al FINAL de tu mensaje (en una línea nueva separada) la bandera exacta. El candidato NO la verá — solo el sistema la procesa internamente:
 
-[ESC:link-no-llega] → El candidato dice que no recibió el link y ya se ha intentado 2 o más veces
-[ESC:pide-llamada]  → El candidato solicita explícitamente una llamada telefónica
-[ESC:groseria]      → El candidato usa lenguaje ofensivo, insultos o tono agresivo
-[ESC:fuera-de-alcance] → No puedes responder la pregunta y debes consultar a un manager
-[ESC:tiene-licencia]   → El candidato menciona que ya tiene licencia de seguros
-[ESC:sin-documentos]   → El candidato menciona que no tiene documentos legales para trabajar en EE.UU.
+${(cfg.triggers || []).map(t => `[ESC:${t.escKey}] → ${t.description}`).join('\n')}
 
 REGLA: Añade la bandera UNA sola vez por situación. Nunca más de una por mensaje.`;
 }
