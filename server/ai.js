@@ -263,9 +263,11 @@ async function loadConfigFromFirestore() {
     const data = await res.json();
     if (data.fields) {
       const cfg = fsConfigParse(data.fields);
-      // qa is array of maps — parse each item
       if (data.fields.qa?.arrayValue?.values) {
         cfg.qa = data.fields.qa.arrayValue.values.map(v => fsConfigParse(v.mapValue?.fields || {}));
+      }
+      if (data.fields.cases?.arrayValue?.values) {
+        cfg.cases = data.fields.cases.arrayValue.values.map(v => fsConfigParse(v.mapValue?.fields || {}));
       }
       return { ...DEFAULT_CONFIG, ...cfg };
     }
@@ -289,16 +291,25 @@ async function saveConfig(config) {
       qa: {
         arrayValue: {
           values: (config.qa || []).map(item => ({
-            mapValue: {
-              fields: {
-                id:       fsConfigVal(item.id       || ''),
-                question: fsConfigVal(item.question || ''),
-                answer:   fsConfigVal(item.answer   || ''),
-              }
-            }
+            mapValue: { fields: {
+              id:       fsConfigVal(item.id       || ''),
+              question: fsConfigVal(item.question || ''),
+              answer:   fsConfigVal(item.answer   || ''),
+            }}
           }))
         }
-      }
+      },
+      cases: {
+        arrayValue: {
+          values: (config.cases || []).map(item => ({
+            mapValue: { fields: {
+              id:        fsConfigVal(item.id        || ''),
+              situation: fsConfigVal(item.situation || ''),
+              response:  fsConfigVal(item.response  || ''),
+            }}
+          }))
+        }
+      },
     };
     const res = await fetch(CONFIG_DOC, {
       method:  'PATCH',
@@ -323,12 +334,19 @@ async function buildSystemPrompt(channel = 'text') {
     `• Si preguntan sobre "${p.question}":\n  → ${p.answer}`
   ).join('\n\n');
 
+  const casesBlock = (cfg.cases || []).map(c =>
+    `• En caso de que ${c.situation}:\n  → ${c.response}`
+  ).join('\n\n');
+
   return `${cfg.general}
 
 CANAL ACTUAL: ${channelNote}
 
 ━━━ RESPUESTAS PARA PREGUNTAS FRECUENTES ━━━
 ${qaBlock || '(Sin preguntas configuradas)'}
+
+━━━ EN CASO DE… — SITUACIONES ESPECÍFICAS ━━━
+${casesBlock || '(Sin situaciones configuradas)'}
 
 ━━━ TEMAS PROHIBIDOS — NUNCA hablar de esto ━━━
 ${cfg.forbidden || '(Sin restricciones configuradas)'}`;

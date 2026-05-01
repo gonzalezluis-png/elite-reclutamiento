@@ -3991,6 +3991,21 @@ async function showAIPanel() {
       </div>
       <textarea id="ai-forbidden-ta" style="width:100%;height:160px;background:#1a0d0d;border:1px solid rgba(226,68,92,.3);border-radius:8px;color:#fca5a5;font-size:12px;font-family:monospace;padding:14px;line-height:1.7;resize:vertical;outline:none;box-sizing:border-box;" placeholder="Cargando…"></textarea>
     </div>
+
+    <!-- En caso de -->
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:20px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+        <div>
+          <div style="font-size:13px;font-weight:700;color:#fcd34d;">⚡ En caso de…</div>
+          <div style="font-size:11px;color:var(--text2);margin-top:3px;">Situaciones específicas y cómo debe reaccionar Ana ante cada una.</div>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn-secondary" onclick="aiAddCase()" style="font-size:11px;padding:6px 12px;">+ Agregar</button>
+          <button class="btn-primary" onclick="aiSaveCases()" style="font-size:11px;padding:6px 14px;">💾 Guardar</button>
+        </div>
+      </div>
+      <div id="ai-cases-list" style="display:flex;flex-direction:column;gap:12px;"></div>
+    </div>
   </div>`;
   await aiLoadPanel();
 }
@@ -4009,6 +4024,7 @@ async function aiLoadPanel() {
     document.getElementById('ai-general-ta').value   = _aiConfig.general  || '';
     document.getElementById('ai-forbidden-ta').value = _aiConfig.forbidden || '';
     aiRenderQA(_aiConfig.qa || []);
+    aiRenderCases(_aiConfig.cases || []);
 
     const channels = [
       { key:'voice', label:'📞 Llamadas' },
@@ -4119,6 +4135,52 @@ async function aiSaveForbidden() {
   if (!_aiConfig) return;
   _aiConfig.forbidden = document.getElementById('ai-forbidden-ta')?.value || '';
   await _aiSave({ forbidden: _aiConfig.forbidden }, 'Detalles prohibidos');
+}
+
+function aiRenderCases(cases) {
+  const el = document.getElementById('ai-cases-list');
+  if (!el) return;
+  if (!cases.length) {
+    el.innerHTML = `<div style="color:rgba(255,255,255,.2);font-size:12px;text-align:center;padding:16px;">Sin situaciones — haz clic en "+ Agregar"</div>`;
+    return;
+  }
+  el.innerHTML = cases.map((c, i) => `
+    <div style="background:var(--card2);border:1px solid var(--border);border-radius:10px;padding:14px;position:relative;" id="ai-case-${c.id}">
+      <button onclick="aiDeleteCase('${c.id}')" style="position:absolute;top:10px;right:10px;background:rgba(226,68,92,.15);border:none;color:var(--red);border-radius:5px;padding:2px 8px;cursor:pointer;font-size:12px;">✕</button>
+      <div style="font-size:10px;font-weight:700;color:#fcd34d;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">Situación ${i+1}</div>
+      <input value="${esc(c.situation)}" onchange="aiUpdateCase('${c.id}','situation',this.value)"
+        placeholder="En caso de que…"
+        style="width:100%;background:#1a1500;border:1px solid rgba(252,211,77,.25);border-radius:7px;color:#fef9c3;font-size:12px;padding:8px 10px;outline:none;margin-bottom:8px;box-sizing:border-box;" />
+      <div style="font-size:10px;font-weight:700;color:#7dd3fc;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">Ana debe…</div>
+      <textarea onchange="aiUpdateCase('${c.id}','response',this.value)"
+        placeholder="¿Cómo debe reaccionar Ana?"
+        style="width:100%;height:80px;background:#0d1220;border:1px solid rgba(125,211,252,.25);border-radius:7px;color:#e2eeff;font-size:12px;padding:8px 10px;outline:none;resize:vertical;box-sizing:border-box;">${esc(c.response)}</textarea>
+    </div>`).join('');
+}
+
+function aiAddCase() {
+  if (!_aiConfig) return;
+  const newItem = { id: Date.now().toString(), situation: '', response: '' };
+  _aiConfig.cases = [...(_aiConfig.cases || []), newItem];
+  aiRenderCases(_aiConfig.cases);
+  document.getElementById(`ai-case-${newItem.id}`)?.scrollIntoView({ behavior: 'smooth' });
+}
+
+function aiDeleteCase(id) {
+  if (!_aiConfig) return;
+  _aiConfig.cases = (_aiConfig.cases || []).filter(c => c.id !== id);
+  aiRenderCases(_aiConfig.cases);
+}
+
+function aiUpdateCase(id, field, value) {
+  if (!_aiConfig) return;
+  const c = (_aiConfig.cases || []).find(c => c.id === id);
+  if (c) c[field] = value;
+}
+
+async function aiSaveCases() {
+  if (!_aiConfig) return;
+  await _aiSave({ cases: _aiConfig.cases }, 'En caso de');
 }
 
 async function aiToggle(channel, enabled) {
