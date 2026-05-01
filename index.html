@@ -1264,7 +1264,7 @@ tr.lead-resuelto td:last-child { pointer-events:none;opacity:.4; }
   </div>
   <div style="padding:8px 13px;border-top:1px solid var(--border);">
     <button onclick="deleteLeadFull()" style="width:100%;background:transparent;border:1px solid #f87171;border-radius:7px;color:#f87171;font-size:12px;font-weight:600;font-family:var(--font);padding:7px 12px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;transition:all .15s;" onmouseover="this.style.background='#f87171';this.style.color='#fff'" onmouseout="this.style.background='transparent';this.style.color='#f87171'">
-      🗑️ Eliminar lead y conversación
+      🗑️ Eliminar todos los datos (Legal)
     </button>
   </div>
 </div>
@@ -3085,23 +3085,35 @@ async function deleteLeadFull() {
   const leadId = _openMenuLeadId || currentLeadId;
   if (!leadId) return;
   const lead = leads.find(l => l.id === leadId);
-  if (!confirm(`¿Eliminar a ${lead?.nombre || 'este lead'} y toda su conversación? Esta acción no se puede deshacer.`)) return;
+  const nombre = lead?.nombre || 'este contacto';
+
+  // Double confirmation for legal data deletion
+  if (!confirm(`⚠️ ELIMINACIÓN DE DATOS\n\nVas a eliminar permanentemente a "${nombre}" incluyendo:\n• Su perfil y toda su información\n• Historial de conversaciones con Ana\n• Registros de escalación\n\nEsta acción NO se puede deshacer.\n\n¿Continuar?`)) return;
+  if (!confirm(`Confirma una vez más: ¿eliminar TODOS los datos de "${nombre}"?`)) return;
+
   closeAllMenus();
   closeLead();
+
+  // Remove from local state immediately for responsiveness
   leads = leads.filter(l => l.id !== leadId);
   saveLeads();
   renderKanban();
   renderSidebar();
-  // Delete from Firestore
-  fsDeleteLead(leadId);
-  // Delete conversation history from server
-  if (lead?.telefono) {
-    const phone = lead.telefono.startsWith('whatsapp:') ? lead.telefono : `whatsapp:${lead.telefono}`;
-    fetch(`${SERVER_URL}/ai/history/${encodeURIComponent(phone)}`, { method: 'DELETE' }).catch(() => {});
-    // Also try without whatsapp: prefix in case it was stored differently
-    fetch(`${SERVER_URL}/ai/history/${encodeURIComponent(lead.telefono)}`, { method: 'DELETE' }).catch(() => {});
+  showToast('Eliminando datos…');
+
+  try {
+    const r = await fetch(`${SERVER_URL}/leads/${leadId}`, { method: 'DELETE' });
+    const d = await r.json();
+    if (d.ok) {
+      const histCount = d.deleted?.history?.length || 0;
+      const escCount  = d.deleted?.escalations?.length || 0;
+      showToast(`✅ Datos de "${nombre}" eliminados${histCount ? ` · ${histCount} conv.` : ''}${escCount ? ` · ${escCount} esc.` : ''}`);
+    } else {
+      showToast('⚠️ Lead eliminado localmente, pero hubo un error en el servidor: ' + d.error);
+    }
+  } catch (e) {
+    showToast('⚠️ Lead eliminado localmente. Error de conexión: ' + e.message);
   }
-  showToast('🗑️ Lead y conversación eliminados');
 }
 
 // ════════════════════════════════════════════

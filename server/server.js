@@ -688,6 +688,68 @@ app.delete('/ai/history', (req, res) => {
   res.json({ ok: true });
 });
 
+// ── Legal data deletion — removes lead + all associated data ──────────────────
+app.delete('/leads/:id', async (req, res) => {
+  const leadId = req.params.id;
+  const FS_PROJECT = 'elite-reclutamiento-crm';
+  const FS_KEY     = 'AIzaSyCW2t1oHb7xc2Vi6vJROGRM7E7nu-CbU3s';
+  const FS_BASE    = `https://firestore.googleapis.com/v1/projects/${FS_PROJECT}/databases/(default)/documents`;
+
+  try {
+    // 1. Read lead to get phone before deleting
+    const leadRes  = await fetch(`${FS_BASE}/leads/${leadId}?key=${FS_KEY}`);
+    const leadData = await leadRes.json();
+    const phone    = leadData?.fields?.telefono?.stringValue || '';
+
+    // 2. Delete Firestore lead document
+    await fetch(`${FS_BASE}/leads/${leadId}?key=${FS_KEY}`, { method: 'DELETE' });
+
+    // 3. Delete all conversation history keys that match this phone
+    const deleted = { lead: leadId, history: [], escalations: [] };
+    if (phone) {
+      const bare = phone.replace(/^whatsapp:\+?/, '').replace(/^\+/, '');
+      const keysToTry = [
+        phone,
+        `+${bare}`,
+        bare,
+        `whatsapp:+${bare}`,
+        `whatsapp:${bare}`,
+        `wa_meta:${bare}`,
+        `wa_meta:+${bare}`,
+      ];
+      for (const k of keysToTry) {
+        if (conversationHistory.has(k)) {
+          conversationHistory.delete(k);
+          deleted.history.push(k);
+        }
+      }
+    }
+
+    // 4. Delete escalation records for this lead
+    const escRes  = await fetch(`${FS_BASE}/escalations?key=${FS_KEY}&pageSize=200`);
+    const escData = await escRes.json();
+    const escDocs = escData?.documents || [];
+    await Promise.all(
+      escDocs
+        .filter(d => {
+          const lp = d.fields?.leadPhone?.stringValue || '';
+          return lp.replace(/^\+/, '') === phone.replace(/^\+/, '') || d.fields?.leadId?.stringValue === leadId;
+        })
+        .map(async d => {
+          const docId = d.name.split('/').pop();
+          await fetch(`${FS_BASE}/escalations/${docId}?key=${FS_KEY}`, { method: 'DELETE' });
+          deleted.escalations.push(docId);
+        })
+    );
+
+    console.log(`[Data Deletion] Lead ${leadId} eliminado. Historial: [${deleted.history.join(', ')}]. Escalaciones: [${deleted.escalations.join(', ')}]`);
+    res.json({ ok: true, deleted });
+  } catch (e) {
+    console.error('[Data Deletion] Error:', e.message);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
 // ── Health check ──────────────────────────────────────────────────────────────
 app.get('/',       (req, res) => res.json({ status: 'ok', service: 'Elite Webinar Bot' }));
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
