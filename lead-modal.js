@@ -588,9 +588,10 @@ async function _acBookSlot(slot) {
     }]);
 
     const fields = {
-      pipeline_id: toFsVal('entrevistas-generales'),
-      etapa:       toFsVal('EN ENTREVISTA'),
-      historial:   toFsVal(hist),
+      pipeline_id:    toFsVal('entrevistas-generales'),
+      etapa:          toFsVal('En Entrevista'),
+      webinar_accion: toFsVal('en-entrevista'),
+      historial:      toFsVal(hist),
     };
     const mask = Object.keys(fields).join('&updateMask.fieldPaths=');
     await fetch(`${FS_BASE}/leads/${_acLead.id}?key=${FS_KEY}&updateMask.fieldPaths=${mask}`, {
@@ -600,9 +601,10 @@ async function _acBookSlot(slot) {
     });
 
     // Update local state
-    _acLead.pipeline_id = 'entrevistas-generales';
-    _acLead.etapa       = 'EN ENTREVISTA';
-    _acLead.historial   = hist;
+    _acLead.pipeline_id    = 'entrevistas-generales';
+    _acLead.etapa          = 'En Entrevista';
+    _acLead.webinar_accion = 'en-entrevista';
+    _acLead.historial      = hist;
 
     closeAgendarCitaModal();
     showToast(`✅ Entrevista agendada — ${_acLead.nombre} movido a Entrevistas Generales`);

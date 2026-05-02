@@ -200,7 +200,10 @@ function setWebinarAccion(leadId, accion) {
   const lead = leads.find(l => l.id === leadId);
   if (!lead) return;
   lead.webinar_accion = accion;
-  if (accion === 'asistente') {
+  if (accion === 'en-entrevista') {
+    lead.etapa = 'En Entrevista';
+    addHistorial(leadId, 'Entrevista agendada — marcado como EN ENTREVISTA', '🗓️');
+  } else if (accion === 'asistente') {
     lead.etapa = 'AS - Asistente';
     lead.inscrito_webinar = true;
     addHistorial(leadId, 'Marcado como ASISTENTE al Webinar', '✅');

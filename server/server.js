@@ -520,7 +520,7 @@ app.post('/twilio/whatsapp-incoming', async (req, res) => {
         console.log(`[Interview] ${cleanFrom} eligió: ${chosen.iso}`);
         try {
           await bookInterview({ leadPhone: cleanFrom, leadName: nombre, slotIso: chosen.iso, convKey: From });
-          if (leadId) await fsUpdateLeadFields(leadId, { interview_state: 'booked', pending_slots: '', quiere_entrevista: false });
+          if (leadId) await fsUpdateLeadFields(leadId, { interview_state: 'booked', pending_slots: '', quiere_entrevista: false, webinar_accion: 'en-entrevista' });
         } catch (e) { console.error('[Interview] Error booking:', e.message); }
         return res.type('text/xml').send('<Response></Response>');
 
