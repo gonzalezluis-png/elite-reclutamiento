@@ -103,7 +103,7 @@ function renderKanban() {
           const sinMgrBadge = ld.sin_manager
             ? `<span onclick="event.stopPropagation();dismissSinManager('${ld.id}')" title="Marcar como atendido" style="display:inline-flex;align-items:center;gap:4px;background:rgba(239,68,68,.15);border:1px solid rgba(239,68,68,.4);color:#f87171;font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;cursor:pointer;animation:blink-dot 1.4s ease-in-out infinite;">🚨 Sin manager</span>`
             : '';
-          return `<tr class="${resuelto}${ld.quiere_entrevista ? ' tr-llamada-alert' : ''}${ld.sin_manager ? ' tr-sinmgr-alert' : ''}" onclick="${resuelto?'':` openLead('${ld.id}')`}">
+          return `<tr class="${resuelto}${ld.quiere_entrevista ? ' tr-llamada-alert' : ''}${ld.sin_manager ? ' tr-sinmgr-alert' : ''}" onclick="openLead('${ld.id}')">`
             <td style="color:var(--text2);display:flex;align-items:center;gap:6px;min-height:36px">${icon}${i+1}</td>
             <td style="font-weight:600;color:#fff">${esc(ld.nombre)}${sinMgrBadge ? '<br>'+sinMgrBadge : ''}${llamadaBadge ? '<br>'+llamadaBadge : ''}</td>
             <td style="color:var(--text2)">${esc(ld.correo||'')}</td>
