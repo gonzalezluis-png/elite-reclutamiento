@@ -2342,7 +2342,7 @@ function renderKanban() {
                 <button onclick="enviarLinkPorCorreo('${ld.id}')" title="${ld.webinar_email_enviado ? 'Enviado el '+new Date(ld.webinar_email_enviado).toLocaleDateString('es-MX',{day:'2-digit',month:'short'}) : 'Enviar link por correo'}" style="padding:3px 8px;background:${ld.webinar_email_enviado ? 'rgba(0,200,117,.15)' : 'rgba(120,75,209,.15)'};border:1px solid ${ld.webinar_email_enviado ? 'rgba(0,200,117,.3)' : 'rgba(120,75,209,.3)'};color:${ld.webinar_email_enviado ? '#00c875' : '#a78bfa'};border-radius:5px;font-size:11px;cursor:pointer;font-family:var(--font);">${ld.webinar_email_enviado ? '✅ Enviado' : '📧 Enviar'}</button>
               </div>
             </td>
-            <td onclick="event.stopPropagation()">
+            <td onclick="event.stopPropagation()" style="overflow:visible;position:relative;">
               <div class="lt-accion-btn">
                 <button class="lt-accion-trigger ${accion}" onclick="toggleAccionMenu(event,'${ld.id}')">${accionLabel} ▾</button>
                 <div class="lt-accion-menu" id="accion-menu-${ld.id}">
