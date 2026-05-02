@@ -480,7 +480,10 @@ app.post('/twilio/whatsapp-incoming', async (req, res) => {
   const _ivState = _twLeadData?.fields?.interview_state?.stringValue;
   if (_ivState === 'awaiting_slot' && Body?.trim()) {
     let ivData = {};
-    try { ivData = JSON.parse(_twLeadData.fields?.pending_slots?.stringValue || '{}'); } catch {}
+    try {
+      const _raw = JSON.parse(_twLeadData.fields?.pending_slots?.stringValue || '{}');
+      ivData = Array.isArray(_raw) ? { slots: _raw, offeringDay: 1 } : _raw;
+    } catch {}
     const allSlots    = ivData.slots || [];
     const offeringDay = ivData.offeringDay || 1;
     const leadId      = _twLeadData?.name?.split('/').pop();
