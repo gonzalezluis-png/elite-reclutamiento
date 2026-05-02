@@ -643,6 +643,11 @@ app.get('/ai/team-messages', async (req, res) => {
   res.json({ ok: true, messages });
 });
 
+app.get('/ai/templates', (req, res) => {
+  const { TEMPLATES } = require('./templates');
+  res.json({ ok: true, templates: TEMPLATES });
+});
+
 app.post('/ai/managers', async (req, res) => {
   const { managers } = req.body;
   if (!Array.isArray(managers) || managers.length !== 3) {
@@ -728,14 +733,22 @@ app.post('/interviews/book', async (req, res) => {
   const convKey   = req.body.convKey;
   if (!leadPhone || !slotIso) return res.status(400).json({ ok: false, error: 'phone y slot requeridos' });
   const { id, cfg, doc } = await bookInterview({ leadPhone, leadName, slotIso, convKey });
-  // Notify interviewer via WhatsApp
+  // Notify interviewer via template
   if (cfg.interviewer.phone) {
-    const d    = new Date(slotIso);
-    const hora = d.toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' });
-    const fecha = d.toLocaleDateString('es', { weekday: 'long', day: 'numeric', month: 'long' });
-    const msg  = `📅 Tienes una entrevista programada para el ${fecha} a las ${hora} con ${leadName || 'un candidato'}. Confirma disponibilidad.`;
+    const d     = new Date(slotIso);
+    const days  = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+    const months= ['enero','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+    const h     = d.getHours(); const h12 = h % 12 || 12; const ampm = h >= 12 ? 'PM' : 'AM';
+    const fecha = `${days[d.getDay()]} ${d.getDate()} de ${months[d.getMonth()]}`;
+    const hora  = `${h12}:00 ${ampm}`;
+    const fallback = `📅 Nueva entrevista agendada — Grupo Élite\n\nCandidato: ${leadName || 'Candidato'}\nTeléfono: ${leadPhone}\nFecha y hora: ${fecha} · ${hora}\nEnlace Zoom: ${cfg.zoomLink}\n\nResponde CONFIRMAR o REAGENDAR.`;
     const { sendWhatsApp } = require('./meta');
-    sendWhatsApp(cfg.interviewer.phone.replace(/^\+/, ''), msg).catch(() => {});
+    const { sendTemplateOrFallback } = require('./templates');
+    const ivPhone = cfg.interviewer.phone.replace(/^\+/, '');
+    sendTemplateOrFallback(ivPhone, 'entrevista_agendada_int',
+      [leadName || 'Candidato', leadPhone, `${fecha} · ${hora}`, cfg.zoomLink || ''],
+      fallback, sendWhatsApp
+    ).catch(() => {});
   }
   res.json({ ok: true, id, doc, interview: { id, slot: slotIso, zoom_link: doc.zoomLink, status: doc.status } });
 });

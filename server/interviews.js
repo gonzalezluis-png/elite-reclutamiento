@@ -3,6 +3,8 @@ const FS_KEY     = 'AIzaSyCW2t1oHb7xc2Vi6vJROGRM7E7nu-CbU3s';
 const FS_BASE    = `https://firestore.googleapis.com/v1/projects/${FS_PROJECT}/databases/(default)/documents`;
 const CONFIG_DOC = `${FS_BASE}/config/interview_config?key=${FS_KEY}`;
 
+const { sendWhatsAppTemplate, sendTemplateOrFallback, TEMPLATES } = require('./templates');
+
 // ── Defaults ──────────────────────────────────────────────────────────────────
 const DEFAULT_INTERVIEW_CONFIG = {
   interviewer: {
@@ -202,22 +204,45 @@ function formatSlotLabel(d) {
 
 // ── Book interview ────────────────────────────────────────────────────────────
 async function bookInterview({ leadPhone, leadName, slotIso, convKey }) {
-  const id  = 'int_' + Date.now();
-  const cfg = await loadInterviewConfig();
-  const doc = {
+  const id   = 'int_' + Date.now();
+  const cfg  = await loadInterviewConfig();
+  const slot = new Date(slotIso);
+  const doc  = {
     id, leadPhone, leadName, slotIso, convKey,
     interviewer: cfg.interviewer.name,
     zoomLink:    cfg.zoomLink,
     status:      'scheduled',
     createdAt:   new Date().toISOString(),
-    reminders:   {},   // track which reminders have been sent
+    reminders:   {},
   };
   await fetch(`${FS_BASE}/interviews/${id}?key=${FS_KEY}`, {
     method:  'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body:    JSON.stringify({ fields: fsVal(doc).mapValue.fields }),
   });
+
+  // Build fecha/hora strings for templates
+  const { fecha, hora } = _fmtSlot(slot);
+  const firstName = (leadName || 'Candidato').split(' ')[0];
+  const phoneClean = (leadPhone || '').replace(/^\+/, '');
+
+  // Confirmation to candidate
+  const confFallback = `¡Hola ${firstName}! 🎉\n\nTu entrevista con Grupo Élite Work ha sido confirmada.\n\n📅 Fecha: ${fecha}\n🕐 Hora: ${hora}\n🔗 Enlace Zoom: ${cfg.zoomLink}\n\n¡Te esperamos!`;
+  sendTemplateOrFallback(phoneClean, 'confirmacion_entrevista', [firstName, fecha, hora, cfg.zoomLink], confFallback, null).catch(() => {});
+
   return { id, cfg, doc };
+}
+
+function _fmtSlot(d) {
+  const days   = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+  const months = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+  const h   = d.getHours();
+  const h12 = h % 12 || 12;
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  return {
+    fecha: `${days[d.getDay()]} ${d.getDate()} de ${months[d.getMonth()]}`,
+    hora:  `${h12}:00 ${ampm}`,
+  };
 }
 
 // ── List interviews ───────────────────────────────────────────────────────────
@@ -281,17 +306,34 @@ async function checkInterviewReminders(sendWA) {
 
       if (!shouldSend) continue;
 
-      const msg = fillTemplate(rem.message, iv, slotTime);
+      const msg       = fillTemplate(rem.message, iv, slotTime);
+      const firstName = (iv.leadName || 'Candidato').split(' ')[0];
+      const { fecha, hora } = _fmtSlot(slotTime);
 
       if (rem.notifyManager || rem.notifyInterviewer) {
-        // Notify interviewer/manager
+        // Notify interviewer via template
         if (cfg.interviewer.phone) {
-          await sendWA(cfg.interviewer.phone.replace(/^\+/, ''), msg).catch(() => {});
+          const ivPhone  = cfg.interviewer.phone.replace(/^\+/, '');
+          const ivFallback = `📅 Recordatorio: tienes una entrevista con ${iv.leadName || 'un candidato'} el ${fecha} a las ${hora}.\nZoom: ${iv.zoomLink}`;
+          await sendTemplateOrFallback(ivPhone, 'entrevista_agendada_int',
+            [iv.leadName || 'Candidato', iv.leadPhone || '', `${fecha} · ${hora}`, iv.zoomLink || ''],
+            ivFallback, sendWA
+          ).catch(() => {});
         }
       } else {
-        // Notify applicant
+        // Notify candidate via template
         const phone = (iv.leadPhone || '').replace(/^\+/, '');
-        if (phone) await sendWA(phone, msg).catch(() => {});
+        if (phone) {
+          let tplKey = 'recordatorio_dia_antes';
+          let tplParams = [firstName, fecha, hora, iv.zoomLink || ''];
+
+          if (rem.trigger === 'hours_before') {
+            tplKey   = 'recordatorio_horas_antes';
+            tplParams = [firstName, String(rem.value), iv.zoomLink || ''];
+          }
+
+          await sendTemplateOrFallback(phone, tplKey, tplParams, msg, sendWA).catch(() => {});
+        }
       }
 
       // Mark reminder as sent
@@ -305,8 +347,11 @@ async function checkInterviewReminders(sendWA) {
       if (diffMin >= 0 && diffMin < 5) {
         const phone = (iv.leadPhone || '').replace(/^\+/, '');
         if (phone) {
-          const zoomMsg = `🎥 Tu entrevista comienza ahora. Únete aquí:\n${iv.zoomLink}`;
-          await sendWA(phone, zoomMsg).catch(() => {});
+          const firstName = (iv.leadName || 'Candidato').split(' ')[0];
+          const zoomFallback = `🎥 Tu entrevista comienza ahora. Únete aquí:\n${iv.zoomLink}`;
+          await sendTemplateOrFallback(phone, 'enlace_zoom_inicio',
+            [firstName, iv.zoomLink || ''], zoomFallback, sendWA
+          ).catch(() => {});
         }
         reminders['zoom_sent'] = new Date().toISOString();
         await updateInterview(iv.id, { reminders });

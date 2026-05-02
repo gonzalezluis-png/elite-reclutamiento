@@ -4233,7 +4233,8 @@ async function showAIPanel() {
       { id:'webinar',  icon:'🎥', title:'Manejo del Webinar',             desc:'Flujo e instrucciones para cuando el candidato tiene problemas con el webinar.' },
       { id:'triggers', icon:'🚨', title:'Cuándo buscar un manager',      desc:'Situaciones que activan una alerta al equipo de escalada.' },
       { id:'managers', icon:'👥', title:'Equipo de escalada',            desc:'Los tres encargados y el entrevistador que reciben alertas por WhatsApp.' },
-      { id:'equipo',   icon:'💬', title:'Conversación con el equipo',    desc:'Intercambios de WhatsApp entre Ana y los encargados / entrevistador.' },
+      { id:'equipo',     icon:'💬', title:'Conversación con el equipo',    desc:'Intercambios de WhatsApp entre Ana y los encargados / entrevistador.' },
+      { id:'templates',  icon:'📋', title:'Plantillas de WhatsApp',        desc:'Mensajes automáticos que deben aprobarse en Meta Business Manager.' },
     ].map(s => `
     <div style="border:1px solid var(--border);border-radius:10px;margin-bottom:6px;overflow:hidden;background:var(--card);">
       <button onclick="aiToggleSection('${s.id}')" style="width:100%;display:flex;align-items:center;gap:12px;padding:13px 16px;background:none;border:none;cursor:pointer;text-align:left;user-select:none;">
@@ -4340,6 +4341,21 @@ function _aiInjectSectionContent() {
       </div>
     </div>`;
 
+  // Templates section
+  document.getElementById('ai-section-templates').innerHTML = `
+    <div style="padding-top:4px;display:flex;flex-direction:column;gap:12px;">
+      <div style="background:rgba(234,179,8,.07);border:1px solid rgba(234,179,8,.25);border-radius:8px;padding:10px 14px;font-size:11px;color:#fde68a;line-height:1.6;">
+        <strong>¿Cómo activar las plantillas?</strong><br>
+        1. Entra a <strong>Meta Business Manager → Herramientas de cuenta → Plantillas de mensajes</strong>.<br>
+        2. Crea cada plantilla con el nombre exacto, categoría <strong>UTILITY</strong>, idioma <strong>Español (es)</strong>.<br>
+        3. Copia el texto del cuerpo y reemplaza los <code>{{n}}</code> con variables de texto.<br>
+        4. Envía a revisión. Una vez aprobadas, el sistema las usará automáticamente.
+      </div>
+      <div id="ai-templates-list" style="display:flex;flex-direction:column;gap:10px;">
+        <div style="color:var(--text2);font-size:12px;">Cargando plantillas…</div>
+      </div>
+    </div>`;
+
   // Team chat section
   document.getElementById('ai-section-equipo').innerHTML = `
     <div style="padding-top:4px;display:flex;flex-direction:column;gap:10px;">
@@ -4359,13 +4375,14 @@ function _aiInjectSectionContent() {
 async function aiLoadPanel() {
   _aiInjectSectionContent();
   try {
-    const [cs, ss, hs, ms, iv, tm] = await Promise.all([
+    const [cs, ss, hs, ms, iv, tm, tpls] = await Promise.all([
       fetch(`${SERVER_URL}/ai/config`).then(r=>r.json()),
       fetch(`${SERVER_URL}/ai/settings`).then(r=>r.json()),
       fetch(`${SERVER_URL}/ai/history`).then(r=>r.json()),
       fetch(`${SERVER_URL}/ai/managers`).then(r=>r.json()).catch(()=>({managers:[],interviewer:null})),
       fetch(`${SERVER_URL}/interviews/config`).then(r=>r.json()).catch(()=>({config:{}})),
       fetch(`${SERVER_URL}/ai/team-messages`).then(r=>r.json()).catch(()=>({messages:[]})),
+      fetch(`${SERVER_URL}/ai/templates`).then(r=>r.json()).catch(()=>({templates:{}})),
     ]);
 
     _aiConfig = cs.config || {};
@@ -4378,6 +4395,7 @@ async function aiLoadPanel() {
     aiRenderManagers(ms.managers || [], ms.interviewer || null);
     ivRenderConfig(iv.config || {});
     aiInitTeamChat(ms.managers || [], ms.interviewer || null, tm.messages || []);
+    aiRenderTemplates(tpls.templates || {});
 
     // Channel status pills
     const channels = [
@@ -4951,6 +4969,48 @@ function _aiRenderTeamMessages(phone) {
     </div>`;
   }).join('');
   el.scrollTop = el.scrollHeight;
+}
+
+// ── WhatsApp Templates UI ─────────────────────────────────────────────────────
+const TEMPLATE_RECIPIENT_LABEL = { manager:'👤 Encargado', interviewer:'🎙 Entrevistador', candidate:'📱 Candidato' };
+const TEMPLATE_RECIPIENT_COLOR = { manager:'#f97316', interviewer:'#a5b4fc', candidate:'#22c55e' };
+
+function aiRenderTemplates(templates) {
+  const el = document.getElementById('ai-templates-list');
+  if (!el) return;
+  const entries = Object.entries(templates);
+  if (!entries.length) { el.innerHTML = '<div style="color:var(--text2);font-size:12px;">Sin plantillas.</div>'; return; }
+
+  el.innerHTML = entries.map(([key, tpl]) => {
+    const color  = TEMPLATE_RECIPIENT_COLOR[tpl.recipient] || '#94a3b8';
+    const label  = TEMPLATE_RECIPIENT_LABEL[tpl.recipient] || tpl.recipient || '';
+    const vars   = (tpl.variables || []).map(v =>
+      `<div style="display:flex;gap:6px;font-size:11px;padding:3px 0;">
+        <span style="background:rgba(99,102,241,.18);border-radius:4px;padding:1px 7px;font-family:monospace;color:#a5b4fc;flex-shrink:0;">{{${v.n}}}</span>
+        <span style="color:var(--text2);">${esc(v.label)}</span>
+        <span style="color:var(--text2);opacity:.55;">— ej: "${esc(v.ejemplo)}"</span>
+      </div>`
+    ).join('');
+    const preview = (tpl.body || '').replace(/\n/g, '<br>');
+    return `
+    <div style="background:var(--card2);border:1px solid var(--border);border-radius:10px;overflow:hidden;">
+      <div style="display:flex;align-items:flex-start;gap:10px;padding:12px 14px;border-bottom:1px solid var(--border);">
+        <div style="flex:1;min-width:0;">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+            <span style="font-size:12px;font-weight:700;color:var(--text);">${esc(tpl.description || key)}</span>
+            <span style="font-size:10px;background:rgba(${color==='#f97316'?'249,115,22':color==='#a5b4fc'?'165,180,252':'34,197,94'},.12);color:${color};border-radius:10px;padding:2px 8px;">${label}</span>
+          </div>
+          <div style="font-size:10px;color:var(--text2);margin-top:2px;">Nombre en Meta: <code style="color:#c4b5fd;">${esc(tpl.name)}</code></div>
+        </div>
+        <button onclick="navigator.clipboard.writeText(${JSON.stringify(tpl.name)}).then(()=>showToast('Nombre copiado ✓'))"
+          style="flex-shrink:0;background:none;border:1px solid var(--border);border-radius:6px;padding:3px 9px;color:var(--text2);cursor:pointer;font-size:10px;">📋 Copiar nombre</button>
+      </div>
+      <!-- Body preview -->
+      <div style="padding:12px 14px;font-size:12px;color:var(--text);line-height:1.7;font-family:monospace;background:rgba(0,0,0,.15);">${preview}</div>
+      <!-- Variables -->
+      ${vars ? `<div style="padding:10px 14px;border-top:1px solid var(--border);">${vars}</div>` : ''}
+    </div>`;
+  }).join('');
 }
 
 async function aiLoadTeamChat() {

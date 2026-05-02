@@ -2,6 +2,8 @@
 // Detects trigger situations from Ana's responses and routes alerts through
 // a 3-level manager chain via WhatsApp, with timeout-based auto-escalation.
 
+const { sendTemplateOrFallback, TEMPLATES } = require('./templates');
+
 const FS_PROJECT = 'elite-reclutamiento-crm';
 const FS_KEY     = 'AIzaSyCW2t1oHb7xc2Vi6vJROGRM7E7nu-CbU3s';
 const FS_BASE    = `https://firestore.googleapis.com/v1/projects/${FS_PROJECT}/databases/(default)/documents`;
@@ -235,7 +237,8 @@ async function triggerEscalation(leadPhone, leadName, reason, lastUserMsg, sendW
     const m1 = managers.find(m => m.level === 1) || managers[0];
     const isLast = managers.length === 1;
     const msg = buildAlertMsg({ leadPhone, leadName, reason, summary: lastUserMsg }, m1.name, isLast);
-    await sendWAFn(m1.phone, msg);
+    const tplParams = [leadName || 'Desconocido', leadPhone, REASON_LABELS[reason] || reason, m1.name];
+    await sendTemplateOrFallback(m1.phone, 'alerta_escalada', tplParams, msg, sendWAFn);
     logTeamMessage(m1.phone, m1.name, 'out', msg).catch(() => {});
     console.log(`[ESC] Alerta ${id} enviada a ${m1.name} (${m1.phone})`);
   } catch (e) {
@@ -306,7 +309,8 @@ async function handleManagerReply(managerPhone, text, sendWAFn) {
     await updateEscalation(esc._id, { currentLevel: nextLevel, [sentKey]: new Date().toISOString() });
     const isLast = nextLevel === managers[managers.length - 1].level;
     const msg    = buildAlertMsg(esc, nextManager.name, isLast);
-    await sendWAFn(nextManager.phone, msg);
+    const tplP   = [esc.leadName || 'Desconocido', esc.leadPhone, REASON_LABELS[esc.reason] || esc.reason, nextManager.name];
+    await sendTemplateOrFallback(nextManager.phone, 'alerta_escalada', tplP, msg, sendWAFn);
     logTeamMessage(nextManager.phone, nextManager.name, 'out', msg).catch(() => {});
     const pasadoMsg = `➡️ Alerta pasada a ${nextManager.name}.`;
     await sendWAFn(manager.phone, pasadoMsg);
@@ -365,7 +369,8 @@ async function checkTimeouts(sendWAFn) {
         await updateEscalation(esc._id, { currentLevel: nextLevel, [sentNextKey]: new Date().toISOString() });
         const isLast = nextLevel === managers[managers.length - 1].level;
         const msg = buildAlertMsg(esc, nextManager.name, isLast);
-        await sendWAFn(nextManager.phone, msg);
+        const tplP = [esc.leadName || 'Desconocido', esc.leadPhone, REASON_LABELS[esc.reason] || esc.reason, nextManager.name];
+        await sendTemplateOrFallback(nextManager.phone, 'alerta_escalada', tplP, msg, sendWAFn);
         logTeamMessage(nextManager.phone, nextManager.name, 'out', msg).catch(() => {});
         console.log(`[ESC] Alerta ${esc._id} → nivel ${nextLevel} (ronda ${round})`);
 
@@ -385,7 +390,8 @@ async function checkTimeouts(sendWAFn) {
           });
           const isLast = managers.length === 1;
           const msg = buildAlertMsg(esc, m1.name, isLast);
-          await sendWAFn(m1.phone, msg);
+          const tplP = [esc.leadName || 'Desconocido', esc.leadPhone, REASON_LABELS[esc.reason] || esc.reason, m1.name];
+          await sendTemplateOrFallback(m1.phone, 'alerta_escalada', tplP, msg, sendWAFn);
           logTeamMessage(m1.phone, m1.name, 'out', msg).catch(() => {});
           console.log(`[ESC] Alerta ${esc._id} reinicia → ronda ${nextRound}`);
 
