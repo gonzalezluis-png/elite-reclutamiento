@@ -10,6 +10,7 @@
     { "src": "lead-modal.js",  "use": "@vercel/static" },
     { "src": "config-panel.js","use": "@vercel/static" },
     { "src": "messaging.js",   "use": "@vercel/static" },
+    { "src": "init.js",        "use": "@vercel/static" },
     { "src": "styles.css",    "use": "@vercel/static" }
   ],
   "routes": [
@@ -19,6 +20,7 @@
     { "src": "/lead-modal.js",  "dest": "/lead-modal.js"   },
     { "src": "/config-panel.js","dest": "/config-panel.js" },
     { "src": "/messaging.js",   "dest": "/messaging.js"    },
+    { "src": "/init.js",        "dest": "/init.js"         },
     { "src": "/styles.css",    "dest": "/styles.css"    },
     { "src": "/webinar.html",  "dest": "/webinar.html"  },
     { "src": "/registro.html", "dest": "/registro.html" },
