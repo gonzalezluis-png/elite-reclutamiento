@@ -150,17 +150,36 @@ async function getAvailableSlots(cfg, fromDate) {
     if (!enabled) return [];
     const startH = override ? override.startHour : (sched.startHour ?? 9);
     const endH   = override ? override.endHour   : (sched.endHour   ?? 18);
-    const daySlots = [];
+    // Collect all available hours for the day
+    const allHours = [];
     for (let h = startH; h < endH; h++) {
       const slotTime = new Date(date);
       slotTime.setHours(h, 0, 0, 0);
       if (slotTime < earliest) continue;
       const slotKey = toDateStr(date) + 'T' + String(h).padStart(2,'0') + ':00';
       if (booked.has(slotKey)) continue;
-      daySlots.push({ date: toDateStr(date), hour: h, iso: slotTime.toISOString(), label: formatSlotLabel(slotTime) });
-      if (daySlots.length >= SLOTS_PER_DAY) break;
+      allHours.push(h);
     }
-    return daySlots;
+    if (!allHours.length) return [];
+    // Pick SLOTS_PER_DAY spread across the day (not consecutive)
+    const picked = [];
+    if (allHours.length <= SLOTS_PER_DAY) {
+      picked.push(...allHours);
+    } else {
+      // Divide day into thirds and pick one random hour from each third
+      const third = Math.floor(allHours.length / SLOTS_PER_DAY);
+      for (let i = 0; i < SLOTS_PER_DAY; i++) {
+        const segStart = i * third;
+        const segEnd   = i === SLOTS_PER_DAY - 1 ? allHours.length : (i + 1) * third;
+        const seg      = allHours.slice(segStart, segEnd);
+        picked.push(seg[Math.floor(Math.random() * seg.length)]);
+      }
+    }
+    return picked.map(h => {
+      const slotTime = new Date(date);
+      slotTime.setHours(h, 0, 0, 0);
+      return { date: toDateStr(date), hour: h, iso: slotTime.toISOString(), label: formatSlotLabel(slotTime) };
+    });
   }
 
   // Day 1: today (or first available day)
