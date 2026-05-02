@@ -1,0 +1,1485 @@
+if (new URLSearchParams(location.search).get('reset') === 'leads') {
+  localStorage.removeItem('er_leads');
+  location.replace(location.pathname);
+}
+let leads = JSON.parse(localStorage.getItem('er_leads') || '[]');
+let currentLeadId = null;
+let currentTags = [];
+let dragLeadId = null;
+
+if (localStorage.getItem('er_seed_v') !== SEED_VERSION) {
+  leads = [];
+  const sample = [
+    // ── POSTULADOS POR META (10) ──
+    { nombre:'Carlos Mendoza',     correo:'carlos.mendoza@gmail.com',    telefono:'+52 55 1234 5678', fuente:'Meta / Facebook', ubicacion:'CDMX', pipeline_id:'postulados-meta', etapa:'New Lead',                 estado:'abierto', valor:0, propietario:'Luis González',  nombre_lead:'Asesor Comercial',    etiquetas:[], notas:[], tareas:[], pagos:[], created_at:_d(1) },
+    { nombre:'Ana Sofía García',   correo:'anasofia.g@hotmail.com',      telefono:'+52 55 8765 4321', fuente:'Meta / Facebook', ubicacion:'Monterrey', pipeline_id:'postulados-meta', etapa:'New Lead',            estado:'abierto', valor:0, propietario:'Luis González',  nombre_lead:'Ejecutiva de Ventas', etiquetas:[], notas:[], tareas:[], pagos:[], created_at:_d(2) },
+    { nombre:'Roberto Silva',      correo:'roberto.silva@gmail.com',     telefono:'+52 81 9999 0000', fuente:'Meta / Facebook', ubicacion:'Monterrey', pipeline_id:'postulados-meta', etapa:'New Lead',            estado:'abierto', valor:0, propietario:'Maria Lugo',     nombre_lead:'Coordinador',         etiquetas:[], notas:[{texto:'Le interesa el esquema remoto',fecha:_d(3),autor:'Maria Lugo'}], tareas:[], pagos:[], created_at:_d(3) },
+    { nombre:'Laura Torres',       correo:'l.torres22@gmail.com',        telefono:'+52 55 1111 2222', fuente:'Meta / Facebook', ubicacion:'Guadalajara', pipeline_id:'postulados-meta', etapa:'1er intento de contacto', estado:'abierto', valor:0, propietario:'Luis González', nombre_lead:'Ejecutiva',     etiquetas:['calificado'], notas:[], tareas:[{id:'t1',texto:'Llamar 10am',done:false}], pagos:[], created_at:_d(4) },
+    { nombre:'Miguel Ángel Reyes', correo:'mreyes.mx@gmail.com',         telefono:'+52 55 3333 4444', fuente:'Meta / Facebook', ubicacion:'CDMX',      pipeline_id:'postulados-meta', etapa:'1er intento de contacto', estado:'abierto', valor:0, propietario:'Caritza Rojas', nombre_lead:'Asesor',       etiquetas:[], notas:[], tareas:[], pagos:[], created_at:_d(5) },
+    { nombre:'Paola Hernández',    correo:'paola.hdz@outlook.com',       telefono:'+52 33 2222 9876', fuente:'Meta / Facebook', ubicacion:'Guadalajara', pipeline_id:'postulados-meta', etapa:'1er intento de contacto', estado:'abierto', valor:0, propietario:'Maria Lugo', nombre_lead:'Asesora SR',     etiquetas:[], notas:[{texto:'Sin respuesta, dejar recado',fecha:_d(6),autor:'Maria Lugo'}], tareas:[], pagos:[], created_at:_d(6) },
+    { nombre:'Sergio Núñez',       correo:'s.nunez.ceo@gmail.com',       telefono:'+52 55 4444 5555', fuente:'Meta / Facebook', ubicacion:'CDMX',      pipeline_id:'postulados-meta', etapa:'2do intento de contacto', estado:'abierto', valor:0, propietario:'Luis González', nombre_lead:'Gerente Zona', etiquetas:['urgente'], notas:[], tareas:[], pagos:[], created_at:_d(7) },
+    { nombre:'Daniela Ramos',      correo:'dani.ramos@gmail.com',        telefono:'+52 81 6666 7777', fuente:'Meta / Facebook', ubicacion:'Monterrey', pipeline_id:'postulados-meta', etapa:'2do intento de contacto', estado:'abierto', valor:0, propietario:'Caritza Rojas', nombre_lead:'Promotora',    etiquetas:[], notas:[], tareas:[], pagos:[], created_at:_d(9) },
+    { nombre:'Javier Flores',      correo:'javier.flores.ok@gmail.com',  telefono:'+52 33 8888 1212', fuente:'Meta / Facebook', ubicacion:'Guadalajara', pipeline_id:'postulados-meta', etapa:'3er intento de contacto', estado:'abierto', valor:0, propietario:'Maria Lugo', nombre_lead:'Asesor Jr',     etiquetas:[], notas:[{texto:'2do intento sin respuesta',fecha:_d(10),autor:'Maria Lugo'}], tareas:[], pagos:[], created_at:_d(12) },
+    { nombre:'Valeria Castillo',   correo:'vale.castillo@hotmail.com',   telefono:'+52 55 9090 1234', fuente:'Meta / Facebook', ubicacion:'CDMX',      pipeline_id:'postulados-meta', etapa:'3er intento de contacto', estado:'abierto', valor:0, propietario:'Luis González', nombre_lead:'Ejecutiva SR', etiquetas:['calificado'], notas:[], tareas:[], pagos:[], created_at:_d(14) },
+
+    // ── POSTULADOS POR INDEED (10) ──
+    { nombre:'Eduardo Guzmán',     correo:'eduguzman.work@gmail.com',    telefono:'+52 55 2211 3344', fuente:'OCC / Indeed', ubicacion:'CDMX',        pipeline_id:'postulados-indeed', etapa:'New Lead',                 estado:'abierto', valor:0, propietario:'Luis González',  nombre_lead:'Asesor Ventas',       etiquetas:[], notas:[], tareas:[], pagos:[], created_at:_d(1) },
+    { nombre:'Mariana Ortega',     correo:'mariana.o.mx@gmail.com',      telefono:'+52 81 5566 7788', fuente:'OCC / Indeed', ubicacion:'Monterrey',   pipeline_id:'postulados-indeed', etapa:'New Lead',                 estado:'abierto', valor:0, propietario:'Caritza Rojas', nombre_lead:'Coordinadora',        etiquetas:[], notas:[], tareas:[], pagos:[], created_at:_d(2) },
+    { nombre:'Óscar Vázquez',      correo:'oscar.vz@outlook.com',        telefono:'+52 33 4455 6677', fuente:'OCC / Indeed', ubicacion:'Guadalajara', pipeline_id:'postulados-indeed', etapa:'New Lead',                 estado:'abierto', valor:0, propietario:'Maria Lugo',     nombre_lead:'Ejecutivo',           etiquetas:[], notas:[], tareas:[], pagos:[], created_at:_d(3) },
+    { nombre:'Karla Jiménez',      correo:'karla.jim88@gmail.com',       telefono:'+52 55 7788 9900', fuente:'OCC / Indeed', ubicacion:'CDMX',        pipeline_id:'postulados-indeed', etapa:'1er intento de contacto',  estado:'abierto', valor:0, propietario:'Luis González',  nombre_lead:'Promotora',           etiquetas:['calificado'], notas:[], tareas:[], pagos:[], created_at:_d(4) },
+    { nombre:'Iván Morales',       correo:'ivan.morales.v@gmail.com',    telefono:'+52 81 3322 1100', fuente:'OCC / Indeed', ubicacion:'Monterrey',   pipeline_id:'postulados-indeed', etapa:'1er intento de contacto',  estado:'abierto', valor:0, propietario:'Caritza Rojas', nombre_lead:'Asesor SR',           etiquetas:[], notas:[{texto:'Llamada en espera de respuesta',fecha:_d(5),autor:'Caritza Rojas'}], tareas:[], pagos:[], created_at:_d(5) },
+    { nombre:'Natalia Espinosa',   correo:'naty.espinosa@hotmail.com',   telefono:'+52 33 9988 7766', fuente:'OCC / Indeed', ubicacion:'Guadalajara', pipeline_id:'postulados-indeed', etapa:'1er intento de contacto',  estado:'abierto', valor:0, propietario:'Maria Lugo',     nombre_lead:'Ejecutiva',           etiquetas:[], notas:[], tareas:[], pagos:[], created_at:_d(6) },
+    { nombre:'Arturo Peña',        correo:'arturo.pena.mx@gmail.com',    telefono:'+52 55 6677 8899', fuente:'OCC / Indeed', ubicacion:'CDMX',        pipeline_id:'postulados-indeed', etapa:'2do intento de contacto',  estado:'abierto', valor:0, propietario:'Luis González',  nombre_lead:'Gerente Comercial',   etiquetas:['urgente'], notas:[], tareas:[], pagos:[], created_at:_d(8) },
+    { nombre:'Sofía Ramírez',      correo:'sofia.r.ventas@gmail.com',    telefono:'+52 81 5544 3322', fuente:'OCC / Indeed', ubicacion:'Monterrey',   pipeline_id:'postulados-indeed', etapa:'2do intento de contacto',  estado:'abierto', valor:0, propietario:'Caritza Rojas', nombre_lead:'Asesora',             etiquetas:[], notas:[], tareas:[], pagos:[], created_at:_d(10) },
+    { nombre:'Luis Pacheco',       correo:'luispachecog@gmail.com',      telefono:'+52 33 7766 5544', fuente:'OCC / Indeed', ubicacion:'Guadalajara', pipeline_id:'postulados-indeed', etapa:'3er intento de contacto',  estado:'abierto', valor:0, propietario:'Maria Lugo',     nombre_lead:'Asesor Comercial',    etiquetas:[], notas:[{texto:'3er intento, no contesta',fecha:_d(12),autor:'Maria Lugo'}], tareas:[], pagos:[], created_at:_d(13) },
+    { nombre:'Andrea Vargas',      correo:'andrea.vargas.ok@gmail.com',  telefono:'+52 55 1100 2233', fuente:'OCC / Indeed', ubicacion:'CDMX',        pipeline_id:'postulados-indeed', etapa:'3er intento de contacto',  estado:'abierto', valor:0, propietario:'Luis González',  nombre_lead:'Ejecutiva JR',        etiquetas:[], notas:[], tareas:[], pagos:[], created_at:_d(15) },
+
+    // ── POSTULADOS POR WHATSAPP-META (10) ──
+    { nombre:'Fernando Ríos',      correo:'f.rios.mx@gmail.com',         telefono:'+52 55 4433 2211', fuente:'WhatsApp', ubicacion:'CDMX',            pipeline_id:'postulados-whatsapp-meta', etapa:'New Lead',                 estado:'abierto', valor:0, propietario:'Luis González',  nombre_lead:'Asesor Ventas',    etiquetas:[], notas:[], tareas:[], pagos:[], created_at:_d(1) },
+    { nombre:'Alejandra Cruz',     correo:'ale.cruz.ventas@gmail.com',   telefono:'+52 81 9900 8877', fuente:'WhatsApp', ubicacion:'Monterrey',       pipeline_id:'postulados-whatsapp-meta', etapa:'New Lead',                 estado:'abierto', valor:0, propietario:'Caritza Rojas', nombre_lead:'Ejecutiva',        etiquetas:[], notas:[], tareas:[], pagos:[], created_at:_d(2) },
+    { nombre:'Ricardo Leal',       correo:'ricleal.pro@outlook.com',     telefono:'+52 33 8877 6655', fuente:'WhatsApp', ubicacion:'Guadalajara',     pipeline_id:'postulados-whatsapp-meta', etapa:'New Lead',                 estado:'abierto', valor:0, propietario:'Maria Lugo',     nombre_lead:'Coordinador',      etiquetas:[], notas:[], tareas:[], pagos:[], created_at:_d(2) },
+    { nombre:'Gabriela Soto',      correo:'gaby.soto.w@gmail.com',       telefono:'+52 55 3322 4455', fuente:'WhatsApp', ubicacion:'CDMX',            pipeline_id:'postulados-whatsapp-meta', etapa:'1er intento de contacto',  estado:'abierto', valor:0, propietario:'Luis González',  nombre_lead:'Asesora SR',       etiquetas:['calificado'], notas:[], tareas:[], pagos:[], created_at:_d(4) },
+    { nombre:'Héctor Domínguez',   correo:'hector.dom.mx@gmail.com',     telefono:'+52 81 2211 0099', fuente:'WhatsApp', ubicacion:'Monterrey',       pipeline_id:'postulados-whatsapp-meta', etapa:'1er intento de contacto',  estado:'abierto', valor:0, propietario:'Caritza Rojas', nombre_lead:'Asesor',           etiquetas:[], notas:[{texto:'Respondió WhatsApp, pendiente llamada',fecha:_d(5),autor:'Caritza Rojas'}], tareas:[], pagos:[], created_at:_d(5) },
+    { nombre:'Mónica Aguilar',     correo:'monica.aguilar.ok@gmail.com', telefono:'+52 33 5566 4433', fuente:'WhatsApp', ubicacion:'Guadalajara',     pipeline_id:'postulados-whatsapp-meta', etapa:'1er intento de contacto',  estado:'abierto', valor:0, propietario:'Maria Lugo',     nombre_lead:'Promotora',        etiquetas:[], notas:[], tareas:[], pagos:[], created_at:_d(6) },
+    { nombre:'Jorge Salazar',      correo:'j.salazar.crm@gmail.com',     telefono:'+52 55 7788 6655', fuente:'WhatsApp', ubicacion:'CDMX',            pipeline_id:'postulados-whatsapp-meta', etapa:'2do intento de contacto',  estado:'abierto', valor:0, propietario:'Luis González',  nombre_lead:'Ejecutivo SR',     etiquetas:['urgente'], notas:[], tareas:[], pagos:[], created_at:_d(7) },
+    { nombre:'Paulina Medina',     correo:'paulina.med.v@hotmail.com',   telefono:'+52 81 4433 5566', fuente:'WhatsApp', ubicacion:'Monterrey',       pipeline_id:'postulados-whatsapp-meta', etapa:'2do intento de contacto',  estado:'abierto', valor:0, propietario:'Caritza Rojas', nombre_lead:'Coordinadora',     etiquetas:[], notas:[], tareas:[], pagos:[], created_at:_d(9) },
+    { nombre:'Andrés Fuentes',     correo:'andres.fuentes.pro@gmail.com',telefono:'+52 33 6655 7788', fuente:'WhatsApp', ubicacion:'Guadalajara',     pipeline_id:'postulados-whatsapp-meta', etapa:'3er intento de contacto',  estado:'abierto', valor:0, propietario:'Maria Lugo',     nombre_lead:'Asesor Comercial', etiquetas:[], notas:[{texto:'No ha contestado en 3 intentos',fecha:_d(11),autor:'Maria Lugo'}], tareas:[], pagos:[], created_at:_d(13) },
+    { nombre:'Claudia Ibarra',     correo:'claudia.ibarra.mx@gmail.com', telefono:'+52 55 8899 7766', fuente:'WhatsApp', ubicacion:'CDMX',            pipeline_id:'postulados-whatsapp-meta', etapa:'3er intento de contacto',  estado:'abierto', valor:0, propietario:'Luis González',  nombre_lead:'Ejecutiva',        etiquetas:[], notas:[], tareas:[], pagos:[], created_at:_d(16) },
+
+    // ── OTROS (webinar, entrevistas) ──
+    { nombre:'Patricia Ruiz',      correo:'patricia@email.com',          telefono:'+52 55 5555 6666', fuente:'Referido',         ubicacion:'CDMX',      pipeline_id:'en-webinar', etapa:'Inscrito en Webinar', estado:'abierto', valor:0, propietario:'Luis González', nombre_lead:'Coordinadora', etiquetas:[], notas:[], tareas:[], pagos:[], created_at:_d(3) },
+    { nombre:'Sandra López',       correo:'sandra@email.com',            telefono:'+52 55 0001 1234', fuente:'Meta / Facebook',  ubicacion:'Monterrey', pipeline_id:'entrevistas-generales', etapa:'EN ENTREVISTA', estado:'abierto', valor:0, propietario:'Caritza Rojas', nombre_lead:'Asesora Senior', etiquetas:[], notas:[], tareas:[], pagos:[], created_at:_d(5) },
+  ].map((l,i) => ({ id: 'lead-s'+i, ...l }));
+  leads = sample;
+  localStorage.setItem('er_leads', JSON.stringify(leads));
+  localStorage.setItem('er_seed_v', SEED_VERSION);
+}
+
+// ════════════════════════════════════════════
+//  KANBAN (all views now use table layout)
+// ════════════════════════════════════════════
+function renderKanban() {
+  if (activeView !== 'kanban') return;
+  const pipe = PIPELINES.find(p => p.id === activePipelineId);
+  if (!pipe) return;
+  const q = (document.getElementById('search-input').value || '').toLowerCase();
+  const tabsEl   = document.getElementById('pipeline-tabs');
+  const tableWrap = document.getElementById('table-view-wrap');
+  const kanbanWrap = document.getElementById('kanban-wrap');
+
+  kanbanWrap.style.display = 'none';
+  tableWrap.classList.add('active');
+
+  const allTabs  = getPipelineTabs(pipe);
+  const curTabId = getPipeTab(activePipelineId);
+  const curTab   = allTabs.find(t => t.id === curTabId) || allTabs[0];
+
+  tabsEl.className = 'visible';
+  tabsEl.innerHTML = allTabs.map(t => {
+    const cnt = leads.filter(l => l.pipeline_id === activePipelineId && t.etapas.some(e => e.v === l.etapa)).length;
+    const colorSrc = t.etapas[0]?.v || t.nombre;
+    const clr = stageColor(colorSrc);
+    const isActive = curTab.id === t.id;
+    const activeStyle = isActive ? `border-bottom-color:${clr};color:#fff;` : '';
+    return `<div class="ptab${isActive ? ' active' : ''}" style="${activeStyle}" onclick="selectWebinarTab('${t.id}')">
+      <span class="ptab-dot" style="background:${clr}"></span>${esc(t.nombre)} <span style="font-size:10px;opacity:.6">(${cnt})</span>
+    </div>`;
+  }).join('');
+
+  // Ocultar sub-pestañas salvo que la pestaña las tenga
+  if (!curTab.subTabs) document.getElementById('pipeline-subtabs').className = '';
+
+  // Webinar → tabla unificada para todas las sub-pestañas
+  if (curTab.tableView) {
+    const srcClass = s => ({'Meta / Facebook':'meta','Instagram':'ig','WhatsApp':'wa','Referido':'ref'}[s]||'otro');
+
+    // Renderizar sub-pestañas si las hay
+    const subTabsEl = document.getElementById('pipeline-subtabs');
+    let activeEtapas = curTab.etapas;
+    let showEtapaCol = false;
+    if (curTab.subTabs) {
+      const curSubId = getSubTab(activePipelineId, curTab.id);
+      const visibleEtapas = curTab.subTabVisible
+        ? curTab.etapas.filter(e => curTab.subTabVisible.includes(e.v))
+        : curTab.etapas;
+      const allSubs = [{id:'all', nombre:'Todos', etapas: curTab.etapas}]
+        .concat(visibleEtapas.map(e => ({id: e.v, nombre: e.l, etapas:[e]})));
+      subTabsEl.className = 'visible';
+      subTabsEl.innerHTML = allSubs.map(s => {
+        const cnt = leads.filter(l => l.pipeline_id === activePipelineId && s.etapas.some(e => e.v === l.etapa)).length;
+        const clr = stageColor(s.etapas[0]?.v || s.nombre);
+        const isActive = curSubId === s.id;
+        return `<div class="ptab2${isActive ? ' active' : ''}" style="${isActive ? `border-bottom-color:${clr};color:#fff;` : ''}" onclick="selectSubTab('${activePipelineId}','${curTab.id}','${s.id}')">
+          <span class="ptab2-dot" style="background:${clr}"></span>${esc(s.nombre)} <span style="font-size:10px;opacity:.6">(${cnt})</span>
+        </div>`;
+      }).join('');
+      const activeSub = allSubs.find(s => s.id === curSubId) || allSubs[0];
+      activeEtapas = activeSub.etapas;
+      showEtapaCol = activeSub.id === 'all';
+    } else {
+      subTabsEl.className = '';
+    }
+
+    const tableEtapas = activeEtapas.map(e => e.v);
+    const rows = leads.filter(ld =>
+      ld.pipeline_id === activePipelineId &&
+      (tableEtapas.includes(ld.etapa) || (curTab.id === 'inscrito' && ld.inscrito_webinar)) &&
+      (!q || [ld.nombre, ld.correo, ld.telefono, ld.fuente, ld.nombre_lead].join(' ').toLowerCase().includes(q))
+    ).map(ld => { const eo = curTab.etapas.find(e => e.v === ld.etapa); return {...ld, _etapaLabel: eo ? eo.l : ld.etapa}; });
+
+    const noticeHtml = curTab.id === 'no-asistente'
+      ? `<div style="margin-bottom:14px;padding:12px 16px;background:rgba(253,171,61,.08);border:1px solid rgba(253,171,61,.25);border-radius:10px;font-size:12.5px;color:#fdab3d;line-height:1.6;">
+          <strong>ℹ️ ¿Qué es No Asistente?</strong> Los candidatos aquí fueron inscritos en el webinar. Pasadas <strong>24 horas</strong> sin haber visto el video, entran automáticamente a esta sección.
+         </div>` : '';
+
+    const colSpan = showEtapaCol ? 13 : 12;
+    tableWrap.innerHTML = noticeHtml + `
+      <table class="leads-table">
+        <thead><tr>
+          <th>#</th><th>Nombre</th><th>Correo</th><th>Teléfono</th><th>Fuente</th>
+          <th>Ubicación</th><th>Inscrito por</th><th>Fecha de inscripción</th>
+          ${showEtapaCol ? '<th>Etapa</th>' : ''}
+          <th>Avance</th><th>% Visto</th><th>Tiempo visto</th><th>Link Webinar</th><th>Acciones</th>
+        </tr></thead>
+        <tbody>${rows.length ? rows.map((ld, i) => {
+          const accion = ld.webinar_accion || 'sin-registro';
+          const accionLabel = accion==='asistente'?'ASISTENTE':accion==='no-asistente'?'NO ASISTENTE':'SIN REGISTRO';
+          const resuelto = accion !== 'sin-registro' ? 'lead-resuelto' : '';
+          const fechaIns = ld.fecha_inscripcion_webinar ? new Date(ld.fecha_inscripcion_webinar).toLocaleDateString('es-MX',{day:'2-digit',month:'short',year:'numeric'}) : '—';
+          const icon = accion==='asistente'?`<span class="lead-status-icon asistente">✓</span>`:accion==='no-asistente'?`<span class="lead-status-icon no-asistente">✗</span>`:'';
+          const pct = ld.webinar_visto_pct != null ? Number(ld.webinar_visto_pct) : null;
+          const pctColor = pct == null ? 'var(--text2)' : pct >= 50 ? '#00c875' : pct >= 25 ? '#0073ea' : '#e2445c';
+          const pctHtml = pct != null ? `<span style="font-weight:700;color:${pctColor}">${pct}%</span>` : `<span style="color:var(--text2)">—</span>`;
+          const segs = ld.webinar_tiempo_visto != null ? Number(ld.webinar_tiempo_visto) : null;
+          const tiempoHtml = segs != null && segs > 0
+            ? (() => { const m = Math.floor(segs/60), s = Math.round(segs%60); return `<span style="color:var(--text);font-weight:600">${m}m ${s.toString().padStart(2,'0')}s</span>`; })()
+            : `<span style="color:var(--text2)">—</span>`;
+          const clr = stageColor(ld.etapa);
+          const llamadaBadge = ld.quiere_entrevista
+            ? `<span onclick="event.stopPropagation();dismissLlamada('${ld.id}')" title="Clic para marcar como atendido" style="display:inline-flex;align-items:center;gap:4px;background:rgba(253,171,61,.15);border:1px solid rgba(253,171,61,.4);color:#fdab3d;font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;cursor:pointer;animation:blink-dot 1.4s ease-in-out infinite;">🔔 Quiere llamada</span>`
+            : '';
+          const sinMgrBadge = ld.sin_manager
+            ? `<span onclick="event.stopPropagation();dismissSinManager('${ld.id}')" title="Marcar como atendido" style="display:inline-flex;align-items:center;gap:4px;background:rgba(239,68,68,.15);border:1px solid rgba(239,68,68,.4);color:#f87171;font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;cursor:pointer;animation:blink-dot 1.4s ease-in-out infinite;">🚨 Sin manager</span>`
+            : '';
+          return `<tr class="${resuelto}${ld.quiere_entrevista ? ' tr-llamada-alert' : ''}${ld.sin_manager ? ' tr-sinmgr-alert' : ''}" onclick="${resuelto?'':` openLead('${ld.id}')`}">
+            <td style="color:var(--text2);display:flex;align-items:center;gap:6px;min-height:36px">${icon}${i+1}</td>
+            <td style="font-weight:600;color:#fff">${esc(ld.nombre)}${sinMgrBadge ? '<br>'+sinMgrBadge : ''}${llamadaBadge ? '<br>'+llamadaBadge : ''}</td>
+            <td style="color:var(--text2)">${esc(ld.correo||'')}</td>
+            <td>${esc(ld.telefono||'')}</td>
+            <td><span class="lt-badge ${srcClass(ld.fuente)}">${esc(ld.fuente||'')}</span></td>
+            <td style="color:var(--text2)">${esc(ld.ubicacion||'—')}</td>
+            <td style="color:#c4a8ff;font-weight:600">${esc(ld.inscrito_por||ld.propietario||'—')}</td>
+            <td style="color:var(--text2);white-space:nowrap">${fechaIns}</td>
+            ${showEtapaCol ? `<td><span style="display:inline-block;padding:2px 9px;border-radius:20px;font-size:10px;font-weight:600;background:${clr}22;color:${clr};border:1px solid ${clr}44">${esc(ld._etapaLabel)}</span></td>` : ''}
+            <td style="white-space:nowrap">${(() => { const p=calcProgreso(ld); const c=p>=100?'#fbbf24':p>=70?'#00c875':p>=40?'#4f7fff':'#8890a4'; return `<span style="font-size:13px;font-weight:800;color:${c};">${p}%</span>`; })()}</td>
+            <td>${pctHtml}</td>
+            <td>${tiempoHtml}</td>
+            <td onclick="event.stopPropagation()" style="white-space:nowrap">
+              <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap">
+                <button onclick="copyWebinarLink('${ld.id}','${encodeURIComponent(ld.nombre||'')}','${encodeURIComponent(ld.correo||'')}')" style="padding:3px 8px;background:rgba(0,115,234,.15);border:1px solid rgba(0,115,234,.3);color:#0073ea;border-radius:5px;font-size:11px;cursor:pointer;font-family:var(--font);">📋 Copiar</button>
+                <button onclick="enviarLinkPorCorreo('${ld.id}')" title="${ld.webinar_email_enviado ? 'Enviado el '+new Date(ld.webinar_email_enviado).toLocaleDateString('es-MX',{day:'2-digit',month:'short'}) : 'Enviar link por correo'}" style="padding:3px 8px;background:${ld.webinar_email_enviado ? 'rgba(0,200,117,.15)' : 'rgba(120,75,209,.15)'};border:1px solid ${ld.webinar_email_enviado ? 'rgba(0,200,117,.3)' : 'rgba(120,75,209,.3)'};color:${ld.webinar_email_enviado ? '#00c875' : '#a78bfa'};border-radius:5px;font-size:11px;cursor:pointer;font-family:var(--font);">${ld.webinar_email_enviado ? '✅ Enviado' : '📧 Enviar'}</button>
+              </div>
+            </td>
+            <td onclick="event.stopPropagation()" style="overflow:visible;position:relative;">
+              <div class="lt-accion-btn">
+                <button class="lt-accion-trigger ${accion}" onclick="toggleAccionMenu(event,'${ld.id}')">${accionLabel} ▾</button>
+                <div class="lt-accion-menu" id="accion-menu-${ld.id}">
+                  <div class="lt-accion-opt opt-asistente"    onclick="setWebinarAccion('${ld.id}','asistente')">✅ ASISTENTE</div>
+                  <div class="lt-accion-opt opt-no-asistente" onclick="setWebinarAccion('${ld.id}','no-asistente')">✗ NO ASISTENTE</div>
+                  <div class="lt-accion-opt opt-sin-registro" onclick="setWebinarAccion('${ld.id}','sin-registro')">— SIN REGISTRO</div>
+                  <div style="border-top:1px solid var(--border);margin:3px 0"></div>
+                  <div class="lt-accion-opt" style="color:#a5b4fc" onclick="event.stopPropagation();openAgendarCitaModal('${ld.id}')">📅 Agendar entrevista</div>
+                  <div style="border-top:1px solid var(--border);margin:3px 0"></div>
+                  <div class="lt-accion-opt" style="color:#f87171" onclick="event.stopPropagation();_openMenuLeadId='${ld.id}';deleteLeadFull()">🗑️ Eliminar todos los datos</div>
+                </div>
+              </div>
+            </td>
+          </tr>`;
+        }).join('') : `<tr><td colspan="${colSpan}" style="text-align:center;padding:40px;color:var(--text2)">Sin leads en esta sección</td></tr>`}
+        </tbody>
+      </table>`;
+    initResizableCols('webinar-' + curTab.id);
+    return;
+  }
+
+  // Todos los demás pipelines → tabla universal
+  const subTabsEl = document.getElementById('pipeline-subtabs');
+  if (curTab.subTabs) {
+    const curSubId = getSubTab(activePipelineId, curTab.id);
+    const visibleEtapas = curTab.subTabVisible
+      ? curTab.etapas.filter(e => curTab.subTabVisible.includes(e.v))
+      : curTab.etapas;
+    const allSubs = [{id:'all', nombre:'Todos', etapas: curTab.etapas}]
+      .concat(visibleEtapas.map(e => ({id: e.v, nombre: e.l, etapas:[e]})));
+    subTabsEl.className = 'visible';
+    subTabsEl.innerHTML = allSubs.map(s => {
+      const cnt = leads.filter(l => l.pipeline_id === activePipelineId && s.etapas.some(e => e.v === l.etapa)).length;
+      const clr = stageColor(s.etapas[0]?.v || s.nombre);
+      const isActive = curSubId === s.id;
+      return `<div class="ptab2${isActive ? ' active' : ''}" style="${isActive ? `border-bottom-color:${clr};color:#fff;` : ''}" onclick="selectSubTab('${activePipelineId}','${curTab.id}','${s.id}')">
+        <span class="ptab2-dot" style="background:${clr}"></span>${esc(s.nombre)} <span style="font-size:10px;opacity:.6">(${cnt})</span>
+      </div>`;
+    }).join('');
+    const activeSub = allSubs.find(s => s.id === curSubId) || allSubs[0];
+    renderUniversalTable(activeSub.etapas, activePipelineId, q, activeSub.etapas.length > 1);
+  } else {
+    subTabsEl.className = '';
+    renderUniversalTable(curTab.etapas, activePipelineId, q, curTab.etapas.length > 1);
+  }
+  initResizableCols(activePipelineId + ':' + curTab.id);
+}
+
+function renderUniversalTable(stageDefs, pipelineId, q, showEtapa) {
+  const srcClass = s => ({'Meta / Facebook':'meta','Instagram':'ig','WhatsApp':'wa','Referido':'ref','LinkedIn':'otro','OCC / Indeed':'otro'}[s]||'otro');
+  const rows = stageDefs.flatMap(({v, l: label}) =>
+    leads.filter(ld =>
+      ld.pipeline_id === pipelineId && ld.etapa === v &&
+      (!q || [ld.nombre,ld.correo,ld.telefono,ld.fuente,ld.nombre_lead].join(' ').toLowerCase().includes(q))
+    ).map(ld => ({...ld, _etapaLabel: label}))
+  );
+  const cols = showEtapa ? 11 : 10;
+  document.getElementById('table-view-wrap').innerHTML = `
+    <table class="leads-table">
+      <thead><tr>
+        <th>#</th>
+        <th>Nombre</th>
+        <th>Correo</th>
+        <th>Teléfono</th>
+        <th>Fuente</th>
+        ${showEtapa ? '<th>Etapa</th>' : ''}
+        <th>Avance</th>
+        <th>Propietario</th>
+        <th>Ubicación</th>
+        <th>Fecha</th>
+        <th>Notas</th>
+        <th>Acciones</th>
+      </tr></thead>
+      <tbody>${rows.length ? rows.map((ld, i) => {
+        const date = ld.created_at ? new Date(ld.created_at).toLocaleDateString('es-MX',{day:'2-digit',month:'short',year:'numeric'}) : '';
+        const notasCnt = (ld.notas||[]).length;
+        const clr = stageColor(ld.etapa);
+        return `<tr onclick="openLead('${ld.id}')">
+          <td style="color:var(--text2)">${i+1}</td>
+          <td style="font-weight:600;color:#fff">${esc(ld.nombre)}</td>
+          <td style="color:var(--text2)">${esc(ld.correo||'')}</td>
+          <td>${esc(ld.telefono||'')}</td>
+          <td><span class="lt-badge ${srcClass(ld.fuente)}">${esc(ld.fuente||'')}</span></td>
+          ${showEtapa ? `<td><span style="display:inline-block;padding:2px 9px;border-radius:20px;font-size:10px;font-weight:600;background:${clr}22;color:${clr};border:1px solid ${clr}44">${esc(ld._etapaLabel)}</span></td>` : ''}
+          <td style="white-space:nowrap">${(() => { const p=calcProgreso(ld); const c=p>=100?'#fbbf24':p>=70?'#00c875':p>=40?'#4f7fff':'#8890a4'; return `<span style="font-size:13px;font-weight:800;color:${c};">${p}%</span>`; })()}</td>
+          <td style="color:var(--text2)">${esc(ld.propietario||'—')}</td>
+          <td style="color:var(--text2)">${esc(ld.ubicacion||'—')}</td>
+          <td style="color:var(--text2);white-space:nowrap">${date}</td>
+          <td>${notasCnt?`<span style="background:rgba(0,115,234,.18);color:#4da6ff;padding:2px 7px;border-radius:10px;font-size:10px;font-weight:600">${notasCnt}</span>`:'<span style="color:var(--text2);font-size:10px">—</span>'}</td>
+          <td onclick="event.stopPropagation()">
+            <div class="lt-actions">
+              <button class="lt-btn" onclick="quickAction('call','${ld.id}')">📞</button>
+              <button class="lt-btn" onclick="quickAction('msg','${ld.id}')">💬</button>
+              <button class="lt-btn" onclick="openLead('${ld.id}','notas')">📝</button>
+              <button class="lt-btn" onclick="openLead('${ld.id}','tareas')">✅</button>
+              <button class="lt-btn" onclick="toggleMoveMenu(event,'${ld.id}')">Mover ↕</button>
+            </div>
+          </td>
+        </tr>`;
+      }).join('') : `<tr><td colspan="${cols}" style="text-align:center;padding:40px;color:var(--text2)">Sin leads en esta etapa</td></tr>`}
+      </tbody>
+    </table>`;
+}
+
+function calcProgreso(lead) {
+  const etapa = (lead.etapa || '').toLowerCase();
+  let max = 5;
+  // 10%
+  if (lead.nombre && !lead.nombre.startsWith('WA ') && !lead.nombre.startsWith('+') && lead.ubicacion) max = Math.max(max, 10);
+  // 20%
+  if (lead.tiene_experiencia === true) max = Math.max(max, 20);
+  // 45%
+  if (lead.webinar_intent === true) max = Math.max(max, 45);
+  // 50%
+  if (lead.tiene_papeles === true && lead.mayor_edad === true) max = Math.max(max, 50);
+  // 60%
+  if (lead.correo) max = Math.max(max, 60);
+  // 70%
+  if (lead.webinar_visto === true || lead.vio_webinar === true || (lead.pipeline_id === 'en-webinar' && lead.etapa !== 'Inscrito en Webinar')) max = Math.max(max, 70);
+  // 80%
+  if ((lead.cita && lead.cita.fecha) || ['entrevistas-generales','caritza-rojas','maria-lugo','brayan-alexander'].includes(lead.pipeline_id)) max = Math.max(max, 80);
+  // 90%
+  if (/confirm/i.test(lead.etapa || '')) max = Math.max(max, 90);
+  // 100%
+  if (/asist|ENTREVISTADO|ENTREVISTADA/i.test(lead.etapa || '')) max = Math.max(max, 100);
+  return max;
+}
+
+function renderCard(l) {
+  const sourceBadgeClass = {
+    'Meta / Facebook':'meta','Instagram':'ig','WhatsApp':'wa','Referido':'ref','LinkedIn':'otro','OCC / Indeed':'otro','Otro':'otro'
+  }[l.fuente] || 'otro';
+  const initials = l.propietario ? l.propietario.split(' ').map(w=>w[0]).join('').slice(0,2) : '?';
+  const tagsHtml = (l.etiquetas||[]).slice(0,2).map(t=>`<span class="kc-tag">${esc(t)}</span>`).join('');
+  const dateStr = l.created_at ? new Date(l.created_at).toLocaleDateString('es-MX',{day:'2-digit',month:'short'}) : '';
+
+  const llamadaAlert = l.quiere_entrevista
+    ? `<div class="kcard-llamada-alert">
+        <span class="kcard-llamada-dot"></span>
+        Quiere ser llamado
+        <button class="kcard-llamada-dismiss" title="Marcar como visto" onclick="event.stopPropagation();dismissLlamada('${l.id}')">✕</button>
+       </div>`
+    : '';
+
+  const sinMgrAlert = l.sin_manager
+    ? `<div class="kcard-sinmgr-alert">
+        <span class="kcard-llamada-dot" style="background:#ef4444"></span>
+        Sin manager disponible
+        <button class="kcard-llamada-dismiss" style="color:rgba(239,68,68,.6)" title="Marcar como atendido" onclick="event.stopPropagation();dismissSinManager('${l.id}')">✕</button>
+       </div>`
+    : '';
+
+  const prog = calcProgreso(l);
+  const progColor = prog >= 100 ? '#fbbf24' : prog >= 70 ? '#00c875' : prog >= 40 ? '#4f7fff' : '#8890a4';
+
+  return `
+  <div class="kcard${l.quiere_entrevista ? ' kcard--alert' : ''}${l.sin_manager ? ' kcard--sinmgr' : ''}" draggable="true" id="kcard-${l.id}"
+       ondragstart="handleDragStart(event,'${l.id}')"
+       ondragend="this.classList.remove('dragging')"
+       onclick="openLead('${l.id}')">
+    ${sinMgrAlert}${llamadaAlert}
+    <div class="kc-top">
+      <div class="kc-name">${esc(l.nombre)}</div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:1px;flex-shrink:0;">
+        <span style="font-size:8px;font-weight:700;letter-spacing:.8px;color:var(--text2);text-transform:uppercase;line-height:1;">AVANCE</span>
+        <span style="font-size:20px;font-weight:900;color:${progColor};line-height:1;">${prog}%</span>
+      </div>
+    </div>
+    <div style="height:4px;background:var(--border);border-radius:2px;overflow:hidden;margin:4px 0 6px;">
+      <div style="height:100%;width:${prog}%;background:${progColor};border-radius:2px;transition:width .4s;"></div>
+    </div>
+    <div class="kc-mid">
+      <span class="kc-badge ${sourceBadgeClass}">${esc(l.fuente||'')}</span>
+      ${tagsHtml}
+    </div>
+    <div class="kc-bottom">
+      <div class="kc-avatar" title="${esc(l.propietario||'')}">${esc(initials)}</div>
+      <div class="kc-date">${dateStr}</div>
+      <div class="kc-actions">
+        <button class="kca-btn" title="Llamar" onclick="event.stopPropagation();quickAction('call','${l.id}')">📞</button>
+        <button class="kca-btn" title="Mensaje" onclick="event.stopPropagation();quickAction('msg','${l.id}')">💬</button>
+        <button class="kca-btn" title="Notas" onclick="event.stopPropagation();openLead('${l.id}','notas')">📝</button>
+        <button class="kca-btn" title="Tareas" onclick="event.stopPropagation();openLead('${l.id}','tareas')">✅</button>
+        <button class="kca-btn" title="Agendar cita" onclick="event.stopPropagation();openLead('${l.id}','cita')">📅</button>
+        <button class="kca-btn-move" title="Mover etapa" onclick="event.stopPropagation();toggleMoveMenu(event,'${l.id}')">Mover ↕</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+let _openMenuLeadId = null;
+
+function toggleMoveMenu(event, leadId) {
+  const menu = document.getElementById('global-move-menu');
+  // Si ya está abierto para este lead, ciérralo
+  if (_openMenuLeadId === leadId && menu.classList.contains('open')) {
+    closeAllMenus(); return;
+  }
+  _openMenuLeadId = leadId;
+
+  // Poblar opciones
+  const lead = leads.find(l => l.id === leadId);
+  const pipe = PIPELINES.find(p => p.id === lead?.pipeline_id);
+  const etapas = pipe?.etapas || [];
+  const etapaActual = lead?.etapa || '';
+  const esPostulados    = ['postulados-meta','postulados-indeed','postulados-whatsapp-meta'].includes(lead?.pipeline_id);
+  const estaEnNewLead   = /^new lead$/i.test(etapaActual);
+  const estaEn1er       = /^1er intento de contacto$/i.test(etapaActual);
+  const estaEn2do       = /^2do intento de contacto$/i.test(etapaActual);
+  const estaEn3er       = /^3er intento de contacto$/i.test(etapaActual);
+  const esModoSimplificado = esPostulados && (estaEnNewLead || estaEn1er || estaEn2do || estaEn3er);
+  const esWebinarIntento = lead?.pipeline_id === 'en-webinar' && Object.prototype.hasOwnProperty.call(WEBINAR_PROGRESSIONS, etapaActual);
+
+  // Ocultar botón global "En Webinar" en modo simplificado (se pone dentro del menú)
+  const webinarSection = document.getElementById('move-menu-webinar-section');
+  if (webinarSection) webinarSection.style.display = (lead?.pipeline_id === 'en-webinar' || esModoSimplificado || esWebinarIntento) ? 'none' : '';
+
+  if (esWebinarIntento) {
+    const siguienteEtapa = WEBINAR_PROGRESSIONS[etapaActual];
+    const esNA = etapaActual.startsWith('NA - ');
+    const noRespondioBtn = siguienteEtapa
+      ? `<div class="move-option" onclick="moveLead('${leadId}','${siguienteEtapa.replace(/'/g,"\\'")}');closeAllMenus()">
+          <span class="move-option-dot" style="background:#fdab3d"></span>
+          <span>No respondió la llamada</span>
+        </div>`
+      : `<div class="move-option" onclick="moveWebinarNoContactado('${leadId}');closeAllMenus()">
+          <span class="move-option-dot" style="background:#676a82"></span>
+          <span>No respondió / Sin contacto</span>
+        </div>`;
+    const reinscritoBtn = esNA
+      ? `<div class="move-option" onclick="moveReinscritoWebinar('${leadId}');closeAllMenus()">
+          <span class="move-option-dot" style="background:#784bd1"></span>
+          <span>Reinscrito en Webinar</span>
+        </div>`
+      : '';
+    const niContext = esNA ? 'webinar-na' : 'webinar-as';
+    const ncContext = esNA ? 'webinar-na' : 'webinar-as';
+    document.getElementById('move-menu-options').innerHTML = `
+      ${noRespondioBtn}
+      ${reinscritoBtn}
+      <div class="move-option" onclick="moveParaEntrevista('${leadId}');closeAllMenus()">
+        <span class="move-option-dot" style="background:#00c875"></span>
+        <span>Para Entrevista</span>
+      </div>
+      <div style="border-top:1px solid var(--border);margin:4px 0"></div>
+      <div class="move-option-special no-interesado" onclick="openNoInteresado('${leadId}','${niContext}')">
+        <span class="move-option-dot" style="background:#fdab3d"></span>
+        <span>No interesado</span>
+      </div>
+      <div class="move-option-special no-califica" onclick="openNoCalifica('${leadId}','${ncContext}')">
+        <span class="move-option-dot" style="background:#e2445c"></span>
+        <span>No califica</span>
+      </div>`;
+  } else if (esModoSimplificado) {
+    let siguienteEtapa = null;
+    if (estaEnNewLead) siguienteEtapa = etapas.find(e => /^1er intento de contacto$/i.test(e));
+    if (estaEn1er)     siguienteEtapa = etapas.find(e => /^2do intento de contacto$/i.test(e));
+    if (estaEn2do)     siguienteEtapa = etapas.find(e => /^3er intento de contacto$/i.test(e));
+
+    // "No respondió" → siguiente etapa o no-contactados en 3er
+    const noRespondioBtn = estaEn3er
+      ? `<div class="move-option" onclick="moveNoContactado('${leadId}');closeAllMenus()">
+          <span class="move-option-dot" style="background:#676a82"></span>
+          <span>No respondió / No contactado</span>
+        </div>`
+      : siguienteEtapa
+        ? `<div class="move-option" onclick="moveLead('${leadId}','${siguienteEtapa.replace(/'/g,"\\'")}');closeAllMenus()">
+            <span class="move-option-dot" style="background:#fdab3d"></span>
+            <span>No contestó la llamada</span>
+          </div>`
+        : '';
+
+    // No interesado / No califica solo en 1er, 2do, 3er (no en New Lead)
+    const extraOpts = (!estaEnNewLead) ? `
+      <div style="border-top:1px solid var(--border);margin:4px 0"></div>
+      <div class="move-option-special no-interesado" onclick="openNoInteresado('${leadId}')">
+        <span class="move-option-dot" style="background:#fdab3d"></span>
+        <span>No interesado</span>
+      </div>
+      <div class="move-option-special no-califica" onclick="openNoCalifica('${leadId}')">
+        <span class="move-option-dot" style="background:#e2445c"></span>
+        <span>No califica</span>
+      </div>` : '';
+
+    const webinarBtn = `
+      <div style="padding:8px 13px;border-top:1px solid var(--border);">
+        <button class="move-menu-webinar-btn" onclick="sendToWebinar()">
+          🎥 <span>Enviar a En Webinar</span>
+        </button>
+      </div>`;
+
+    document.getElementById('move-menu-options').innerHTML = noRespondioBtn + extraOpts + webinarBtn;
+  } else {
+    document.getElementById('move-menu-options').innerHTML = etapas
+      .filter(e => {
+        if (/^new lead$/i.test(e)) return false;
+        if (/^no contactado$/i.test(e) && !estaEn3er) return false;
+        return true;
+      })
+      .map(e => {
+        const isCurrent = e === etapaActual;
+        const color = stageColor(e);
+        return `<div class="move-option ${isCurrent?'current':''}"
+          onclick="${isCurrent ? '' : `moveLead('${leadId}','${e.replace(/'/g,"\\'")}');closeAllMenus()`}">
+          <span class="move-option-dot" style="background:${color}"></span>
+          <span>${esc(e)}</span>
+          ${isCurrent ? '<span class="move-option-check">✓ actual</span>' : ''}
+        </div>`;
+      }).join('');
+    if (lead?.pipeline_id !== 'en-webinar') {
+      document.getElementById('move-menu-options').innerHTML +=
+        `<div style="padding:8px 13px;border-top:1px solid var(--border);">
+          <button class="move-menu-webinar-btn" onclick="sendToWebinar()">
+            🎥 <span>Enviar a En Webinar</span>
+          </button>
+        </div>`;
+    }
+    if (webinarSection) webinarSection.style.display = 'none';
+  }
+
+  // Posicionar el menú cerca del botón, evitando salirse de pantalla
+  const btn  = event.currentTarget;
+  const rect = btn.getBoundingClientRect();
+  menu.style.display = 'block'; // temporal para medir
+  menu.classList.add('open');
+  const mw = menu.offsetWidth;
+  const mh = menu.offsetHeight;
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+
+  let top  = rect.bottom + 6;
+  let left = rect.left;
+  if (left + mw > vw - 8) left = vw - mw - 8;
+  if (top  + mh > vh - 8) top  = rect.top - mh - 6;
+  if (top < 8) top = 8;
+
+  menu.style.top  = top  + 'px';
+  menu.style.left = left + 'px';
+}
+
+function closeAllMenus() {
+  const menu = document.getElementById('global-move-menu');
+  menu.classList.remove('open');
+  menu.style.display = 'none';
+  _openMenuLeadId = null;
+}
+
+function moveNoContactado(leadId) {
+  const lead = leads.find(l => l.id === leadId);
+  if (!lead) return;
+  pushUndo('lead_change', JSON.parse(JSON.stringify(lead)));
+  const prev = lead.etapa;
+  lead.pipeline_id = 'no-contactados';
+  lead.etapa = 'Sin respuesta - 3er intento';
+  addHistorial(leadId, `No contactado después de 3 intentos (desde ${prev})`, '📵');
+  saveLeads(leadId); renderKanban(); renderSidebar();
+  showToast('📵 Movido a No Contactados', true);
+}
+
+function moveWebinarNoContactado(leadId) {
+  const lead = leads.find(l => l.id === leadId);
+  if (!lead) return;
+  pushUndo('lead_change', JSON.parse(JSON.stringify(lead)));
+  const prefix = lead.etapa.startsWith('AS - ') ? 'AS - ' : 'NA - ';
+  const prev = lead.etapa;
+  lead.etapa = prefix + 'No contactado';
+  addHistorial(leadId, `Sin contacto en 3er intento (desde ${prev})`, '📵');
+  saveLeads(leadId); renderKanban(); renderSidebar();
+  showToast('📵 Sin contacto — 3er intento agotado', true);
+}
+
+function moveParaEntrevista(leadId) {
+  const lead = leads.find(l => l.id === leadId);
+  if (!lead) return;
+  pushUndo('lead_change', JSON.parse(JSON.stringify(lead)));
+  const prev = lead.etapa;
+  lead.pipeline_id = 'entrevistas-generales';
+  lead.etapa = 'EN ENTREVISTA';
+  addHistorial(leadId, `Enviado a Entrevistas Generales (desde ${prev})`, '🤝');
+  saveLeads(leadId); renderKanban(); renderSidebar();
+  showToast('🤝 Movido a Entrevistas Generales', true);
+}
+
+function moveReinscritoWebinar(leadId) {
+  const lead = leads.find(l => l.id === leadId);
+  if (!lead) return;
+  pushUndo('lead_change', JSON.parse(JSON.stringify(lead)));
+  const prev = lead.etapa;
+  lead.etapa = 'Inscrito en Webinar';
+  lead.reinscrito_from_na = true;
+  lead.webinar_accion = 'sin-registro';
+  lead.inscrito_webinar = false;
+  addHistorial(leadId, `Reinscrito en Webinar (desde ${prev})`, '🔄');
+  saveLeads(leadId);
+  setPipeTab('en-webinar', 'inscrito');
+  renderKanban(); renderSidebar();
+  showToast('🔄 Reinscrito en Webinar', true);
+}
+
+let _niLeadId = null;
+let _niContext = 'default';
+
+function openNoInteresado(leadId, context) {
+  closeAllMenus();
+  _niLeadId = leadId;
+  _niContext = context || 'default';
+  document.querySelectorAll('input[name="ni-reason"]').forEach(r => r.checked = false);
+  document.querySelectorAll('.ni-option').forEach(o => o.classList.remove('selected'));
+  document.getElementById('ni-otros-text').style.display = 'none';
+  document.getElementById('ni-otros-text').value = '';
+  document.querySelectorAll('input[name="ni-reason"]').forEach(r => {
+    r.onchange = () => {
+      document.querySelectorAll('.ni-option').forEach(o => o.classList.remove('selected'));
+      r.closest('.ni-option').classList.add('selected');
+      document.getElementById('ni-otros-text').style.display = r.value === 'otros' ? 'block' : 'none';
+    };
+  });
+  document.getElementById('no-interesado-overlay').classList.remove('hidden');
+}
+
+function closeNoInteresado() {
+  document.getElementById('no-interesado-overlay').classList.add('hidden');
+  _niLeadId = null;
+}
+
+function confirmNoInteresado() {
+  if (!_niLeadId) return;
+  const selected = document.querySelector('input[name="ni-reason"]:checked');
+  if (!selected) { alert('Selecciona un motivo'); return; }
+  let motivo = selected.value;
+  if (motivo === 'otros') {
+    const txt = document.getElementById('ni-otros-text').value.trim();
+    if (!txt) { alert('Explica el motivo'); return; }
+    motivo = 'Otros: ' + txt;
+  }
+  const lead = leads.find(l => l.id === _niLeadId);
+  if (lead) {
+    pushUndo('lead_change', JSON.parse(JSON.stringify(lead)));
+    lead.notas = Array.isArray(lead.notas) ? lead.notas : [];
+    lead.notas.push({ texto: '[No interesado] ' + motivo, fecha: new Date().toISOString(), autor: currentUser?.name || '' });
+    if (_niContext === 'webinar-na') {
+      lead.etapa = 'NA - No interesado';
+    } else if (_niContext === 'webinar-as') {
+      lead.etapa = 'AS - No interesado';
+    } else {
+      lead.pipeline_id = 'no-interesados-no-califica';
+      lead.etapa = 'No interesado';
+    }
+  }
+  if (lead) addHistorial(_niLeadId, `No interesado: ${motivo}`, '⚠️');
+  closeNoInteresado();
+  saveLeads(_niLeadId); renderKanban(); renderSidebar();
+  showToast('⚠️ Movido a No Interesados', true);
+}
+
+let _ncLeadId = null;
+let _ncContext = 'default';
+
+function openNoCalifica(leadId, context) {
+  closeAllMenus();
+  _ncLeadId = leadId;
+  _ncContext = context || 'default';
+  // Reset selección
+  document.querySelectorAll('input[name="nc-reason"]').forEach(r => r.checked = false);
+  document.querySelectorAll('.nc-option').forEach(o => o.classList.remove('selected'));
+  document.getElementById('nc-otros-text').style.display = 'none';
+  document.getElementById('nc-otros-text').value = '';
+  // Radio change listeners
+  document.querySelectorAll('input[name="nc-reason"]').forEach(r => {
+    r.onchange = () => {
+      document.querySelectorAll('.nc-option').forEach(o => o.classList.remove('selected'));
+      r.closest('.nc-option').classList.add('selected');
+      document.getElementById('nc-otros-text').style.display = r.value === 'otros' ? 'block' : 'none';
+    };
+  });
+  document.getElementById('no-califica-overlay').classList.remove('hidden');
+}
+
+function closeNoCalifica() {
+  document.getElementById('no-califica-overlay').classList.add('hidden');
+  _ncLeadId = null;
+}
+
+function confirmNoCalifica() {
+  if (!_ncLeadId) return;
+  const selected = document.querySelector('input[name="nc-reason"]:checked');
+  if (!selected) { alert('Selecciona un motivo'); return; }
+  let motivo = selected.value;
+  if (motivo === 'otros') {
+    const txt = document.getElementById('nc-otros-text').value.trim();
+    if (!txt) { alert('Explica el motivo'); return; }
+    motivo = 'Otros: ' + txt;
+  }
+  const lead = leads.find(l => l.id === _ncLeadId);
+  if (lead) {
+    pushUndo('lead_change', JSON.parse(JSON.stringify(lead)));
+    lead.notas = Array.isArray(lead.notas) ? lead.notas : (lead.notas ? [lead.notas] : []);
+    lead.notas.push({ texto: `[No califica] ${motivo}`, fecha: new Date().toISOString(), autor: currentUser?.name || '' });
+    if (_ncContext === 'webinar-na') {
+      lead.etapa = 'NA - No Califica';
+    } else if (_ncContext === 'webinar-as') {
+      lead.etapa = 'AS - No Califica';
+    } else {
+      const etapaMap = {
+        'No posee documentos':     'No califica - Sin documentos',
+        'Aún no es mayor de edad': 'No califica - Menor de edad',
+        'No habla Español':        'No califica - No habla Español',
+      };
+      const etapaDestino = motivo.startsWith('Otros:')
+        ? 'No califica - Otros'
+        : (etapaMap[motivo] || 'No califica - Otros');
+      lead.pipeline_id = 'no-interesados-no-califica';
+      lead.etapa = etapaDestino;
+    }
+  }
+  if (lead) addHistorial(_ncLeadId, `No califica: ${motivo}`, '🚫');
+  closeNoCalifica();
+  saveLeads(_ncLeadId); renderKanban(); renderSidebar();
+  showToast('🚫 Movido a No Califica', true);
+}
+
+
+// ════════════════════════════════════════════
+//  DRAG & DROP
+// ════════════════════════════════════════════
+function handleDragStart(event, leadId) {
+  dragLeadId = leadId;
+  document.getElementById('kcard-'+leadId)?.classList.add('dragging');
+  event.dataTransfer.effectAllowed = 'move';
+}
+function handleDrop(event, etapa) {
+  event.preventDefault();
+  event.currentTarget.querySelector('.kanban-col-body').classList.remove('drag-over');
+  if (!dragLeadId) return;
+  const lead = leads.find(l => l.id === dragLeadId);
+  if (lead && lead.etapa !== etapa) {
+    pushUndo('lead_change', JSON.parse(JSON.stringify(lead)));
+    lead.etapa = etapa;
+    addHistorial(lead.id, `Etapa cambiada (arrastre) → ${etapa}`, '↕️');
+    saveLeads(lead.id);
+    renderKanban();
+    renderSidebar();
+    showToast(`↕️ Movido a: ${etapa}`, true);
+  }
+  dragLeadId = null;
+}
+
+
+// ════════════════════════════════════════════
+//  OPEN / CLOSE LEAD MODAL
+// ════════════════════════════════════════════
+let _mlSnapshot = null;
+
+function _mlUpdateAvatar() {
+  const name = document.getElementById('ml-nombre')?.value || '';
+  const initials = name.split(' ').filter(Boolean).map(w => w[0].toUpperCase()).slice(0,2).join('') || '?';
+  const av = document.getElementById('ml-avatar');
+  if (av) av.textContent = initials;
+}
+
+function _mlSetMode(editing) {
+  const modal = document.querySelector('.modal-lead');
+  modal.classList.toggle('ml-view-mode', !editing);
+  document.getElementById('ml-btn-edit').style.display        = editing ? 'none' : '';
+  document.getElementById('ml-btn-save').style.display        = editing ? '' : 'none';
+  document.getElementById('ml-btn-cancel-edit').style.display = editing ? '' : 'none';
+}
+
+function _mlEdit() {
+  const lead = leads.find(l => l.id === currentLeadId);
+  if (lead) _mlSnapshot = JSON.parse(JSON.stringify(lead));
+  _mlSetMode(true);
+}
+
+function _mlCancelEdit() {
+  if (_mlSnapshot) {
+    const idx = leads.findIndex(l => l.id === currentLeadId);
+    if (idx !== -1) leads[idx] = _mlSnapshot;
+    _mlSnapshot = null;
+    openLead(currentLeadId);
+    return;
+  }
+  _mlSetMode(false);
+}
+
+function openLead(id, tabName) {
+  const lead = leads.find(l => l.id === id);
+  if (!lead) return;
+  currentLeadId = id;
+
+  // populate header
+  document.getElementById('ml-nombre').value = lead.nombre || '';
+  _mlUpdateAvatar();
+
+  // populate pipeline/etapa selects
+  const pSel = document.getElementById('ml-pipeline');
+  pSel.innerHTML = PIPELINES.map(p => `<option value="${p.id}" ${p.id===lead.pipeline_id?'selected':''}>${p.nombre}</option>`).join('');
+  updateEtapasSelect(lead.etapa);
+
+  // info tab
+  document.getElementById('ml-contacto').value = lead.contacto || lead.nombre || '';
+  document.getElementById('ml-correo').value = lead.correo || '';
+  document.getElementById('ml-telefono').value = lead.telefono || '';
+  document.getElementById('ml-propietario').value = lead.propietario || '';
+  document.getElementById('ml-inscrito-por').value = lead.inscrito_por || '';
+  document.getElementById('ml-ubicacion').value = lead.ubicacion || '';
+  document.getElementById('ml-fecha-inscripcion-webinar').value = lead.fecha_inscripcion_webinar || '';
+  _mlRenderProgreso(lead);
+  document.getElementById('ml-fuente').value = lead.fuente || 'Meta / Facebook';
+  document.getElementById('ml-seguidores').value = (lead.seguidores||[]).join(', ');
+
+  // extra phones
+  const phonesList = document.getElementById('phones-list');
+  const extras = lead.telefonos_extra || [];
+  phonesList.innerHTML = `<div class="phone-row"><input id="ml-telefono" placeholder="+52 55 0000 0000" value="${esc(lead.telefono||'')}" /></div>`;
+  extras.forEach(ph => addPhoneRow(ph));
+
+  // cita
+  document.getElementById('cita-fecha').value = lead.cita?.fecha || '';
+  document.getElementById('cita-hora').value  = lead.cita?.hora  || '';
+  document.getElementById('cita-tipo').value  = lead.cita?.tipo  || 'Entrevista inicial';
+  document.getElementById('cita-notas').value = lead.cita?.notas || '';
+  renderCitaActual(lead.cita);
+
+  // tareas, notas, historial
+  renderNotas(lead.notas || []);
+
+  // entrevista section
+  ivInitSection(lead);
+
+  document.getElementById('lead-modal').classList.remove('hidden');
+  _mlSetMode(false);
+  lcOpen();
+}
+
+function closeLead() {
+  clearInterval(_lcPollInt);
+  document.getElementById('lead-modal').classList.add('hidden');
+  currentLeadId = null;
+}
+
+
+// ════════════════════════════════════════════
+//  SAVE LEAD
+// ════════════════════════════════════════════
+function saveLead() {
+  const lead = leads.find(l => l.id === currentLeadId);
+  if (!lead) return;
+
+  pushUndo('lead_change', JSON.parse(JSON.stringify(lead)));
+  const oldPipeline = lead.pipeline_id;
+  const oldEtapa    = lead.etapa;
+
+  lead.nombre      = document.getElementById('ml-nombre').value.trim();
+  lead.pipeline_id = document.getElementById('ml-pipeline').value;
+  lead.etapa       = document.getElementById('ml-etapa').value;
+  lead.contacto    = document.getElementById('ml-contacto').value.trim();
+  lead.correo      = document.getElementById('ml-correo').value.trim();
+  lead.telefono    = document.getElementById('ml-telefono').value.trim();
+  lead.propietario  = document.getElementById('ml-propietario').value;
+  lead.inscrito_por              = document.getElementById('ml-inscrito-por').value;
+  lead.ubicacion                 = document.getElementById('ml-ubicacion').value.trim();
+  lead.fecha_inscripcion_webinar = document.getElementById('ml-fecha-inscripcion-webinar').value;
+  lead.fuente                    = document.getElementById('ml-fuente').value;
+  lead.seguidores  = document.getElementById('ml-seguidores').value.split(',').map(s=>s.trim()).filter(Boolean);
+
+  // Si se mueve a En Webinar y antes no estaba ahí, registrar y enviar correo
+  if (lead.pipeline_id === 'en-webinar' && oldPipeline !== 'en-webinar') {
+    _registrarEnWebinar(lead, oldEtapa).then(() => { renderKanban(); renderSidebar(); });
+    _mlSnapshot = null;
+    _mlSetMode(false);
+    showToast('🎥 Inscribiendo en Webinar y enviando correo…');
+    return;
+  }
+
+  if (oldEtapa !== lead.etapa || oldPipeline !== lead.pipeline_id) {
+    const pipeName = PIPELINES.find(p => p.id === lead.pipeline_id)?.nombre || lead.pipeline_id;
+    addHistorial(lead.id, `Movido a: ${pipeName} → ${lead.etapa}`, '↕️');
+  } else {
+    addHistorial(lead.id, 'Información actualizada', '✏️');
+  }
+  saveLeads(currentLeadId);
+  _mlSnapshot = null;
+  _mlSetMode(false); // return to view (locked) mode
+  _mlRenderProgreso(lead);
+  renderKanban();
+  renderSidebar();
+  showToast('✏️ Aplicante guardado', true);
+}
+
+function _mlRenderProgreso(lead) {
+  const el = document.getElementById('ml-progreso-tracker');
+  if (!el) return;
+  const steps = [
+    { pct: 5,   label: 'Aplicó',               check: () => true },
+    { pct: 10,  label: 'Nombre y ciudad',       check: l => l.nombre && !l.nombre.startsWith('WA ') && !l.nombre.startsWith('+') && l.ubicacion },
+    { pct: 20,  label: 'Experiencia laboral',   check: l => l.tiene_experiencia },
+    { pct: 45,  label: 'Interés en webinar',    check: l => l.webinar_intent },
+    { pct: 50,  label: 'Papeles y mayoría',     check: l => l.tiene_papeles && l.mayor_edad },
+    { pct: 60,  label: 'Correo registrado',     check: l => !!l.correo },
+    { pct: 70,  label: 'Vio el webinar',        check: l => l.webinar_visto || l.vio_webinar || (l.pipeline_id === 'en-webinar' && l.etapa !== 'Inscrito en Webinar') },
+    { pct: 80,  label: 'Entrevista agendada',   check: l => !!(l.cita?.fecha) || ['entrevistas-generales','caritza-rojas','maria-lugo','brayan-alexander'].includes(l.pipeline_id) },
+    { pct: 90,  label: 'Confirmó asistencia',   check: l => /confirm/i.test(l.etapa||'') },
+    { pct: 100, label: 'Asistió a entrevista',  check: l => /asist|ENTREVISTADO|ENTREVISTADA/i.test(l.etapa||'') },
+  ];
+  const current = calcProgreso(lead);
+  el.innerHTML = `
+    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text2);margin-bottom:10px;">Progreso del funnel</div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+      <div style="flex:1;height:6px;background:var(--border);border-radius:3px;overflow:hidden;">
+        <div style="height:100%;width:${current}%;background:${current>=100?'#fbbf24':current>=70?'#00c875':'#4f7fff'};border-radius:3px;transition:width .5s;"></div>
+      </div>
+      <span style="font-size:16px;font-weight:800;color:${current>=100?'#fbbf24':current>=70?'#00c875':'#4f7fff'};">${current}%</span>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:5px;">
+      ${steps.map(s => {
+        const done = s.check(lead);
+        const active = s.pct === current;
+        return `<div style="display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:7px;background:${done?'rgba(0,200,117,.06)':active?'rgba(79,127,255,.06)':'transparent'};border:1px solid ${done?'rgba(0,200,117,.15)':active?'rgba(79,127,255,.15)':'transparent'};">
+          <span style="font-size:13px;">${done?'✅':active?'🔵':'⬜'}</span>
+          <span style="font-size:12px;color:${done?'#e2fef3':active?'#c4d9ff':'var(--text2)'};">${s.label}</span>
+          <span style="margin-left:auto;font-size:10px;font-weight:700;color:${done?'#00c875':active?'#4f7fff':'var(--text2)'};">${s.pct}%</span>
+        </div>`;
+      }).join('')}
+    </div>`;
+}
+
+function deleteLead() {
+  if (!currentLeadId) return;
+  if (!confirm('¿Eliminar este aplicante?')) return;
+  const lead = leads.find(l => l.id === currentLeadId);
+  if (lead) pushUndo('lead_delete', JSON.parse(JSON.stringify(lead)));
+  leads = leads.filter(l => l.id !== currentLeadId);
+  saveLeads();
+  closeLead();
+  renderKanban();
+  renderSidebar();
+  showToast('🗑️ Aplicante eliminado', true);
+}
+
+async function deleteLeadFull() {
+  const leadId = _openMenuLeadId || currentLeadId;
+  if (!leadId) return;
+  const lead = leads.find(l => l.id === leadId);
+  const nombre = lead?.nombre || 'este contacto';
+
+  // Double confirmation for legal data deletion
+  if (!confirm(`⚠️ ELIMINACIÓN DE DATOS\n\nVas a eliminar permanentemente a "${nombre}" incluyendo:\n• Su perfil y toda su información\n• Historial de conversaciones con Ana\n• Registros de escalación\n\nEsta acción NO se puede deshacer.\n\n¿Continuar?`)) return;
+  if (!confirm(`Confirma una vez más: ¿eliminar TODOS los datos de "${nombre}"?`)) return;
+
+  closeAllMenus();
+  closeLead();
+
+  // Remove from local state immediately for responsiveness
+  leads = leads.filter(l => l.id !== leadId);
+  saveLeads();
+  renderKanban();
+  renderSidebar();
+  showToast('Eliminando datos…');
+
+  try {
+    const r = await fetch(`${SERVER_URL}/leads/${leadId}`, { method: 'DELETE' });
+    const d = await r.json();
+    if (d.ok) {
+      const histCount = d.deleted?.history?.length || 0;
+      const escCount  = d.deleted?.escalations?.length || 0;
+      showToast(`✅ Datos de "${nombre}" eliminados${histCount ? ` · ${histCount} conv.` : ''}${escCount ? ` · ${escCount} esc.` : ''}`);
+    } else {
+      showToast('⚠️ Lead eliminado localmente, pero hubo un error en el servidor: ' + d.error);
+    }
+  } catch (e) {
+    showToast('⚠️ Lead eliminado localmente. Error de conexión: ' + e.message);
+  }
+}
+
+
+// ════════════════════════════════════════════
+//  NEW LEAD MODAL
+// ════════════════════════════════════════════
+function populatePipelineSelects() {
+  ['nml-pipeline'].forEach(selId => {
+    const sel = document.getElementById(selId);
+    if (!sel) return;
+    sel.innerHTML = PIPELINES.map(p => `<option value="${p.id}" ${p.id===activePipelineId?'selected':''}>${p.nombre}</option>`).join('');
+  });
+  updateNmlEtapas();
+}
+
+function updateNmlEtapas() {
+  const pid = document.getElementById('nml-pipeline').value;
+  const pipe = PIPELINES.find(p => p.id === pid);
+  const sel = document.getElementById('nml-etapa');
+  sel.innerHTML = (pipe?.etapas || []).map(e => `<option value="${esc(e)}">${esc(e)}</option>`).join('');
+}
+
+function openNewLead() {
+  populatePipelineSelects();
+  document.getElementById('nml-nombre').value = '';
+  document.getElementById('nml-tel').value = '';
+  document.getElementById('nml-correo').value = '';
+  document.getElementById('new-modal').classList.remove('hidden');
+  setTimeout(() => document.getElementById('nml-nombre').focus(), 50);
+}
+
+function openNewLeadInStage(etapa) {
+  openNewLead();
+  const pSel = document.getElementById('nml-pipeline');
+  pSel.value = activePipelineId;
+  updateNmlEtapas();
+  document.getElementById('nml-etapa').value = etapa;
+}
+
+function closeNewLead() {
+  document.getElementById('new-modal').classList.add('hidden');
+}
+
+function saveNewLead() {
+  const nombre = document.getElementById('nml-nombre').value.trim();
+  if (!nombre) { showToast('El nombre es obligatorio'); return; }
+  const numero = (leads.length > 0 ? Math.max(...leads.map(l => l.numero||0)) : 0) + 1;
+  const lead = {
+    id: 'lead-' + Date.now(),
+    numero,
+    nombre,
+    telefono:    document.getElementById('nml-tel').value.trim(),
+    correo:      document.getElementById('nml-correo').value.trim(),
+    fuente:      document.getElementById('nml-fuente').value,
+    pipeline_id: document.getElementById('nml-pipeline').value,
+    etapa:       document.getElementById('nml-etapa').value,
+    propietario: document.getElementById('nml-propietario').value,
+    estado: 'abierto',
+    notas:[], tareas:[], historial:[],
+    created_at: new Date().toISOString(),
+  };
+  const pipeName = PIPELINES.find(p => p.id === lead.pipeline_id)?.nombre || lead.pipeline_id;
+  addHistorial(lead.id, `Lead creado en ${pipeName} → ${lead.etapa}`, '🌟');
+  leads.unshift(lead);
+  pushUndo('lead_create', lead.id);
+  saveLeads();
+  closeNewLead();
+  renderKanban();
+  renderSidebar();
+  showToast('🌟 Aplicante creado', true);
+}
+
+
+// ════════════════════════════════════════════
+//  APLICANTES EXTERNOS
+// ════════════════════════════════════════════
+function openExternalApplicant() {
+  document.getElementById('ext-nombre').value = '';
+  document.getElementById('ext-tel').value = '';
+  document.getElementById('ext-correo').value = '';
+  document.getElementById('ext-ubicacion').value = '';
+  document.getElementById('ext-notas').value = '';
+  document.getElementById('ext-fuente').value = 'Indeed';
+  _extUpdatePreview();
+  document.getElementById('ext-modal').classList.remove('hidden');
+  setTimeout(() => document.getElementById('ext-nombre').focus(), 50);
+}
+
+function closeExternalApplicant() {
+  document.getElementById('ext-modal').classList.add('hidden');
+}
+
+function _extUpdatePreview() {
+  const fuente = document.getElementById('ext-fuente').value;
+  const isIndeed = fuente === 'Indeed' || fuente === 'Glassdoor';
+  const pipeName = isIndeed ? 'Postulados por Indeed' : 'Postulados por Meta';
+  const lbl = document.getElementById('ext-pipeline-label');
+  if (lbl) lbl.textContent = `${fuente} → ${pipeName} · New Lead`;
+}
+
+// wired via onchange in HTML
+
+function submitExternalApplicant() {
+  const nombre = document.getElementById('ext-nombre').value.trim();
+  const tel    = document.getElementById('ext-tel').value.trim();
+  if (!nombre) { showToast('El nombre es obligatorio'); return; }
+  if (!tel)    { showToast('El teléfono es obligatorio'); return; }
+
+  const fuente = document.getElementById('ext-fuente').value;
+  const isIndeed = fuente === 'Indeed' || fuente === 'Glassdoor';
+  const pipeline_id = isIndeed ? 'postulados-indeed' : 'postulados-meta';
+
+  const notasTxt = document.getElementById('ext-notas').value.trim();
+  const notas = notasTxt
+    ? [{ texto: notasTxt, fecha: new Date().toISOString(), autor: currentUser?.name || 'Sistema' }]
+    : [];
+
+  const numero = (leads.length > 0 ? Math.max(...leads.map(l => l.numero || 0)) : 0) + 1;
+  const lead = {
+    id:          'lead-' + Date.now(),
+    numero,
+    nombre,
+    telefono:    tel,
+    correo:      document.getElementById('ext-correo').value.trim(),
+    fuente,
+    ubicacion:   document.getElementById('ext-ubicacion').value.trim(),
+    pipeline_id,
+    etapa:       'New Lead',
+    propietario: currentUser?.name || '',
+    estado:      'abierto',
+    notas,
+    tareas:      [],
+    historial:   [],
+    created_at:  new Date().toISOString(),
+  };
+
+  const pipeName = PIPELINES.find(p => p.id === pipeline_id)?.nombre || pipeline_id;
+  addHistorial(lead.id, `Aplicante externo creado en ${pipeName} · Fuente: ${fuente}`, '📥');
+  leads.unshift(lead);
+  pushUndo('lead_create', lead.id);
+  saveLeads();
+  closeExternalApplicant();
+  renderKanban();
+  renderSidebar();
+  showToast('📥 Aplicante externo agregado', true);
+}
+
+
+// ════════════════════════════════════════════
+//  PIPELINE/ETAPA SELECTS IN MODAL
+// ════════════════════════════════════════════
+function updateEtapasSelect(currentEtapa) {
+  const pid = document.getElementById('ml-pipeline').value;
+  const pipe = PIPELINES.find(p => p.id === pid);
+  const sel = document.getElementById('ml-etapa');
+  sel.innerHTML = (pipe?.etapas || []).map(e => `<option value="${esc(e)}" ${e===(currentEtapa||'')? 'selected':''}>${esc(e)}</option>`).join('');
+}
+
+
+
+// ════════════════════════════════════════════
+//  TABS
+// ════════════════════════════════════════════
+function showTab(name) { /* kept for backward-compat call sites */ }
+
+function lcToggleCita(hdr) {
+  const body  = document.getElementById('ml-cita-body');
+  const arrow = document.getElementById('ml-cita-arrow');
+  const open  = body.classList.toggle('open');
+  if (arrow) arrow.textContent = open ? '▾' : '▸';
+}
+
+
+// ════════════════════════════════════════════
+//  ENTREVISTAS (manual scheduling from lead modal)
+// ════════════════════════════════════════════
+let _ivCurrentLeadPhone = null;
+let _ivCurrentLeadName  = null;
+let _ivCurrentInterview = null;
+
+function lcToggleEntrevista(hdr) {
+  const body  = document.getElementById('ml-entrevista-body');
+  const arrow = document.getElementById('ml-entrevista-arrow');
+  const open  = body.classList.toggle('open');
+  if (arrow) arrow.textContent = open ? '▾' : '▸';
+}
+
+async function ivInitSection(lead) {
+  _ivCurrentLeadPhone = lead.telefono || '';
+  _ivCurrentLeadName  = lead.nombre  || lead.contacto || '';
+  _ivCurrentInterview = null;
+
+  const sec    = document.getElementById('ml-entrevista-section');
+  const booked = document.getElementById('iv-booked-info');
+  const list   = document.getElementById('iv-slots-list');
+  const status = document.getElementById('iv-slots-status');
+
+  if (lead.pipeline_id !== 'en-webinar') { sec.style.display = 'none'; return; }
+  sec.style.display = 'block';
+
+  // Reset state
+  list.innerHTML = '';
+  booked.style.display = 'none';
+  status.textContent = 'Haz clic en "Ver disponibilidad" para ver los horarios.';
+
+  // Check if lead already has a booked interview
+  try {
+    const res  = await fetch(`/interviews?phone=${encodeURIComponent(_ivCurrentLeadPhone)}`);
+    const data = await res.json();
+    const raw = (data.interviews || []).find(i => i.status === 'scheduled' || i.status === 'booked');
+    if (raw) {
+      const active = { ...raw, slot: raw.slot || raw.slotIso, zoom_link: raw.zoom_link || raw.zoomLink };
+      _ivCurrentInterview = active;
+      _ivShowBookedInfo(active);
+      status.textContent = '';
+    }
+  } catch (e) { /* ignore */ }
+}
+
+function _ivShowBookedInfo(interview) {
+  const booked = document.getElementById('iv-booked-info');
+  const detail = document.getElementById('iv-booked-detail');
+  const list   = document.getElementById('iv-slots-list');
+  const btnVer = document.querySelector('#ml-entrevista-body button');
+
+  booked.style.display = 'block';
+  if (btnVer) btnVer.style.display = 'none';
+
+  const d = new Date(interview.slot);
+  const fmt = d.toLocaleString('es-MX', { weekday:'long', year:'numeric', month:'long', day:'numeric', hour:'2-digit', minute:'2-digit' });
+  detail.innerHTML = `<div>${fmt}</div>${interview.zoom_link ? `<div style="margin-top:4px;"><a href="${esc(interview.zoom_link)}" target="_blank" style="color:#a5b4fc;font-size:11px;">🔗 Enlace Zoom</a></div>` : ''}`;
+  list.innerHTML = '';
+}
+
+async function ivLoadSlots() {
+  const list   = document.getElementById('iv-slots-list');
+  const status = document.getElementById('iv-slots-status');
+  list.innerHTML = '<div style="font-size:12px;color:var(--text2);">Cargando horarios...</div>';
+  status.textContent = '';
+  try {
+    const res  = await fetch('/interviews/slots');
+    const data = await res.json();
+    const slots = data.slots || [];
+    if (!slots.length) {
+      list.innerHTML = '<div style="font-size:12px;color:var(--text2);">No hay horarios disponibles. Revisa la configuración del calendario.</div>';
+      return;
+    }
+    list.innerHTML = slots.map((s, i) => {
+      const d   = new Date(s);
+      const lbl = d.toLocaleString('es-MX', { weekday:'short', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
+      return `<button onclick="ivBookSlot('${s}')" style="text-align:left;background:rgba(99,102,241,.12);border:1px solid rgba(99,102,241,.3);color:var(--text);border-radius:6px;padding:6px 10px;cursor:pointer;font-size:12px;">📅 ${lbl}</button>`;
+    }).join('');
+  } catch (e) {
+    list.innerHTML = '<div style="font-size:12px;color:var(--red);">Error cargando horarios.</div>';
+  }
+}
+
+async function ivBookSlot(slot) {
+  const d   = new Date(slot);
+  const lbl = d.toLocaleString('es-MX', { weekday:'long', month:'long', day:'numeric', hour:'2-digit', minute:'2-digit' });
+  if (!confirm(`¿Confirmar entrevista el ${lbl}?`)) return;
+
+  const status = document.getElementById('iv-slots-status');
+  status.textContent = 'Agendando...';
+  document.getElementById('iv-slots-list').innerHTML = '';
+
+  try {
+    const res  = await fetch('/interviews/book', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone: _ivCurrentLeadPhone, name: _ivCurrentLeadName, slot }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Error');
+    _ivCurrentInterview = data.interview;
+    _ivShowBookedInfo(data.interview);
+    status.textContent = '';
+    showToast('Entrevista agendada ✓');
+  } catch (e) {
+    status.textContent = `Error: ${e.message}`;
+  }
+}
+
+async function ivCancelBooking() {
+  if (!_ivCurrentInterview) return;
+  if (!confirm('¿Cancelar la entrevista agendada?')) return;
+
+  try {
+    await fetch(`/interviews/${_ivCurrentInterview.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'cancelled' }),
+    });
+    _ivCurrentInterview = null;
+    document.getElementById('iv-booked-info').style.display = 'none';
+    const btnVer = document.querySelector('#ml-entrevista-body button');
+    if (btnVer) btnVer.style.display = '';
+    document.getElementById('iv-slots-status').textContent = 'Haz clic en "Ver disponibilidad" para ver los horarios.';
+    showToast('Entrevista cancelada');
+  } catch (e) {
+    showToast('Error cancelando entrevista');
+  }
+}
+
+
+// ════════════════════════════════════════════
+//  PHONES
+// ════════════════════════════════════════════
+function addPhone() { addPhoneRow(''); }
+function addPhoneRow(val) {
+  const list = document.getElementById('phones-list');
+  const div = document.createElement('div');
+  div.className = 'phone-row';
+  div.innerHTML = `<input placeholder="+52 55 0000 0000" value="${esc(val)}" /><button class="phone-del" onclick="this.parentElement.remove()">✕</button>`;
+  list.appendChild(div);
+}
+
+
+// ════════════════════════════════════════════
+//  TAGS
+// ════════════════════════════════════════════
+function renderTagsWrap() {
+  const wrap = document.getElementById('tags-wrap');
+  const inp = document.getElementById('tags-input');
+  wrap.innerHTML = '';
+  currentTags.forEach((tag, i) => {
+    const chip = document.createElement('span');
+    chip.className = 'tag-chip';
+    chip.innerHTML = `${esc(tag)}<button onclick="removeTag(${i})">×</button>`;
+    wrap.appendChild(chip);
+  });
+  wrap.appendChild(inp);
+}
+function handleTagKey(e) {
+  if (e.key === 'Enter' || e.key === ',') {
+    e.preventDefault();
+    const val = e.target.value.trim().replace(/,/g,'');
+    if (val && !currentTags.includes(val)) { currentTags.push(val); renderTagsWrap(); }
+    e.target.value = '';
+  }
+}
+function removeTag(i) { currentTags.splice(i,1); renderTagsWrap(); }
+
+
+// ════════════════════════════════════════════
+//  NOTAS
+// ════════════════════════════════════════════
+function fmtDateTime(d) {
+  if (!d) return '';
+  const dt = new Date(d);
+  if (isNaN(dt)) return d;
+  const now = new Date();
+  const isToday = dt.toDateString() === now.toDateString();
+  const time = dt.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
+  if (isToday) return `hoy · ${time}`;
+  const date = dt.toLocaleDateString('es-MX', { day: '2-digit', month: 'short' });
+  return `${date} · ${time}`;
+}
+function _initials(name) {
+  return (name || '?').split(' ').map(w => w[0] || '').join('').slice(0, 2).toUpperCase();
+}
+function renderNotas(notas) {
+  const el = document.getElementById('notas-list');
+  if (!notas || !notas.length) {
+    el.innerHTML = '<div style="text-align:center;color:var(--text2);font-size:12px;padding:16px 0;opacity:.6">Sin notas aún</div>';
+    return;
+  }
+  el.innerHTML = notas.map(n => `
+    <div class="note-entry">
+      <div class="note-avatar">${_initials(n.autor)}</div>
+      <div class="note-bubble">
+        <div class="note-meta">
+          <span class="note-author">${esc(n.autor || 'Sistema')}</span>
+          <span class="note-time">${fmtDateTime(n.fecha)}</span>
+        </div>
+        <div class="note-text">${esc(n.texto)}</div>
+      </div>
+    </div>`).join('');
+}
+function addNota() {
+  const texto = document.getElementById('nota-inp').value.trim();
+  if (!texto || !currentLeadId) return;
+  const lead = leads.find(l => l.id === currentLeadId);
+  if (!lead) return;
+  if (!lead.notas) lead.notas = [];
+  lead.notas.unshift({ texto, fecha: new Date().toISOString(), autor: currentUser?.name || 'Sistema' });
+  addHistorial(currentLeadId, `Nota agregada: "${texto.slice(0,60)}${texto.length>60?'…':''}"`, '📝');
+  saveLeads();
+  renderNotas(lead.notas);
+  document.getElementById('nota-inp').value = '';
+  showToast('Nota agregada');
+}
+
+
+// ════════════════════════════════════════════
+//  TAREAS
+// ════════════════════════════════════════════
+function renderTareas(tareas) {
+  const el = document.getElementById('tareas-list');
+  if (!el) return;
+  if (!tareas.length) { el.innerHTML = '<div class="empty-tab" style="padding:20px 0"><div class="et-icon">✅</div><p>Sin tareas</p></div>'; return; }
+  el.innerHTML = tareas.map((t,i) => `
+    <div class="tarea-item">
+      <input type="checkbox" class="tarea-check" ${t.done?'checked':''} onchange="toggleTarea(${i})" />
+      <span class="tarea-text ${t.done?'done':''}">${esc(t.texto)}</span>
+      <button class="tarea-del" onclick="delTarea(${i})">✕</button>
+    </div>`).join('');
+}
+function addTarea() {
+  const texto = document.getElementById('tarea-inp').value.trim();
+  if (!texto || !currentLeadId) return;
+  const lead = leads.find(l => l.id === currentLeadId);
+  if (!lead) return;
+  if (!lead.tareas) lead.tareas = [];
+  lead.tareas.push({ id:'t'+Date.now(), texto, done:false });
+  saveLeads(); renderTareas(lead.tareas);
+  document.getElementById('tarea-inp').value = '';
+}
+function toggleTarea(i) {
+  const lead = leads.find(l => l.id === currentLeadId); if (!lead) return;
+  lead.tareas[i].done = !lead.tareas[i].done;
+  saveLeads(); renderTareas(lead.tareas);
+}
+function delTarea(i) {
+  const lead = leads.find(l => l.id === currentLeadId); if (!lead) return;
+  lead.tareas.splice(i,1);
+  saveLeads(); renderTareas(lead.tareas);
+}
+
+
+// ════════════════════════════════════════════
+//  PAGOS
+// ════════════════════════════════════════════
+function renderPagos(pagos) {
+  const el = document.getElementById('pagos-list');
+  if (!pagos.length) { el.innerHTML = '<div class="empty-tab" style="padding:20px 0"><div class="et-icon">💳</div><p>Sin pagos registrados</p></div>'; return; }
+  el.innerHTML = pagos.map(p => `
+    <div class="pago-item">
+      <div class="pago-left">${esc(p.concepto)}<small>${fmtDate(p.fecha)}</small></div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span class="pago-amount">$${parseFloat(p.monto||0).toFixed(2)}</span>
+        <span class="pago-status ${p.pagado?'paid':''}">${p.pagado?'Pagado':'Pendiente'}</span>
+      </div>
+    </div>`).join('');
+}
+function addPago() {
+  const monto = parseFloat(document.getElementById('pago-monto').value) || 0;
+  const concepto = document.getElementById('pago-concepto').value.trim();
+  if (!concepto || !currentLeadId) return;
+  const lead = leads.find(l => l.id === currentLeadId); if (!lead) return;
+  if (!lead.pagos) lead.pagos = [];
+  lead.pagos.unshift({ id:'p'+Date.now(), monto, concepto, fecha: new Date().toISOString(), pagado:false });
+  saveLeads(); renderPagos(lead.pagos);
+  document.getElementById('pago-monto').value = '';
+  document.getElementById('pago-concepto').value = '';
+  showToast('Pago registrado');
+}
+
+
+// ════════════════════════════════════════════
+//  CITA
+// ════════════════════════════════════════════
+function saveCita() {
+  if (!currentLeadId) return;
+  const lead = leads.find(l => l.id === currentLeadId); if (!lead) return;
+  lead.cita = {
+    fecha: document.getElementById('cita-fecha').value,
+    hora:  document.getElementById('cita-hora').value,
+    tipo:  document.getElementById('cita-tipo').value,
+    notas: document.getElementById('cita-notas').value,
+  };
+  saveLeads(); renderCitaActual(lead.cita);
+  showToast('Cita guardada');
+}
+function renderCitaActual(cita) {
+  const el = document.getElementById('cita-actual');
+  if (!el) return;
+  if (!cita?.fecha) { el.innerHTML = ''; return; }
+  el.innerHTML = `<div class="nota-item" style="margin-top:12px;">
+    <div class="nota-meta">📅 Cita agendada</div>
+    <div class="nota-text"><strong>${esc(cita.tipo)}</strong><br>${fmtDate(cita.fecha)} ${cita.hora||''}<br><span style="color:var(--text2)">${esc(cita.notas||'')}</span></div>
+  </div>`;
+}
+
+
+// ════════════════════════════════════════════
+//  QUICK ACTIONS
+// ════════════════════════════════════════════
+function quickAction(type, leadId) {
+  const lead = leads.find(l => l.id === leadId); if (!lead) return;
+  if (type === 'call' && lead.telefono) window.open('tel:'+lead.telefono.replace(/\s/g,''));
+  else if (type === 'msg' && lead.telefono) window.open('https://wa.me/'+lead.telefono.replace(/[^0-9]/g,''));
+  else showToast('Sin teléfono registrado');
+}
+
+
+// ════════════════════════════════════════════
+//  UNDO SYSTEM
+// ════════════════════════════════════════════
+let _undoAction = null;
+let _undoTimer  = null;
+
+function pushUndo(type, data) {
+  _undoAction = { type, data };
+}
+
+function undoLastAction() {
+  if (!_undoAction) return;
+  const { type, data } = _undoAction;
+  _undoAction = null;
+  if (_undoTimer) { clearTimeout(_undoTimer); _undoTimer = null; }
+  document.getElementById('toast').classList.remove('show');
+
+  if (type === 'lead_change') {
+    const idx = leads.findIndex(l => l.id === data.id);
+    if (idx >= 0) leads[idx] = JSON.parse(JSON.stringify(data));
+    else leads.unshift(JSON.parse(JSON.stringify(data)));
+    saveLeads(data.id);
+  } else if (type === 'lead_delete') {
+    leads.unshift(JSON.parse(JSON.stringify(data)));
+    saveLeads();
+  } else if (type === 'lead_create') {
+    leads = leads.filter(l => l.id !== data);
+    saveLeads();
+  }
+  renderKanban(); renderSidebar();
+  showToast('↩️ Acción deshecha');
+}
+
