@@ -540,7 +540,9 @@ function lcUpdateIAState(paused) {
 async function lcToggleIA() {
   const lead = leads.find(l => l.id === currentLeadId);
   if (!lead) return;
-  lead.ia_paused = !lead.ia_paused;
+  const pausando = !lead.ia_paused;
+  if (pausando && !confirm(`¿Pausar la IA para ${lead.nombre || 'este lead'}?\n\nAna dejará de responder y podrás escribir manualmente.`)) return;
+  lead.ia_paused = pausando;
   lcUpdateIAState(lead.ia_paused);
   saveLeads(lead.id);
   showToast(lead.ia_paused
