@@ -1696,6 +1696,12 @@ function showConfig() {
   document.getElementById('sidebar-config-btn').classList.add('active');
   renderSidebar();
   renderConfig();
+  // Load managers async after DOM is ready
+  Promise.all([
+    fetch(`${SERVER_URL}/ai/managers`).then(r=>r.json()).catch(()=>({managers:[],interviewer:null})),
+  ]).then(([ms]) => {
+    cfgRenderManagers(ms.managers || [], ms.interviewer || null);
+  });
 }
 
 function renderConfig() {
@@ -1781,6 +1787,22 @@ function renderConfig() {
         <div class="cfg-board-grid">${boardsHtml}</div>
       </div>
 
+      <!-- EQUIPO DE ESCALADA -->
+      <div class="cfg-section">
+        <div class="cfg-section-title">👥 Equipo de escalada</div>
+        <p style="font-size:12px;color:var(--text3);margin-bottom:14px;line-height:1.6;">
+          Encargados que reciben alertas de Ana por WhatsApp en cadena. Responde <strong>SI</strong> u <strong>OK</strong> para tomar el caso · <strong>SIGUIENTE</strong> para pasar al próximo.
+        </p>
+        <div id="cfg-managers-list" style="display:flex;flex-direction:column;gap:10px;">
+          <div style="color:var(--text3);font-size:12px;">Cargando…</div>
+        </div>
+        <div id="cfg-interviewer-card" style="margin-top:10px;"></div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-top:12px;">
+          <span style="font-size:10px;color:var(--text3);">🔒 Haz clic en Editar para modificar los datos de cada encargado.</span>
+          <button class="cfg-save-btn" onclick="cfgSaveManagers()" id="cfg-managers-save-btn" style="display:none;padding:7px 18px;">💾 Guardar encargados</button>
+        </div>
+      </div>
+
     </div>`;
 }
 
@@ -1804,6 +1826,91 @@ function saveConfigProfile() {
   renderConfig();
 }
 
+
+// ── Escalation managers in Config ─────────────────────────────────────────────
+let _cfgManagers = [];
+
+function cfgRenderManagers(managers, interviewer) {
+  _cfgManagers = managers.length ? managers : [
+    { level:1, phone:'+584143605411', name:'Encargado 1' },
+    { level:2, phone:'+14695285231',  name:'Encargado 2' },
+    { level:3, phone:'+17863060642',  name:'Luis (Admin)' },
+  ];
+  const el = document.getElementById('cfg-managers-list');
+  if (!el) return;
+  const levelColors = ['#22c55e','#f59e0b','#f97316'];
+  const levelIcons  = ['1️⃣','2️⃣','3️⃣'];
+  const levelDesc   = ['Recibe la alerta primero · 5 min para responder','Si el Encargado 1 no responde · 10 min','Última instancia'];
+  el.innerHTML = _cfgManagers.map((m, i) => `
+    <div style="background:var(--card2);border:1px solid var(--border);border-radius:10px;padding:14px 16px;">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+        <span style="font-size:16px;">${levelIcons[i]}</span>
+        <div style="flex:1;">
+          <div style="font-size:12px;font-weight:700;color:${levelColors[i]};">${esc(m.name)}</div>
+          <div style="font-size:10px;color:var(--text3);">${levelDesc[i]}</div>
+        </div>
+        <button onclick="cfgUnlockManager(${i})" id="cfg-mgr-lock-${i}" style="background:none;border:1px solid var(--border);border-radius:6px;padding:4px 10px;color:var(--text3);cursor:pointer;font-size:11px;">🔒 Editar</button>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <input id="cfg-mgr-name-${i}" value="${esc(m.name)}" disabled
+          style="flex:1;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:7px 10px;color:var(--text);font-size:12px;outline:none;" placeholder="Nombre" />
+        <input id="cfg-mgr-phone-${i}" value="${esc(m.phone)}" disabled
+          style="flex:1;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:7px 10px;color:var(--text);font-size:12px;outline:none;font-family:monospace;" placeholder="+1234567890" />
+      </div>
+    </div>`).join('');
+
+  // Interviewer card
+  const ivCard = document.getElementById('cfg-interviewer-card');
+  if (!ivCard) return;
+  const iv = interviewer || { name: 'Entrevistador', phone: '+584142055978' };
+  ivCard.innerHTML = `
+    <div style="background:rgba(99,102,241,.08);border:1px solid rgba(99,102,241,.3);border-radius:10px;padding:14px 16px;">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
+        <span style="font-size:16px;">🎙</span>
+        <div>
+          <div style="font-size:12px;font-weight:700;color:#a5b4fc;">${esc(iv.name)}</div>
+          <div style="font-size:10px;color:var(--text3);">Entrevistador · recibe notificaciones de entrevistas agendadas</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <div style="flex:1;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:7px 10px;color:var(--text3);font-size:12px;">${esc(iv.name)}</div>
+        <div style="flex:1;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:7px 10px;color:var(--text3);font-size:12px;font-family:monospace;">${esc(iv.phone || '+584142055978')}</div>
+      </div>
+      <div style="font-size:10px;color:var(--text3);margin-top:6px;">Para cambiar estos datos, ve a Asistente IA → 🎙 Entrevistas.</div>
+    </div>`;
+}
+
+function cfgUnlockManager(i) {
+  if (!confirm('¿Editar este encargado?')) return;
+  document.getElementById(`cfg-mgr-name-${i}`).disabled  = false;
+  document.getElementById(`cfg-mgr-phone-${i}`).disabled = false;
+  document.getElementById(`cfg-mgr-lock-${i}`).textContent = '✏️ Editando';
+  document.getElementById(`cfg-mgr-lock-${i}`).style.color = '#f97316';
+  const btn = document.getElementById('cfg-managers-save-btn');
+  if (btn) btn.style.display = '';
+}
+
+async function cfgSaveManagers() {
+  const managers = _cfgManagers.map((m, i) => ({
+    level: m.level,
+    name:  document.getElementById(`cfg-mgr-name-${i}`)?.value?.trim()  || m.name,
+    phone: document.getElementById(`cfg-mgr-phone-${i}`)?.value?.trim() || m.phone,
+  }));
+  try {
+    const r = await fetch(`${SERVER_URL}/ai/managers`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ managers }),
+    });
+    const d = await r.json();
+    if (d.ok) {
+      showToast('Encargados guardados ✓', 'success');
+      _cfgManagers = managers;
+      document.getElementById('cfg-managers-save-btn').style.display = 'none';
+      cfgRenderManagers(managers, null);
+    } else { showToast('Error: ' + d.error, 'error'); }
+  } catch(e) { showToast('Error de conexión: ' + e.message, 'error'); }
+}
 
 function copyRegUrl() {
   navigator.clipboard.writeText('https://crm.grupoelitework.com/registro.html')
@@ -4306,7 +4413,6 @@ async function showAIPanel() {
       { id:'cases',    icon:'⚡', title:'Situaciones especiales',        desc:'Instrucciones para casos específicos que Ana puede encontrar.' },
       { id:'webinar',  icon:'🎥', title:'Manejo del Webinar',             desc:'Flujo e instrucciones para cuando el candidato tiene problemas con el webinar.' },
       { id:'triggers', icon:'🚨', title:'Cuándo buscar un manager',      desc:'Situaciones que activan una alerta al equipo de escalada.' },
-      { id:'managers', icon:'👥', title:'Equipo de escalada',            desc:'Los tres encargados y el entrevistador que reciben alertas por WhatsApp.' },
       { id:'templates',  icon:'📋', title:'Plantillas de WhatsApp',        desc:'Mensajes automáticos que deben aprobarse en Meta Business Manager.' },
     ].map(s => `
     <div style="border:1px solid var(--border);border-radius:10px;margin-bottom:6px;overflow:hidden;background:var(--card);">
@@ -4400,20 +4506,6 @@ function _aiInjectSectionContent() {
       </div>
     </div>`;
 
-  // Managers
-  document.getElementById('ai-section-managers').innerHTML = `
-    <div style="padding-top:14px;display:flex;flex-direction:column;gap:10px;">
-      <div style="background:rgba(249,115,22,.07);border:1px solid rgba(249,115,22,.2);border-radius:8px;padding:10px 14px;font-size:11px;color:#fdba74;line-height:1.6;">
-        Responde <strong>SI</strong> u <strong>OK</strong> para tomar el caso (Ana se pausa) · <strong>SIGUIENTE</strong> para pasar al próximo encargado.
-      </div>
-      <div id="ai-managers-list" style="display:flex;flex-direction:column;gap:10px;"><div style="color:var(--text2);font-size:12px;">Cargando…</div></div>
-      <div id="ai-interviewer-card" style="display:none;"></div>
-      <div style="display:flex;align-items:center;justify-content:space-between;">
-        <span style="font-size:10px;color:var(--text2);">🔒 Haz clic en Editar en cada encargado para cambiar sus datos.</span>
-        <button class="btn-primary" onclick="aiSaveManagers()" id="ai-managers-save-btn" style="font-size:11px;padding:6px 14px;display:none;">💾 Guardar encargados</button>
-      </div>
-    </div>`;
-
   // Templates section
   document.getElementById('ai-section-templates').innerHTML = `
     <div style="padding-top:4px;display:flex;flex-direction:column;gap:12px;">
@@ -4434,11 +4526,10 @@ function _aiInjectSectionContent() {
 async function aiLoadPanel() {
   _aiInjectSectionContent();
   try {
-    const [cs, ss, hs, ms, iv, tpls] = await Promise.all([
+    const [cs, ss, hs, iv, tpls] = await Promise.all([
       fetch(`${SERVER_URL}/ai/config`).then(r=>r.json()),
       fetch(`${SERVER_URL}/ai/settings`).then(r=>r.json()),
       fetch(`${SERVER_URL}/ai/history`).then(r=>r.json()),
-      fetch(`${SERVER_URL}/ai/managers`).then(r=>r.json()).catch(()=>({managers:[],interviewer:null})),
       fetch(`${SERVER_URL}/interviews/config`).then(r=>r.json()).catch(()=>({config:{}})),
       fetch(`${SERVER_URL}/ai/templates`).then(r=>r.json()).catch(()=>({templates:{}})),
     ]);
@@ -4450,7 +4541,6 @@ async function aiLoadPanel() {
     aiRenderQA(_aiConfig.qa || []);
     aiRenderCases(_aiConfig.cases || []);
     aiRenderTriggers(_aiConfig.triggers || []);
-    aiRenderManagers(ms.managers || [], ms.interviewer || null);
     ivRenderConfig(iv.config || {});
     aiRenderTemplates(tpls.templates || {});
 
