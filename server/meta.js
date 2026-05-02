@@ -1,6 +1,6 @@
 const crypto = require('crypto');
 const { askClaude, conversationHistory } = require('./ai');
-const { fsLeadExists, fsCreateLeadWA, fsGetLeadByPhone, runWAPipeline, humanDelay } = require('./pipeline');
+const { fsLeadExists, fsCreateLeadWA, fsGetLeadByPhone, fsUpdateLeadFields, runWAPipeline, humanDelay } = require('./pipeline');
 const { triggerEscalation, cancelEscalation, handleManagerReply, checkTimeouts, isManagerPhone, logTeamMessage, getManagers } = require('./escalation');
 
 const SERVER_URL  = process.env.SERVER_URL  || 'https://elite-reclutamiento-production.up.railway.app';
@@ -173,6 +173,20 @@ function registerMetaRoutes(app) {
       // Auto-create lead if not in CRM
       const exists = await fsLeadExists(from);
       if (!exists) await fsCreateLeadWA(`wa_meta:${from}`);
+
+      // Tag lead source if message came from a Meta ad (Click-to-WhatsApp)
+      if (msg.referral?.source_type === 'ad') {
+        const adLead = await fsGetLeadByPhone(from);
+        if (adLead) {
+          const adLeadId = adLead.name.split('/').pop();
+          await fsUpdateLeadFields(adLeadId, {
+            fuente:    'Meta Ads',
+            ad_nombre: msg.referral.headline  || '',
+            ad_clid:   msg.referral.ctwa_clid || '',
+          }).catch(() => {});
+          console.log(`[Meta WA] Lead ${adLeadId} etiquetado como Meta Ads — anuncio: "${msg.referral.headline}"`);
+        }
+      }
 
       // Check if IA is paused for this lead
       const leadData = await fsGetLeadByPhone(from);

@@ -882,6 +882,16 @@ app.post('/interviews/book', async (req, res) => {
   const convKey   = req.body.convKey;
   if (!leadPhone || !slotIso) return res.status(400).json({ ok: false, error: 'phone y slot requeridos' });
   const { id, cfg, doc } = await bookInterview({ leadPhone, leadName, slotIso, convKey });
+
+  // Pixel event — lead agendó entrevista (audiencia objetivo real para Meta Ads)
+  ;(async () => {
+    try {
+      const { pixelEntrevista } = require('./pixel');
+      const leadDoc = await fsGetLeadByPhone(leadPhone);
+      const correo  = leadDoc?.fields?.correo?.stringValue || '';
+      await pixelEntrevista({ telefono: leadPhone, correo });
+    } catch (e) { console.error('[Pixel] pixelEntrevista:', e.message); }
+  })();
   // Notify interviewer via template
   if (cfg.interviewer.phone) {
     const d     = new Date(slotIso);

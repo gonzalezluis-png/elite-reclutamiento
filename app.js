@@ -342,6 +342,9 @@ function selectPipeline(id) {
   document.getElementById('board-title').textContent = pipe?.nombre || id;
   document.getElementById('kanban-wrap').style.display = '';
   document.getElementById('table-view-wrap').classList.remove('active');
+  document.getElementById('table-view-wrap').style.display = '';
+  document.getElementById('pipeline-tabs').style.display = '';
+  document.getElementById('pipeline-subtabs').style.display = '';
   document.getElementById('calendar-view').classList.remove('active');
   document.getElementById('config-view').style.display = 'none';
   document.getElementById('search-input').style.display = '';
@@ -366,6 +369,9 @@ function selectPipelineTab(pipeId, tabId) {
   document.getElementById('board-title').textContent = pipe?.nombre || pipeId;
   document.getElementById('kanban-wrap').style.display = '';
   document.getElementById('table-view-wrap').classList.remove('active');
+  document.getElementById('table-view-wrap').style.display = '';
+  document.getElementById('pipeline-tabs').style.display = '';
+  document.getElementById('pipeline-subtabs').style.display = '';
   document.getElementById('calendar-view').classList.remove('active');
   document.getElementById('config-view').style.display = 'none';
   document.getElementById('search-input').style.display = '';
@@ -379,6 +385,10 @@ function selectCalendario() {
   activeView = 'calendario';
   document.getElementById('board-title').textContent = 'Calendario de Entrevistas';
   document.getElementById('kanban-wrap').style.display = 'none';
+  document.getElementById('table-view-wrap').classList.remove('active');
+  document.getElementById('table-view-wrap').style.display = 'none';
+  document.getElementById('pipeline-tabs').style.display = 'none';
+  document.getElementById('pipeline-subtabs').style.display = 'none';
   document.getElementById('calendar-view').classList.add('active');
   document.getElementById('config-view').style.display = 'none';
   document.getElementById('search-input').style.display = '';

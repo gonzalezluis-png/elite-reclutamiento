@@ -2,6 +2,7 @@
 
 // nodemailer removed — using Resend API
 const Anthropic  = require('@anthropic-ai/sdk');
+const { pixelWebinar } = require('./pixel');
 
 const FS_PROJECT = 'elite-reclutamiento-crm';
 const FS_KEY     = 'AIzaSyCW2t1oHb7xc2Vi6vJROGRM7E7nu-CbU3s';
@@ -312,6 +313,10 @@ async function moveLeadToWebinar(leadId, nombre, correo, baseWebinarUrl) {
 
     // Send email with personalized link
     await sendWebinarEmail(correo, nombre, personalUrl);
+
+    // Pixel event — lead calificado (audiencia "interesada" para Meta Ads)
+    const telefono = doc.fields?.telefono?.stringValue || '';
+    pixelWebinar({ id: leadId, telefono, correo }).catch(e => console.error('[Pixel] pixelWebinar:', e.message));
 
     console.log(`[Webinar] Lead ${leadId} → en-webinar | link: ${personalUrl}`);
     return personalUrl;
