@@ -265,14 +265,14 @@ function renderSidebar() {
       label: '🎥 Webinar',
       ids: ['en-webinar'],
       webinar: true,
-      extra: `<div class="pipe-item pipe-item-cal ${activeView==='calendario'?'active':''}" onclick="selectCalendario()">
-        <span class="pipe-icon">📅</span>
-        <span class="pipe-name">Calendario Entrevistas</span>
-      </div>`
     },
     {
       label: '🤝 Entrevistas',
-      ids: ['entrevistas-generales']
+      ids: ['entrevistas-generales'],
+      extraFirst: `<div class="pipe-item pipe-item-cal ${activeView==='calendario'?'active':''}" onclick="selectCalendario()">
+        <span class="pipe-icon">📅</span>
+        <span class="pipe-name">Calendario Entrevistas</span>
+      </div>`
     }
   ];
 
@@ -290,6 +290,7 @@ function renderSidebar() {
     const arrow = collapsed ? '▸' : '▾';
     html += `<div class="sidebar-section-hdr" onclick="toggleSidebarGroup('${grpKey}',this)">${group.label}<span class="grp-arrow">${arrow}</span></div>`;
     html += `<div class="sidebar-group-body${collapsed ? ' collapsed' : ''}">`;
+    if (group.extraFirst) html += group.extraFirst;
     for (const p of pipes) {
       const count = leads.filter(l => l.pipeline_id === p.id).length;
       const active = activePipelineId === p.id && activeView === 'kanban' ? 'active' : '';
