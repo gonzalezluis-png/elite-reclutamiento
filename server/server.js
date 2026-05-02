@@ -5,7 +5,7 @@ const cors       = require('cors');
 const { chromium } = require('playwright');
 const twilio     = require('twilio');
 // nodemailer removed — usando Resend API
-const { askClaude, textToSpeech, loadConfig, loadConfigFromFirestore, saveConfig, DEFAULT_CONFIG, conversationHistory, aiEnabled } = require('./ai');
+const { askClaude, textToSpeech, loadConfig, loadConfigFromFirestore, saveConfig, DEFAULT_CONFIG, conversationHistory, aiEnabled, loadEntrevistasConfig, saveEntrevistasConfig } = require('./ai');
 const { registerMetaRoutes } = require('./meta');
 const { fsLeadExists, fsCreateLeadWA, fsGetLeadByPhone, runWAPipeline, humanDelay } = require('./pipeline');
 const { triggerEscalation, handleManagerReply, isManagerPhone, loadManagers, saveManagers, DEFAULT_MANAGERS, getTeamMessages } = require('./escalation');
@@ -703,6 +703,19 @@ app.delete('/ai/history/:phone', (req, res) => {
 app.delete('/ai/history', (req, res) => {
   conversationHistory.clear();
   res.json({ ok: true });
+});
+
+// ── Entrevistas AI config ─────────────────────────────────────────────────────
+app.get('/ai/config/entrevistas', async (req, res) => {
+  const config = await loadEntrevistasConfig();
+  res.json({ ok: true, config });
+});
+
+app.post('/ai/config/entrevistas', async (req, res) => {
+  const current = await loadEntrevistasConfig();
+  const merged  = { ...current, ...req.body.config };
+  const saved   = await saveEntrevistasConfig(merged);
+  res.json({ ok: true, saved });
 });
 
 // ── IA pause/resume for a specific lead ──────────────────────────────────────

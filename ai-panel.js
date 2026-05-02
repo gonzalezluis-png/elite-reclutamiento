@@ -8,8 +8,9 @@ function _hideAllViews() {
   document.getElementById('messaging-view').classList.remove('active');
   document.getElementById('conversations-view').classList.remove('active');
   document.getElementById('conversations-view').style.display = 'none';
-  document.getElementById('ai-view').style.display           = 'none';
-  document.getElementById('team-chat-view').style.display    = 'none';
+  document.getElementById('ai-view').style.display                = 'none';
+  document.getElementById('ai-entrevistas-view').style.display    = 'none';
+  document.getElementById('team-chat-view').style.display         = 'none';
   document.getElementById('pipeline-tabs').style.display    = 'none';
   document.getElementById('pipeline-subtabs').style.display = 'none';
   document.getElementById('search-input').style.display     = 'none';
@@ -798,4 +799,262 @@ async function aiClearPhone(phone) {
   showToast('Conversación eliminada');
   aiLoadPanel();
 }
+
+// ════════════════════════════════════════════
+//  ASISTENTE IA · ENTREVISTAS
+// ════════════════════════════════════════════
+let _aieConfig = null;
+
+async function showAIEntrevistas() {
+  _hideAllViews();
+  activeView = 'ai-entrevistas';
+  document.getElementById('board-title').textContent = 'Asistente IA · Entrevistas';
+  const el = document.getElementById('ai-entrevistas-view');
+  el.style.display = 'block';
+  renderSidebar();
+
+  el.innerHTML = `<div style="max-width:820px;margin:0 auto;padding-bottom:40px;">
+    <div style="border-bottom:1px solid var(--border);padding-bottom:18px;margin-bottom:20px;">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;">
+        <div>
+          <div style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px;">Grupo Élite · CRM</div>
+          <h2 style="font-size:20px;font-weight:800;color:var(--text);margin:0;letter-spacing:-.2px;">🎙 Asistente IA · Entrevistas</h2>
+          <p style="font-size:12px;color:var(--text2);margin:4px 0 0;line-height:1.5;">Instrucciones que Ana sigue <strong>desde que el candidato confirma interés en la entrevista</strong> hasta que asiste o no. Se activa cuando Ana detecta que el candidato ya vio el webinar y quiere continuar.</p>
+        </div>
+        <button onclick="aiLoadEntrevistasPanel()" style="flex-shrink:0;background:var(--card2);border:1px solid var(--border);color:var(--text2);padding:7px 14px;border-radius:8px;font-size:11px;font-weight:600;cursor:pointer;">↻ Actualizar</button>
+      </div>
+    </div>
+
+    ${[
+      { id:'general',  icon:'📄', title:'Instrucciones para la fase de entrevistas', desc:'Cómo debe comportarse Ana una vez que el candidato confirma que quiere ir a la entrevista.' },
+      { id:'qa',       icon:'❔', title:'Preguntas frecuentes sobre entrevistas',    desc:'Dudas comunes que tiene el candidato al agendar: Zoom, duración, qué llevar, etc.' },
+      { id:'forbidden',icon:'🚫', title:'Temas prohibidos',                          desc:'Lo que Ana nunca debe mencionar ni responder en esta fase.' },
+      { id:'cases',    icon:'⚡', title:'Situaciones específicas',                   desc:'Cómo manejar casos puntuales: candidato quiere cambiar fecha, no tiene Zoom, etc.' },
+      { id:'triggers', icon:'🚨', title:'Cuándo buscar un manager',                  desc:'Situaciones en la fase de entrevistas que activan una alerta al equipo.' },
+      { id:'templates',icon:'📋', title:'Plantillas de WhatsApp para entrevistas',   desc:'Plantillas de confirmación, recordatorio y avisos de la entrevista.' },
+    ].map(s => `
+    <div style="border:1px solid var(--border);border-radius:10px;margin-bottom:6px;overflow:hidden;background:var(--card);">
+      <button onclick="aieToggleSection('${s.id}')" style="width:100%;display:flex;align-items:center;gap:12px;padding:13px 16px;background:none;border:none;cursor:pointer;text-align:left;user-select:none;">
+        <span style="font-size:14px;width:20px;text-align:center;flex-shrink:0;">${s.icon}</span>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:13px;font-weight:600;color:var(--text);">${s.title}</div>
+          <div style="font-size:11px;color:var(--text2);margin-top:1px;">${s.desc}</div>
+        </div>
+        <span id="aie-chevron-${s.id}" style="color:var(--text2);font-size:10px;transition:transform .18s;flex-shrink:0;">▼</span>
+      </button>
+      <div id="aie-section-${s.id}" style="display:none;border-top:1px solid var(--border);padding:16px;"></div>
+    </div>`).join('')}
+  </div>`;
+
+  await aiLoadEntrevistasPanel();
+}
+
+function aieToggleSection(id) {
+  const pane    = document.getElementById(`aie-section-${id}`);
+  const chevron = document.getElementById(`aie-chevron-${id}`);
+  if (!pane) return;
+  const open = pane.style.display === 'none';
+  pane.style.display      = open ? 'block' : 'none';
+  chevron.style.transform = open ? 'rotate(180deg)' : '';
+  if (open) _aieInjectSection(id);
+}
+
+function _aieInjectSection(id) {
+  const el = document.getElementById(`aie-section-${id}`);
+  if (!el || el.dataset.loaded) return;
+  el.dataset.loaded = '1';
+
+  if (id === 'general') {
+    el.innerHTML = `<div style="display:flex;flex-direction:column;gap:10px;padding-top:4px;">
+      <div style="font-size:11px;color:var(--text2);line-height:1.6;">Describe cómo debe comportarse Ana en esta fase: tono, pasos a seguir, cómo confirmar la cita, qué información pedir, etc.</div>
+      <textarea id="aie-general-ta" style="width:100%;height:240px;background:#0d0f1a;border:1px solid rgba(120,75,209,.35);border-radius:8px;color:#e2d9f3;font-size:12px;font-family:monospace;padding:14px;line-height:1.7;resize:vertical;outline:none;box-sizing:border-box;" placeholder="Ej: Una vez que el candidato confirma que vio el webinar y quiere la entrevista, Ana debe:\n1. Felicitarlo y confirmar su interés\n2. Ofrecer horarios disponibles\n3. Confirmar los datos de Zoom\n...">${esc(_aieConfig?.general||'')}</textarea>
+      <div style="text-align:right;"><button class="btn-primary" onclick="aieSaveGeneral()" style="font-size:11px;padding:6px 14px;">💾 Guardar</button></div>
+    </div>`;
+  }
+
+  else if (id === 'qa') {
+    el.innerHTML = `<div style="display:flex;flex-direction:column;gap:10px;padding-top:4px;">
+      <div id="aie-qa-list" style="display:flex;flex-direction:column;gap:12px;"></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;">
+        <button class="btn-secondary" onclick="aieAddQA()" style="font-size:11px;padding:6px 12px;">+ Agregar</button>
+        <button class="btn-primary"   onclick="aieSaveQA()" style="font-size:11px;padding:6px 14px;">💾 Guardar</button>
+      </div>
+    </div>`;
+    aieRenderQA(_aieConfig?.qa || []);
+  }
+
+  else if (id === 'forbidden') {
+    el.innerHTML = `<div style="display:flex;flex-direction:column;gap:10px;padding-top:4px;">
+      <textarea id="aie-forbidden-ta" style="width:100%;height:160px;background:#1a0d0d;border:1px solid rgba(226,68,92,.3);border-radius:8px;color:#fca5a5;font-size:12px;font-family:monospace;padding:14px;line-height:1.7;resize:vertical;outline:none;box-sizing:border-box;" placeholder="Ej: No mencionar salarios específicos. No comparar con otras empresas...">${esc(_aieConfig?.forbidden||'')}</textarea>
+      <div style="text-align:right;"><button class="btn-primary" onclick="aieSaveForbidden()" style="font-size:11px;padding:6px 14px;">💾 Guardar</button></div>
+    </div>`;
+  }
+
+  else if (id === 'cases') {
+    el.innerHTML = `<div style="display:flex;flex-direction:column;gap:10px;padding-top:4px;">
+      <div id="aie-cases-list" style="display:flex;flex-direction:column;gap:12px;"></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;">
+        <button class="btn-secondary" onclick="aieAddCase()" style="font-size:11px;padding:6px 12px;">+ Agregar</button>
+        <button class="btn-primary"   onclick="aieSaveCases()" style="font-size:11px;padding:6px 14px;">💾 Guardar</button>
+      </div>
+    </div>`;
+    aieRenderCases(_aieConfig?.cases || []);
+  }
+
+  else if (id === 'triggers') {
+    el.innerHTML = `<div style="display:flex;flex-direction:column;gap:10px;padding-top:4px;">
+      <div id="aie-triggers-list" style="display:flex;flex-direction:column;gap:8px;"></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;">
+        <button class="btn-secondary" onclick="aieAddTrigger()" style="font-size:11px;padding:6px 12px;">+ Agregar</button>
+        <button class="btn-primary"   onclick="aieSaveTriggers()" style="font-size:11px;padding:6px 14px;">💾 Guardar</button>
+      </div>
+    </div>`;
+    aieRenderTriggers(_aieConfig?.triggers || []);
+  }
+
+  else if (id === 'templates') {
+    const IV_TEMPLATES = {
+      'registrado_en_una_entrevista':                     { name:'registrado_en_una_entrevista',                     desc:'Confirmación al agendar entrevista',       vars:['nombre','fecha'],              recipient:'candidate' },
+      'link_de_entrevista_con_globe_life':                { name:'link_de_entrevista_con_globe_life',                desc:'Link de entrevista (5 min antes)',         vars:['nombre','hora','link'],         recipient:'candidate' },
+      'aviso_entrevista_con_manager_30_minutos_antes':    { name:'aviso_entrevista_con_manager_30_minutos_antes',    desc:'Aviso 30 min antes al candidato',          vars:['nombre','hora','link_zoom'],    recipient:'candidate' },
+      'agenda_de_cita_para_manager':                      { name:'agenda_de_cita_para_manager',                     desc:'Notificación de nueva cita al manager',    vars:['nombre_candidato','dia','hora'], recipient:'manager'   },
+    };
+    const COLORS = { candidate:'#22c55e', manager:'#f97316', interviewer:'#a5b4fc' };
+    const LABELS = { candidate:'📱 Candidato', manager:'👤 Manager', interviewer:'🎙 Entrevistador' };
+    el.innerHTML = `<div style="display:flex;flex-direction:column;gap:12px;padding-top:4px;">
+      <div style="background:rgba(234,179,8,.07);border:1px solid rgba(234,179,8,.25);border-radius:8px;padding:10px 14px;font-size:11px;color:#fde68a;line-height:1.6;">
+        <strong>Estas plantillas se usan en la fase de entrevistas.</strong> Para activarlas entra a <strong>Meta Business Manager → Plantillas de mensajes</strong> y crea cada una con categoría <strong>UTILITY</strong>, idioma <strong>Español (es)</strong>.
+      </div>
+      ${Object.entries(IV_TEMPLATES).map(([key, tpl]) => {
+        const color = COLORS[tpl.recipient] || '#94a3b8';
+        const label = LABELS[tpl.recipient] || tpl.recipient;
+        return `<div style="background:var(--card2);border:1px solid var(--border);border-radius:10px;overflow:hidden;">
+          <div style="display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid var(--border);">
+            <div style="flex:1;min-width:0;">
+              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                <span style="font-size:12px;font-weight:700;color:var(--text);">${esc(tpl.desc)}</span>
+                <span style="font-size:10px;background:rgba(0,0,0,.2);color:${color};border-radius:10px;padding:2px 8px;">${label}</span>
+              </div>
+              <div style="font-size:10px;color:var(--text2);margin-top:2px;">Nombre en Meta: <code style="color:#c4b5fd;">${esc(tpl.name)}</code> · Variables: ${tpl.vars.map(v=>`{${v}}`).join(', ')}</div>
+            </div>
+            <button onclick="navigator.clipboard.writeText('${esc(tpl.name)}').then(()=>showToast('Nombre copiado ✓'))"
+              style="flex-shrink:0;background:none;border:1px solid var(--border);border-radius:6px;padding:3px 9px;color:var(--text2);cursor:pointer;font-size:10px;">📋 Copiar</button>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>`;
+  }
+}
+
+async function aiLoadEntrevistasPanel() {
+  try {
+    const res = await fetch(`${SERVER_URL}/ai/config/entrevistas`);
+    const data = await res.json();
+    _aieConfig = data.config || {};
+  } catch(e) { showToast('Error cargando config entrevistas: ' + e.message); }
+  // Re-inject open sections
+  ['general','qa','forbidden','cases','triggers','templates'].forEach(id => {
+    const el = document.getElementById(`aie-section-${id}`);
+    if (el && el.style.display !== 'none') { el.dataset.loaded = ''; _aieInjectSection(id); }
+  });
+}
+
+async function _aieSave(partial, label) {
+  try {
+    if (!_aieConfig) { showToast('⚠️ Cargando configuración'); return; }
+    const r = await fetch(`${SERVER_URL}/ai/config/entrevistas`, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ config: partial }),
+    });
+    const d = await r.json();
+    showToast(d.ok ? `✅ ${label} guardado` : `⚠️ ${label} activo solo en memoria`);
+  } catch(e) { showToast(`❌ Error: ${e.message}`); }
+}
+
+async function aieSaveGeneral() {
+  if (!_aieConfig) return;
+  _aieConfig.general = document.getElementById('aie-general-ta')?.value || '';
+  await _aieSave({ general: _aieConfig.general }, 'Instrucciones de entrevistas');
+}
+async function aieSaveForbidden() {
+  if (!_aieConfig) return;
+  _aieConfig.forbidden = document.getElementById('aie-forbidden-ta')?.value || '';
+  await _aieSave({ forbidden: _aieConfig.forbidden }, 'Temas prohibidos');
+}
+async function aieSaveQA() {
+  if (!_aieConfig) return;
+  await _aieSave({ qa: _aieConfig.qa }, 'Preguntas frecuentes');
+}
+async function aieSaveCases() {
+  if (!_aieConfig) return;
+  await _aieSave({ cases: _aieConfig.cases }, 'Situaciones específicas');
+}
+async function aieSaveTriggers() {
+  if (!_aieConfig) return;
+  await _aieSave({ triggers: _aieConfig.triggers }, 'Disparadores de manager');
+}
+
+// ── QA, Cases, Triggers (mirror of ai* functions but for entrevistas) ─────────
+function aieRenderQA(qa) {
+  const el = document.getElementById('aie-qa-list'); if (!el) return;
+  el.innerHTML = !qa.length ? `<div style="color:rgba(255,255,255,.2);font-size:12px;text-align:center;padding:16px;">Sin preguntas — haz clic en "+ Agregar"</div>`
+  : qa.map((p,i) => `<div style="background:var(--card2);border:1px solid var(--border);border-radius:10px;padding:14px;position:relative;" id="aie-qa-${p.id}">
+      <button onclick="aieDeleteQA('${p.id}')" style="position:absolute;top:10px;right:10px;background:rgba(226,68,92,.15);border:none;color:var(--red);border-radius:5px;padding:2px 8px;cursor:pointer;font-size:12px;">✕</button>
+      <div style="font-size:10px;font-weight:700;color:#6ee7b7;text-transform:uppercase;margin-bottom:6px;">Pregunta ${i+1}</div>
+      <input value="${esc(p.question)}" onchange="aieUpdateQA('${p.id}','question',this.value)" placeholder="¿Qué pregunta el candidato?" style="width:100%;background:#0d1a12;border:1px solid rgba(110,231,183,.25);border-radius:7px;color:#e2f3ea;font-size:12px;padding:8px 10px;outline:none;margin-bottom:8px;box-sizing:border-box;" />
+      <textarea onchange="aieUpdateQA('${p.id}','answer',this.value)" placeholder="¿Qué debe responder Ana?" style="width:100%;height:80px;background:#0d1220;border:1px solid rgba(125,211,252,.25);border-radius:7px;color:#e2eeff;font-size:12px;padding:8px 10px;outline:none;resize:vertical;box-sizing:border-box;">${esc(p.answer)}</textarea>
+    </div>`).join('');
+}
+function aieAddQA() {
+  if (!_aieConfig) return;
+  const n = { id: Date.now().toString(), question:'', answer:'' };
+  _aieConfig.qa = [...(_aieConfig.qa||[]), n]; aieRenderQA(_aieConfig.qa);
+  document.getElementById(`aie-qa-${n.id}`)?.scrollIntoView({behavior:'smooth'});
+}
+function aieDeleteQA(id) { if (!_aieConfig) return; _aieConfig.qa = (_aieConfig.qa||[]).filter(p=>p.id!==id); aieRenderQA(_aieConfig.qa); }
+function aieUpdateQA(id,field,value) { const p=(_aieConfig?.qa||[]).find(p=>p.id===id); if(p) p[field]=value; }
+
+function aieRenderCases(cases) {
+  const el = document.getElementById('aie-cases-list'); if (!el) return;
+  el.innerHTML = !cases.length ? `<div style="color:rgba(255,255,255,.2);font-size:12px;text-align:center;padding:16px;">Sin situaciones — haz clic en "+ Agregar"</div>`
+  : cases.map((c,i) => `<div style="background:var(--card2);border:1px solid var(--border);border-radius:10px;padding:14px;position:relative;" id="aie-case-${c.id}">
+      <button onclick="aieDeleteCase('${c.id}')" style="position:absolute;top:10px;right:10px;background:rgba(226,68,92,.15);border:none;color:var(--red);border-radius:5px;padding:2px 8px;cursor:pointer;font-size:12px;">✕</button>
+      <div style="font-size:10px;font-weight:700;color:#fcd34d;text-transform:uppercase;margin-bottom:6px;">Situación ${i+1}</div>
+      <input value="${esc(c.situation)}" onchange="aieUpdateCase('${c.id}','situation',this.value)" placeholder="En caso de que…" style="width:100%;background:#1a1500;border:1px solid rgba(252,211,77,.25);border-radius:7px;color:#fef9c3;font-size:12px;padding:8px 10px;outline:none;margin-bottom:8px;box-sizing:border-box;" />
+      <textarea onchange="aieUpdateCase('${c.id}','response',this.value)" placeholder="¿Cómo debe reaccionar Ana?" style="width:100%;height:80px;background:#0d1220;border:1px solid rgba(125,211,252,.25);border-radius:7px;color:#e2eeff;font-size:12px;padding:8px 10px;outline:none;resize:vertical;box-sizing:border-box;">${esc(c.response)}</textarea>
+    </div>`).join('');
+}
+function aieAddCase() {
+  if (!_aieConfig) return;
+  const n = { id:Date.now().toString(), situation:'', response:'' };
+  _aieConfig.cases = [...(_aieConfig.cases||[]), n]; aieRenderCases(_aieConfig.cases);
+  document.getElementById(`aie-case-${n.id}`)?.scrollIntoView({behavior:'smooth'});
+}
+function aieDeleteCase(id) { if (!_aieConfig) return; _aieConfig.cases=(_aieConfig.cases||[]).filter(c=>c.id!==id); aieRenderCases(_aieConfig.cases); }
+function aieUpdateCase(id,field,value) { const c=(_aieConfig?.cases||[]).find(c=>c.id===id); if(c) c[field]=value; }
+
+function aieRenderTriggers(triggers) {
+  const el = document.getElementById('aie-triggers-list'); if (!el) return;
+  el.innerHTML = !triggers.length ? `<div style="color:rgba(255,255,255,.2);font-size:12px;text-align:center;padding:16px;">Sin disparadores — haz clic en "+ Agregar"</div>`
+  : triggers.map((t,i) => `<div style="background:var(--card2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;display:flex;align-items:flex-start;gap:10px;" id="aie-trigger-${t.id}">
+      <span style="font-size:18px;flex-shrink:0;padding-top:2px;">${esc(t.icon||'🚨')}</span>
+      <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:6px;">
+        <div style="display:flex;gap:6px;">
+          <input value="${esc(t.icon||'')}" onchange="aieUpdateTrigger('${t.id}','icon',this.value)" placeholder="🚨" style="width:42px;text-align:center;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:5px 6px;color:var(--text);font-size:14px;outline:none;flex-shrink:0;" />
+          <input value="${esc(t.title)}" onchange="aieUpdateTrigger('${t.id}','title',this.value)" placeholder="Nombre del disparador" style="flex:1;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:5px 10px;color:var(--text);font-size:12px;font-weight:600;outline:none;" />
+        </div>
+        <textarea onchange="aieUpdateTrigger('${t.id}','description',this.value)" placeholder="Cuándo Ana debe activar este disparador…" style="width:100%;height:60px;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:6px 10px;color:var(--text2);font-size:11px;outline:none;resize:vertical;box-sizing:border-box;line-height:1.5;">${esc(t.description)}</textarea>
+      </div>
+      <button onclick="aieDeleteTrigger('${t.id}')" style="flex-shrink:0;background:rgba(226,68,92,.15);border:none;color:var(--red);border-radius:5px;padding:3px 8px;cursor:pointer;font-size:12px;margin-top:2px;">✕</button>
+    </div>`).join('');
+}
+function aieAddTrigger() {
+  if (!_aieConfig) return;
+  const id = 't'+Date.now();
+  const n = {id, escKey:id, icon:'🚨', title:'', description:''};
+  _aieConfig.triggers = [...(_aieConfig.triggers||[]), n]; aieRenderTriggers(_aieConfig.triggers);
+  document.getElementById(`aie-trigger-${n.id}`)?.scrollIntoView({behavior:'smooth'});
+}
+function aieDeleteTrigger(id) { if (!_aieConfig) return; _aieConfig.triggers=(_aieConfig.triggers||[]).filter(t=>t.id!==id); aieRenderTriggers(_aieConfig.triggers); }
+function aieUpdateTrigger(id,field,value) { const t=(_aieConfig?.triggers||[]).find(t=>t.id===id); if(t) t[field]=value; }
 

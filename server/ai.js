@@ -6,7 +6,8 @@ const anthropic  = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 const FS_PROJECT = 'elite-reclutamiento-crm';
 const FS_KEY     = 'AIzaSyCW2t1oHb7xc2Vi6vJROGRM7E7nu-CbU3s';
 const FS_BASE    = `https://firestore.googleapis.com/v1/projects/${FS_PROJECT}/databases/(default)/documents`;
-const CONFIG_DOC = `${FS_BASE}/config/ai_config?key=${FS_KEY}`;
+const CONFIG_DOC             = `${FS_BASE}/config/ai_config?key=${FS_KEY}`;
+const CONFIG_ENTREVISTAS_DOC = `${FS_BASE}/config/ai_entrevistas_config?key=${FS_KEY}`;
 
 // Per-phone conversation history: phone → [{role, content, ts}]
 const conversationHistory = new Map();
@@ -364,6 +365,60 @@ async function saveConfig(config) {
   } catch { return false; }
 }
 
+// ── Entrevistas config (separate Firestore doc) ───────────────────────────────
+const DEFAULT_ENTREVISTAS_CONFIG = { general:'', qa:[], forbidden:'', cases:[], triggers:[] };
+let _entrevistasCache = null;
+
+function _parseArrayField(fields, key, subFields) {
+  if (!fields[key]?.arrayValue?.values) return [];
+  return fields[key].arrayValue.values.map(v => {
+    const f = v.mapValue?.fields || {};
+    return Object.fromEntries(subFields.map(sf => [sf, f[sf]?.stringValue || '']));
+  });
+}
+
+async function loadEntrevistasConfig() {
+  try {
+    const res  = await fetch(CONFIG_ENTREVISTAS_DOC);
+    const data = await res.json();
+    if (data.fields) {
+      const cfg = {
+        general:   data.fields.general?.stringValue   || '',
+        forbidden: data.fields.forbidden?.stringValue || '',
+        qa:       _parseArrayField(data.fields, 'qa',       ['id','question','answer']),
+        cases:    _parseArrayField(data.fields, 'cases',    ['id','situation','response']),
+        triggers: _parseArrayField(data.fields, 'triggers', ['id','escKey','icon','title','description']),
+      };
+      _entrevistasCache = cfg;
+      return cfg;
+    }
+  } catch {}
+  return { ...DEFAULT_ENTREVISTAS_CONFIG };
+}
+
+async function saveEntrevistasConfig(config) {
+  try {
+    _entrevistasCache = config;
+    const mkArr = (items, subFields) => ({
+      arrayValue: { values: items.map(item => ({
+        mapValue: { fields: Object.fromEntries(subFields.map(sf => [sf, fsConfigVal(item[sf] || '')])) }
+      }))}
+    });
+    const fields = {
+      general:   fsConfigVal(config.general   || ''),
+      forbidden: fsConfigVal(config.forbidden || ''),
+      qa:       mkArr(config.qa       || [], ['id','question','answer']),
+      cases:    mkArr(config.cases    || [], ['id','situation','response']),
+      triggers: mkArr(config.triggers || [], ['id','escKey','icon','title','description']),
+    };
+    const res = await fetch(CONFIG_ENTREVISTAS_DOC, {
+      method: 'PATCH', headers: { 'Content-Type':'application/json' },
+      body: JSON.stringify({ fields }),
+    });
+    return res.ok;
+  } catch { return false; }
+}
+
 // ── Build system prompt from config ──────────────────────────────────────────
 async function buildSystemPrompt(channel = 'text') {
   const cfg = await loadConfigFromFirestore().catch(() => loadConfig());
@@ -452,4 +507,4 @@ async function textToSpeech(text) {
   return Buffer.from(await resp.arrayBuffer());
 }
 
-module.exports = { askClaude, textToSpeech, loadConfig, loadConfigFromFirestore, saveConfig, DEFAULT_CONFIG, conversationHistory, aiEnabled };
+module.exports = { askClaude, textToSpeech, loadConfig, loadConfigFromFirestore, saveConfig, DEFAULT_CONFIG, conversationHistory, aiEnabled, loadEntrevistasConfig, saveEntrevistasConfig };

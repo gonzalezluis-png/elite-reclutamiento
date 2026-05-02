@@ -45,7 +45,8 @@
       <div class="sidebar-item" onclick="openExternalApplicant()" style="color:#60a5fa;">📥 &nbsp;Aplicantes Externos</div>
       <div class="sidebar-item sidebar-webinar-link" onclick="openRegistroWebinar()">📝 &nbsp;Registro Webinar</div>
       <div class="sidebar-item" onclick="showTeamChat()" id="nav-team-chat">💬 &nbsp;Conversación con el equipo</div>
-      <div class="sidebar-item" onclick="showAIPanel()" id="nav-ai">🤖 &nbsp;Asistente IA</div>
+      <div class="sidebar-item" onclick="showAIPanel()" id="nav-ai">🤖 &nbsp;Asistente IA · Aplicante</div>
+      <div class="sidebar-item" onclick="showAIEntrevistas()" id="nav-ai-entrevistas">🎙 &nbsp;Asistente IA · Entrevistas</div>
       <div class="sidebar-item sidebar-config-btn" id="sidebar-config-btn" onclick="showConfig()">⚙️ &nbsp;Configuraciones</div>
       <div class="sidebar-item" onclick="doLogout()" style="color:var(--red);">🚪 &nbsp;Cerrar sesión</div>
     </div>
@@ -92,8 +93,11 @@
     <!-- CONVERSACIÓN CON EL EQUIPO -->
     <div id="team-chat-view" style="display:none;flex:1;overflow-y:auto;background:var(--bg);padding:28px 32px;"></div>
 
-    <!-- ASISTENTE IA -->
+    <!-- ASISTENTE IA APLICANTE -->
     <div id="ai-view" style="display:none;flex:1;overflow-y:auto;background:var(--bg);padding:28px 32px;"></div>
+
+    <!-- ASISTENTE IA ENTREVISTAS -->
+    <div id="ai-entrevistas-view" style="display:none;flex:1;overflow-y:auto;background:var(--bg);padding:28px 32px;"></div>
 
     <!-- CALENDARIO DE ENTREVISTAS -->
     <div id="calendar-view">
