@@ -467,55 +467,123 @@ async function mlEnviarWebinar() {
   }
 }
 
-function calGoToday() { calYear = new Date().getFullYear(); calMonth = new Date().getMonth(); renderCalendario(); }
+async function renderCalendario() {
+  const DIAS_SHORT = ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
+  const MESES = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
 
-function renderCalendario() {
-  const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-  const DIAS  = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
-  document.getElementById('cal-month-label').textContent = `${MESES[calMonth]} ${calYear}`;
+  // Build week days (Mon–Sun)
+  const week = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(calWeekStart);
+    d.setDate(d.getDate() + i);
+    week.push(d);
+  }
 
-  const hoy = new Date();
-  const firstDay = new Date(calYear, calMonth, 1).getDay();
-  const daysInMonth = new Date(calYear, calMonth+1, 0).getDate();
-  const daysInPrev  = new Date(calYear, calMonth, 0).getDate();
+  // Week label for topbar
+  const w0 = week[0], w6 = week[6];
+  const sameMonth = w0.getMonth() === w6.getMonth();
+  const weekLabel = sameMonth
+    ? `${w0.getDate()} – ${w6.getDate()} ${MESES[w6.getMonth()]} ${w6.getFullYear()}`
+    : `${w0.getDate()} ${MESES[w0.getMonth()]} – ${w6.getDate()} ${MESES[w6.getMonth()]} ${w6.getFullYear()}`;
+  document.getElementById('cal-month-label').textContent = weekLabel;
 
-  // Leads con cita en este mes
-  const citaLeads = leads.filter(l => {
-    if (!l.cita?.fecha) return false;
-    const d = new Date(l.cita.fecha + 'T00:00:00');
-    return d.getFullYear() === calYear && d.getMonth() === calMonth;
+  // Fetch interview config
+  let cfg = {};
+  try { const r = await fetch(`${SERVER_URL}/interviews/config`); cfg = (await r.json()).config || {}; } catch {}
+  const sched      = cfg.schedule || {};
+  const availDays  = sched.days ?? [1,2,3,4,5]; // 0=Sun
+  const startH     = sched.startHour ?? 9;
+  const endH       = sched.endHour   ?? 18;
+
+  // Fetch booked interviews
+  let booked = [];
+  try { const r = await fetch(`${SERVER_URL}/interviews`); booked = (await r.json()).interviews || []; } catch {}
+
+  const today = new Date(); today.setHours(0,0,0,0);
+  const hours = [];
+  for (let h = startH; h < endH; h++) hours.push(h);
+
+  // Helper: leads with cita on a given date+hour
+  function citaLeadsAt(date, h) {
+    const dateStr = date.toISOString().slice(0,10);
+    return leads.filter(l => {
+      if (!l.cita?.fecha) return false;
+      const [lh] = (l.cita.hora || '0:00').split(':');
+      return l.cita.fecha === dateStr && parseInt(lh) === h;
+    });
+  }
+
+  // Helper: booked interviews at date+hour
+  function bookedAt(date, h) {
+    const dateStr = date.toISOString().slice(0,10);
+    return booked.filter(iv => {
+      if (!iv.slotIso) return false;
+      const d = new Date(iv.slotIso);
+      return d.toISOString().slice(0,10) === dateStr && d.getHours() === h && iv.status !== 'cancelled';
+    });
+  }
+
+  // Build grid HTML
+  const cols = 7;
+  // Header row
+  let headerHtml = `<div class="cwk-corner"></div>`;
+  week.forEach((d, i) => {
+    const isToday = d.getTime() === today.getTime();
+    const dow = d.getDay(); // 0=Sun
+    const isAvailDay = availDays.includes(dow);
+    headerHtml += `<div class="cwk-day-hdr${isToday?' today':''}${isAvailDay?'':' unavail'}">
+      <div class="cwk-day-name">${DIAS_SHORT[i]}</div>
+      <div class="cwk-day-date${isToday?' today':''}">${d.getDate()} ${MESES[d.getMonth()]}</div>
+    </div>`;
   });
 
-  let html = DIAS.map(d => `<div class="cal-day-name">${d}</div>`).join('');
+  // Body rows (one per hour)
+  let bodyHtml = '';
+  for (const h of hours) {
+    const hLabel = `${String(h).padStart(2,'0')}:00`;
+    bodyHtml += `<div class="cwk-hour-label">${hLabel}</div>`;
+    week.forEach(d => {
+      const dow       = d.getDay();
+      const isAvail   = availDays.includes(dow) && d >= today;
+      const clead     = citaLeadsAt(d, h);
+      const blist     = bookedAt(d, h);
+      const isToday   = d.getTime() === today.getTime();
 
-  // Días del mes anterior
-  for (let i = firstDay - 1; i >= 0; i--) {
-    html += `<div class="cal-day other-month"><div class="cal-day-num">${daysInPrev - i}</div></div>`;
+      let cellContent = '';
+      // Booked interviews (from /interviews)
+      blist.forEach(iv => {
+        cellContent += `<div class="cwk-booked" title="${esc(iv.leadName||'')}">
+          <div class="cwk-booked-name">🎙 ${esc(iv.leadName || 'Entrevista')}</div>
+          <div class="cwk-booked-sub">${String(h).padStart(2,'0')}:00</div>
+        </div>`;
+      });
+      // CRM cita leads
+      clead.forEach(l => {
+        cellContent += `<div class="cwk-booked cwk-cita" onclick="openLead('${l.id}','cita')" title="${esc(l.nombre)}">
+          <div class="cwk-booked-name">📋 ${esc(l.nombre)}</div>
+          <div class="cwk-booked-sub">${l.cita.hora||hLabel} · ${esc(l.cita.tipo||'')}</div>
+        </div>`;
+      });
+
+      const isEmpty = !cellContent;
+      const cellCls = [
+        'cwk-cell',
+        isAvail   ? 'avail'   : 'unavail',
+        isToday   ? 'today'   : '',
+        !isEmpty  ? 'has-event' : '',
+      ].filter(Boolean).join(' ');
+
+      bodyHtml += `<div class="${cellCls}">
+        ${isEmpty && isAvail ? `<div class="cwk-free">Libre</div>` : cellContent}
+      </div>`;
+    });
   }
 
-  // Días del mes actual
-  for (let d = 1; d <= daysInMonth; d++) {
-    const isToday = d === hoy.getDate() && calMonth === hoy.getMonth() && calYear === hoy.getFullYear();
-    const dayLeads = citaLeads.filter(l => new Date(l.cita.fecha + 'T00:00:00').getDate() === d);
-    const events = dayLeads.map(l => `
-      <div class="cal-event" onclick="openLead('${l.id}','cita')" title="${esc(l.nombre)} — ${l.cita.tipo||''}">
-        <div class="cal-event-name">${esc(l.nombre)}</div>
-        <div class="cal-event-time">${l.cita.hora||''} · ${esc(l.cita.tipo||'')}</div>
-      </div>`).join('');
-    html += `<div class="cal-day${isToday?' today':''}">
-      <div class="cal-day-num">${d}</div>
-      ${events}
+  document.getElementById('cal-grid').innerHTML =
+    `<div class="cwk-grid" style="--cwk-cols:${cols};">
+      ${headerHtml}
+      ${bodyHtml}
     </div>`;
-  }
-
-  // Días del mes siguiente para completar la grilla
-  const total = firstDay + daysInMonth;
-  const remaining = total % 7 === 0 ? 0 : 7 - (total % 7);
-  for (let i = 1; i <= remaining; i++) {
-    html += `<div class="cal-day other-month"><div class="cal-day-num">${i}</div></div>`;
-  }
-
-  document.getElementById('cal-grid').innerHTML = html;
 }
 
 // ════════════════════════════════════════════

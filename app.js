@@ -114,6 +114,7 @@ let currentTags = [];
 let dragLeadId = null;
 let calYear = new Date().getFullYear();
 let calMonth = new Date().getMonth(); // 0-indexed
+let calWeekStart = _getWeekStart(new Date());
 let pipeTabState = {};
 function getPipelineTabs(pipe) {
   if (pipe.tabs) return pipe.tabs;
@@ -380,10 +381,24 @@ function selectCalendario() {
   document.getElementById('calendar-view').classList.add('active');
   document.getElementById('config-view').style.display = 'none';
   document.getElementById('search-input').style.display = '';
+  calWeekStart = _getWeekStart(new Date());
   renderSidebar();
   renderCalendario();
 }
 
-function calNavMonth(dir) { calMonth += dir; if (calMonth > 11) { calMonth=0; calYear++; } if (calMonth < 0) { calMonth=11; calYear--; } renderCalendario(); }
+function _getWeekStart(d) {
+  const date = new Date(d);
+  const day  = date.getDay();
+  date.setDate(date.getDate() - (day === 0 ? 6 : day - 1)); // Monday
+  date.setHours(0,0,0,0);
+  return date;
+}
+function calNavMonth(dir) { // kept for compat
+  const d = new Date(calWeekStart);
+  d.setDate(d.getDate() + dir * 7);
+  calWeekStart = d;
+  renderCalendario();
+}
+function calGoToday() { calWeekStart = _getWeekStart(new Date()); renderCalendario(); }
 
 // ════════════════════════════════════════════

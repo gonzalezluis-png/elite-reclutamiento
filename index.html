@@ -98,14 +98,13 @@
     <!-- CALENDARIO DE ENTREVISTAS -->
     <div id="calendar-view">
       <div class="cal-topbar">
-        <button class="cal-nav-btn" onclick="calNavMonth(-1)">‹</button>
+        <button class="cal-nav-btn" onclick="calNavMonth(-1)">‹ Semana anterior</button>
         <div class="cal-month-label" id="cal-month-label"></div>
-        <button class="cal-nav-btn" onclick="calNavMonth(1)">›</button>
-        <h2 style="flex:1"></h2>
-        <button class="cal-nav-btn" onclick="calGoToday()">Hoy</button>
+        <button class="cal-nav-btn" onclick="calNavMonth(1)">Semana siguiente ›</button>
+        <button class="cal-nav-btn" onclick="calGoToday()" style="margin-left:8px;">Hoy</button>
       </div>
       <div class="cal-grid-wrap">
-        <div class="cal-grid" id="cal-grid"></div>
+        <div id="cal-grid"></div>
       </div>
     </div>
   </div>
