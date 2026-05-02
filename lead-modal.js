@@ -456,7 +456,7 @@ async function ivLoadSlots() {
   list.innerHTML = '<div style="font-size:12px;color:var(--text2);">Cargando horarios...</div>';
   status.textContent = '';
   try {
-    const res  = await fetch('/interviews/slots');
+    const res  = await fetch(`${SERVER_URL}/interviews/slots`);
     const data = await res.json();
     const slots = data.slots || [];
     if (!slots.length) {
@@ -483,7 +483,7 @@ async function ivBookSlot(slot) {
   document.getElementById('iv-slots-list').innerHTML = '';
 
   try {
-    const res  = await fetch('/interviews/book', {
+    const res  = await fetch(`${SERVER_URL}/interviews/book`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ phone: _ivCurrentLeadPhone, name: _ivCurrentLeadName, slot }),
@@ -536,7 +536,7 @@ async function openAgendarCitaModal(leadId) {
   document.getElementById('agendar-cita-modal').classList.remove('hidden');
 
   try {
-    const res   = await fetch('/interviews/slots');
+    const res   = await fetch(`${SERVER_URL}/interviews/slots`);
     const data  = await res.json();
     const slots = data.slots || [];
     if (!slots.length) {
@@ -569,7 +569,7 @@ async function _acBookSlot(slot) {
   document.getElementById('agendar-cita-slots').innerHTML = '';
 
   try {
-    const res  = await fetch('/interviews/book', {
+    const res  = await fetch(`${SERVER_URL}/interviews/book`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ phone: _acLead.telefono, name: _acLead.nombre, slot }),
