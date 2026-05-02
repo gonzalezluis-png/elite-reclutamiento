@@ -9,7 +9,7 @@ const FS_KEY     = 'AIzaSyCW2t1oHb7xc2Vi6vJROGRM7E7nu-CbU3s';
 const FS_BASE    = `https://firestore.googleapis.com/v1/projects/${FS_PROJECT}/databases/(default)/documents`;
 
 const DEFAULT_MANAGERS = [
-  { level: 1, phone: '+584143605411', name: 'Encargado 1' },
+  { level: 1, phone: '+17863060642',  name: 'Luis (Admin)' },
   { level: 2, phone: '+14695285231',  name: 'Encargado 2' },
   { level: 3, phone: '+17863060642',  name: 'Luis (Admin)'  },
 ];
