@@ -4232,7 +4232,8 @@ async function showAIPanel() {
       { id:'cases',    icon:'⚡', title:'Situaciones especiales',        desc:'Instrucciones para casos específicos que Ana puede encontrar.' },
       { id:'webinar',  icon:'🎥', title:'Manejo del Webinar',             desc:'Flujo e instrucciones para cuando el candidato tiene problemas con el webinar.' },
       { id:'triggers', icon:'🚨', title:'Cuándo buscar un manager',      desc:'Situaciones que activan una alerta al equipo de escalada.' },
-      { id:'managers', icon:'👥', title:'Equipo de escalada',            desc:'Los tres encargados que reciben alertas en cadena por WhatsApp.' },
+      { id:'managers', icon:'👥', title:'Equipo de escalada',            desc:'Los tres encargados y el entrevistador que reciben alertas por WhatsApp.' },
+      { id:'equipo',   icon:'💬', title:'Conversación con el equipo',    desc:'Intercambios de WhatsApp entre Ana y los encargados / entrevistador.' },
     ].map(s => `
     <div style="border:1px solid var(--border);border-radius:10px;margin-bottom:6px;overflow:hidden;background:var(--card);">
       <button onclick="aiToggleSection('${s.id}')" style="width:100%;display:flex;align-items:center;gap:12px;padding:13px 16px;background:none;border:none;cursor:pointer;text-align:left;user-select:none;">
@@ -4332,9 +4333,25 @@ function _aiInjectSectionContent() {
         Responde <strong>SI</strong> u <strong>OK</strong> para tomar el caso (Ana se pausa) · <strong>SIGUIENTE</strong> para pasar al próximo encargado.
       </div>
       <div id="ai-managers-list" style="display:flex;flex-direction:column;gap:10px;"><div style="color:var(--text2);font-size:12px;">Cargando…</div></div>
+      <div id="ai-interviewer-card" style="display:none;"></div>
       <div style="display:flex;align-items:center;justify-content:space-between;">
         <span style="font-size:10px;color:var(--text2);">🔒 Haz clic en Editar en cada encargado para cambiar sus datos.</span>
         <button class="btn-primary" onclick="aiSaveManagers()" id="ai-managers-save-btn" style="font-size:11px;padding:6px 14px;display:none;">💾 Guardar encargados</button>
+      </div>
+    </div>`;
+
+  // Team chat section
+  document.getElementById('ai-section-equipo').innerHTML = `
+    <div style="padding-top:4px;display:flex;flex-direction:column;gap:10px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+        <span style="font-size:11px;color:var(--text2);">Mensajes entre Ana y el equipo por WhatsApp.</span>
+        <button class="btn-secondary" onclick="aiLoadTeamChat()" style="font-size:11px;padding:4px 10px;">🔄 Actualizar</button>
+      </div>
+      <!-- Tabs por integrante -->
+      <div id="ai-team-tabs" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
+      <!-- Chat -->
+      <div id="ai-team-chat" style="background:var(--bg);border:1px solid var(--border);border-radius:10px;min-height:180px;max-height:420px;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:8px;">
+        <div style="color:var(--text2);font-size:12px;text-align:center;">Haz clic en un integrante para ver la conversación.</div>
       </div>
     </div>`;
 }
@@ -4342,12 +4359,13 @@ function _aiInjectSectionContent() {
 async function aiLoadPanel() {
   _aiInjectSectionContent();
   try {
-    const [cs, ss, hs, ms, iv] = await Promise.all([
+    const [cs, ss, hs, ms, iv, tm] = await Promise.all([
       fetch(`${SERVER_URL}/ai/config`).then(r=>r.json()),
       fetch(`${SERVER_URL}/ai/settings`).then(r=>r.json()),
       fetch(`${SERVER_URL}/ai/history`).then(r=>r.json()),
-      fetch(`${SERVER_URL}/ai/managers`).then(r=>r.json()).catch(()=>({managers:[]})),
+      fetch(`${SERVER_URL}/ai/managers`).then(r=>r.json()).catch(()=>({managers:[],interviewer:null})),
       fetch(`${SERVER_URL}/interviews/config`).then(r=>r.json()).catch(()=>({config:{}})),
+      fetch(`${SERVER_URL}/ai/team-messages`).then(r=>r.json()).catch(()=>({messages:[]})),
     ]);
 
     _aiConfig = cs.config || {};
@@ -4357,8 +4375,9 @@ async function aiLoadPanel() {
     aiRenderQA(_aiConfig.qa || []);
     aiRenderCases(_aiConfig.cases || []);
     aiRenderTriggers(_aiConfig.triggers || []);
-    aiRenderManagers(ms.managers || []);
+    aiRenderManagers(ms.managers || [], ms.interviewer || null);
     ivRenderConfig(iv.config || {});
+    aiInitTeamChat(ms.managers || [], ms.interviewer || null, tm.messages || []);
 
     // Channel status pills
     const channels = [
@@ -4771,7 +4790,7 @@ async function aiSaveTriggers() {
 // ── Escalation managers ──────────────────────────────────────────────────────
 let _aiManagers = [];
 
-function aiRenderManagers(managers) {
+function aiRenderManagers(managers, interviewer) {
   _aiManagers = managers.length === 3 ? managers : [
     { level:1, phone:'+584143605411', name:'Encargado 1' },
     { level:2, phone:'+14695285231',  name:'Encargado 2' },
@@ -4801,6 +4820,27 @@ function aiRenderManagers(managers) {
           placeholder="+1234567890" />
       </div>
     </div>`).join('');
+
+  // Interviewer card (separate from escalation chain)
+  const ivCard = document.getElementById('ai-interviewer-card');
+  if (!ivCard) return;
+  const iv = interviewer || { name: 'Entrevistador', phone: '+584142055978' };
+  ivCard.style.display = '';
+  ivCard.innerHTML = `
+    <div style="background:rgba(99,102,241,.08);border:1px solid rgba(99,102,241,.3);border-radius:10px;padding:14px 16px;">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+        <span style="font-size:16px;">🎙</span>
+        <div>
+          <div style="font-size:12px;font-weight:700;color:#a5b4fc;">${esc(iv.name)}</div>
+          <div style="font-size:10px;color:var(--text2);">Entrevistador · recibe notificaciones de citas agendadas y recordatorios</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <div style="flex:1;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:7px 10px;color:var(--text2);font-size:12px;">${esc(iv.name)}</div>
+        <div style="flex:1;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:7px 10px;color:var(--text2);font-size:12px;font-family:monospace;">${esc(iv.phone || '+584142055978')}</div>
+      </div>
+      <div style="font-size:10px;color:var(--text2);margin-top:6px;">Para cambiar estos datos, edítalos en la sección 🎙 Entrevistas.</div>
+    </div>`;
 }
 
 function aiUnlockManager(i) {
@@ -4838,6 +4878,88 @@ async function aiSaveManagers() {
       aiRenderManagers(managers);
     } else { showToast('Error: ' + d.error, 'error'); }
   } catch(e) { showToast('Error de conexión: ' + e.message, 'error'); }
+}
+
+// ── Team chat ────────────────────────────────────────────────────────────────
+let _teamMessages  = [];
+let _teamMembers   = [];   // { phone, name, role }
+let _teamActiveTab = null;
+
+function aiInitTeamChat(managers, interviewer, messages) {
+  _teamMessages = messages;
+  _teamMembers  = [
+    ...managers.map(m => ({ phone: m.phone, name: m.name, role: 'manager' })),
+  ];
+  if (interviewer?.phone) {
+    _teamMembers.push({ phone: interviewer.phone, name: interviewer.name || 'Entrevistador', role: 'interviewer' });
+  }
+  // Deduplicate by phone
+  const seen = new Set();
+  _teamMembers = _teamMembers.filter(m => { const k = m.phone.replace(/^\+/,''); if (seen.has(k)) return false; seen.add(k); return true; });
+
+  _aiRenderTeamTabs();
+  if (_teamMembers.length) aiSelectTeamTab(_teamMembers[0].phone);
+}
+
+function _aiRenderTeamTabs() {
+  const tabs = document.getElementById('ai-team-tabs');
+  if (!tabs) return;
+  tabs.innerHTML = _teamMembers.map(m => {
+    const count = _teamMessages.filter(msg => msg.phone?.replace(/^\+/,'') === m.phone.replace(/^\+/,'')).length;
+    const color = m.role === 'interviewer' ? 'rgba(99,102,241,.25)' : 'rgba(249,115,22,.2)';
+    const textC = m.role === 'interviewer' ? '#a5b4fc' : '#fdba74';
+    return `<button id="ai-team-tab-${m.phone.replace(/[^0-9]/g,'')}" onclick="aiSelectTeamTab('${m.phone}')"
+      style="font-size:11px;padding:5px 12px;border-radius:20px;border:1px solid ${color};background:transparent;color:${textC};cursor:pointer;">
+      ${esc(m.name)} ${count ? `<span style="opacity:.7">(${count})</span>` : ''}
+    </button>`;
+  }).join('');
+}
+
+function aiSelectTeamTab(phone) {
+  _teamActiveTab = phone;
+  // Highlight active tab
+  _teamMembers.forEach(m => {
+    const btn = document.getElementById(`ai-team-tab-${m.phone.replace(/[^0-9]/g,'')}`);
+    if (!btn) return;
+    const isActive = m.phone.replace(/^\+/,'') === phone.replace(/^\+/,'');
+    btn.style.fontWeight = isActive ? '700' : '400';
+    btn.style.background = isActive ? (m.role==='interviewer'?'rgba(99,102,241,.2)':'rgba(249,115,22,.12)') : 'transparent';
+  });
+  _aiRenderTeamMessages(phone);
+}
+
+function _aiRenderTeamMessages(phone) {
+  const clean  = phone.replace(/^\+/, '');
+  const msgs   = _teamMessages.filter(m => (m.phone || '').replace(/^\+/, '') === clean);
+  const member = _teamMembers.find(m => m.phone.replace(/^\+/,'') === clean);
+  const el     = document.getElementById('ai-team-chat');
+  if (!el) return;
+
+  if (!msgs.length) {
+    el.innerHTML = `<div style="color:var(--text2);font-size:12px;text-align:center;padding:20px;">Sin mensajes aún con ${esc(member?.name || phone)}.</div>`;
+    return;
+  }
+
+  el.innerHTML = msgs.map(m => {
+    const isOut = m.direction === 'out';
+    const d     = m.ts ? new Date(m.ts) : null;
+    const hora  = d ? d.toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'}) : '';
+    const fecha = d ? d.toLocaleDateString('es-MX',{day:'numeric',month:'short'}) : '';
+    return `<div style="display:flex;flex-direction:column;align-items:${isOut?'flex-end':'flex-start'};gap:2px;">
+      <div style="max-width:82%;background:${isOut?'rgba(99,102,241,.18)':'var(--card2)'};border:1px solid ${isOut?'rgba(99,102,241,.3)':'var(--border)'};border-radius:${isOut?'12px 12px 2px 12px':'12px 12px 12px 2px'};padding:8px 12px;font-size:12px;color:var(--text);white-space:pre-wrap;word-break:break-word;">${esc(m.text||'')}</div>
+      <div style="font-size:10px;color:var(--text2);">${isOut?'Ana →':('← '+esc(member?.name||''))} · ${fecha} ${hora}</div>
+    </div>`;
+  }).join('');
+  el.scrollTop = el.scrollHeight;
+}
+
+async function aiLoadTeamChat() {
+  try {
+    const data = await fetch(`${SERVER_URL}/ai/team-messages`).then(r=>r.json());
+    _teamMessages = data.messages || [];
+    _aiRenderTeamTabs();
+    if (_teamActiveTab) _aiRenderTeamMessages(_teamActiveTab);
+  } catch(e) { showToast('Error cargando mensajes: '+e.message, 'error'); }
 }
 
 async function aiToggle(channel, enabled) {

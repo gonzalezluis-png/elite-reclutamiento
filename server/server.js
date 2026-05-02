@@ -8,7 +8,7 @@ const twilio     = require('twilio');
 const { askClaude, textToSpeech, loadConfig, loadConfigFromFirestore, saveConfig, DEFAULT_CONFIG, conversationHistory, aiEnabled } = require('./ai');
 const { registerMetaRoutes } = require('./meta');
 const { fsLeadExists, fsCreateLeadWA, fsGetLeadByPhone, runWAPipeline, humanDelay } = require('./pipeline');
-const { triggerEscalation, handleManagerReply, isManagerPhone, loadManagers, saveManagers, DEFAULT_MANAGERS } = require('./escalation');
+const { triggerEscalation, handleManagerReply, isManagerPhone, loadManagers, saveManagers, DEFAULT_MANAGERS, getTeamMessages } = require('./escalation');
 const { loadInterviewConfig, saveInterviewConfig, getAvailableSlots, bookInterview, listInterviews, updateInterview, checkInterviewReminders, DEFAULT_INTERVIEW_CONFIG } = require('./interviews');
 
 const WEBINAR_URL  = process.env.WEBINAR_URL || 'https://crm.grupoelitework.com/webinar.html';
@@ -629,7 +629,18 @@ app.get('/twilio/calls/by-number', async (req, res) => {
 // ── AI: Escalation managers config ───────────────────────────────────────────
 app.get('/ai/managers', async (req, res) => {
   const managers = await loadManagers().catch(() => DEFAULT_MANAGERS);
-  res.json({ ok: true, managers });
+  const ivCfg    = await loadInterviewConfig().catch(() => ({}));
+  const interviewer = ivCfg.interviewer?.phone ? {
+    name:  ivCfg.interviewer.name  || 'Entrevistador',
+    phone: ivCfg.interviewer.phone,
+    role:  'interviewer',
+  } : null;
+  res.json({ ok: true, managers, interviewer });
+});
+
+app.get('/ai/team-messages', async (req, res) => {
+  const messages = await getTeamMessages().catch(() => []);
+  res.json({ ok: true, messages });
 });
 
 app.post('/ai/managers', async (req, res) => {

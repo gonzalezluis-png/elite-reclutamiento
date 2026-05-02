@@ -1,7 +1,7 @@
 const crypto = require('crypto');
 const { askClaude, conversationHistory } = require('./ai');
 const { fsLeadExists, fsCreateLeadWA, fsGetLeadByPhone, runWAPipeline, humanDelay } = require('./pipeline');
-const { triggerEscalation, handleManagerReply, checkTimeouts, isManagerPhone } = require('./escalation');
+const { triggerEscalation, handleManagerReply, checkTimeouts, isManagerPhone, logTeamMessage, getManagers } = require('./escalation');
 
 const SERVER_URL  = process.env.SERVER_URL  || 'https://elite-reclutamiento-production.up.railway.app';
 const WEBINAR_URL = process.env.WEBINAR_URL || 'https://crm.grupoelitework.com/webinar.html';
@@ -161,6 +161,11 @@ function registerMetaRoutes(app) {
 
       // Check if message is from a manager responding to an escalation
       if (await isManagerPhone(from)) {
+        // Log all manager messages, handled or not
+        const managers = await getManagers().catch(() => []);
+        const mgr = managers.find(m => m.phone.replace(/^\+/, '') === from.replace(/^\+/, ''));
+        if (mgr) logTeamMessage(mgr.phone, mgr.name, 'in', text).catch(() => {});
+
         const handled = await handleManagerReply(from, text, sendWAToManager);
         if (handled) return;
       }

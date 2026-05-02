@@ -7,7 +7,7 @@ const CONFIG_DOC = `${FS_BASE}/config/interview_config?key=${FS_KEY}`;
 const DEFAULT_INTERVIEW_CONFIG = {
   interviewer: {
     name:  'Entrevistador',
-    phone: '',           // +1234567890
+    phone: '+584142055978',
   },
   zoomLink: 'https://zoom.us/j/XXXXXXXXXX',
   schedule: {

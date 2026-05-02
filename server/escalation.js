@@ -71,6 +71,27 @@ async function fsCreate(path, data) {
   });
 }
 
+// ── Team message log ──────────────────────────────────────────────────────────
+async function logTeamMessage(phone, name, direction, text) {
+  const id = 'tmsg_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+  try {
+    await fsCreate(`team_messages/${id}`, {
+      phone, name, direction, text,
+      ts: new Date().toISOString(),
+    });
+  } catch (e) { console.error('[TeamLog]', e.message); }
+}
+
+async function getTeamMessages() {
+  try {
+    const res  = await fetch(`${FS_BASE}/team_messages?key=${FS_KEY}&pageSize=500`);
+    const data = await res.json();
+    return (data.documents || [])
+      .map(d => ({ id: d.name.split('/').pop(), ...fsRead(d.fields) }))
+      .sort((a, b) => (a.ts < b.ts ? -1 : 1));
+  } catch { return []; }
+}
+
 // ── Manager config ────────────────────────────────────────────────────────────
 let _managersCache = null;
 
@@ -215,6 +236,7 @@ async function triggerEscalation(leadPhone, leadName, reason, lastUserMsg, sendW
     const isLast = managers.length === 1;
     const msg = buildAlertMsg({ leadPhone, leadName, reason, summary: lastUserMsg }, m1.name, isLast);
     await sendWAFn(m1.phone, msg);
+    logTeamMessage(m1.phone, m1.name, 'out', msg).catch(() => {});
     console.log(`[ESC] Alerta ${id} enviada a ${m1.name} (${m1.phone})`);
   } catch (e) {
     console.error('[ESC] triggerEscalation error:', e.message);
@@ -243,6 +265,9 @@ async function handleManagerReply(managerPhone, text, sendWAFn) {
 
   const lateResponse = esc.currentLevel > manager.level;
 
+  // Log incoming manager message
+  logTeamMessage(manager.phone, manager.name, 'in', text).catch(() => {});
+
   if (accepted) {
     await updateEscalation(esc._id, {
       status:     'accepted',
@@ -253,9 +278,9 @@ async function handleManagerReply(managerPhone, text, sendWAFn) {
     const lateNote = lateResponse
       ? '\n\n_(Respuesta tardía — el caso ya había escalado, pero fue aceptado igualmente.)_'
       : '';
-    await sendWAFn(manager.phone,
-      `✅ Caso tomado. Ana ha sido *pausada* para ${esc.leadName || esc.leadPhone}.\n\nResponde directamente al número: ${esc.leadPhone}${lateNote}`
-    );
+    const acceptMsg = `✅ Caso tomado. Ana ha sido *pausada* para ${esc.leadName || esc.leadPhone}.\n\nResponde directamente al número: ${esc.leadPhone}${lateNote}`;
+    await sendWAFn(manager.phone, acceptMsg);
+    logTeamMessage(manager.phone, manager.name, 'out', acceptMsg).catch(() => {});
     // Notify managers who were already alerted that someone else took it
     if (lateResponse) {
       for (const m of managers) {
@@ -282,7 +307,10 @@ async function handleManagerReply(managerPhone, text, sendWAFn) {
     const isLast = nextLevel === managers[managers.length - 1].level;
     const msg    = buildAlertMsg(esc, nextManager.name, isLast);
     await sendWAFn(nextManager.phone, msg);
-    await sendWAFn(manager.phone, `➡️ Alerta pasada a ${nextManager.name}.`);
+    logTeamMessage(nextManager.phone, nextManager.name, 'out', msg).catch(() => {});
+    const pasadoMsg = `➡️ Alerta pasada a ${nextManager.name}.`;
+    await sendWAFn(manager.phone, pasadoMsg);
+    logTeamMessage(manager.phone, manager.name, 'out', pasadoMsg).catch(() => {});
     console.log(`[ESC] Alerta ${esc._id} escalada de nivel ${manager.level} → ${nextLevel}`);
     return true;
   }
@@ -338,6 +366,7 @@ async function checkTimeouts(sendWAFn) {
         const isLast = nextLevel === managers[managers.length - 1].level;
         const msg = buildAlertMsg(esc, nextManager.name, isLast);
         await sendWAFn(nextManager.phone, msg);
+        logTeamMessage(nextManager.phone, nextManager.name, 'out', msg).catch(() => {});
         console.log(`[ESC] Alerta ${esc._id} → nivel ${nextLevel} (ronda ${round})`);
 
       } else {
@@ -357,6 +386,7 @@ async function checkTimeouts(sendWAFn) {
           const isLast = managers.length === 1;
           const msg = buildAlertMsg(esc, m1.name, isLast);
           await sendWAFn(m1.phone, msg);
+          logTeamMessage(m1.phone, m1.name, 'out', msg).catch(() => {});
           console.log(`[ESC] Alerta ${esc._id} reinicia → ronda ${nextRound}`);
 
         } else {
@@ -384,4 +414,6 @@ module.exports = {
   loadManagers,
   saveManagers,
   DEFAULT_MANAGERS,
+  logTeamMessage,
+  getTeamMessages,
 };
