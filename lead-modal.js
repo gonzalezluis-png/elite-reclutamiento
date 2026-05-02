@@ -463,10 +463,10 @@ async function ivLoadSlots() {
       list.innerHTML = '<div style="font-size:12px;color:var(--text2);">No hay horarios disponibles. Revisa la configuración del calendario.</div>';
       return;
     }
-    list.innerHTML = slots.map((s, i) => {
-      const d   = new Date(s);
-      const lbl = d.toLocaleString('es-MX', { weekday:'short', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
-      return `<button onclick="ivBookSlot('${s}')" style="text-align:left;background:rgba(99,102,241,.12);border:1px solid rgba(99,102,241,.3);color:var(--text);border-radius:6px;padding:6px 10px;cursor:pointer;font-size:12px;">📅 ${lbl}</button>`;
+    list.innerHTML = slots.map(s => {
+      const iso = s.iso || s;
+      const lbl = s.label || new Date(iso).toLocaleString('es-MX', { weekday:'short', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
+      return `<button onclick="ivBookSlot('${iso}')" style="text-align:left;background:rgba(99,102,241,.12);border:1px solid rgba(99,102,241,.3);color:var(--text);border-radius:6px;padding:6px 10px;cursor:pointer;font-size:12px;">📅 ${lbl}</button>`;
     }).join('');
   } catch (e) {
     list.innerHTML = '<div style="font-size:12px;color:var(--red);">Error cargando horarios.</div>';
@@ -545,9 +545,9 @@ async function openAgendarCitaModal(leadId) {
     }
     document.getElementById('agendar-cita-status').textContent = 'Selecciona un horario:';
     document.getElementById('agendar-cita-slots').innerHTML = slots.map(s => {
-      const d   = new Date(s);
-      const lbl = d.toLocaleString('es-MX', { weekday:'long', month:'long', day:'numeric', hour:'2-digit', minute:'2-digit' });
-      return `<button onclick="_acBookSlot('${s}')" style="text-align:left;background:rgba(99,102,241,.12);border:1px solid rgba(99,102,241,.3);color:var(--text);border-radius:8px;padding:9px 14px;cursor:pointer;font-size:12.5px;font-family:var(--font);transition:background .15s;" onmouseover="this.style.background='rgba(99,102,241,.25)'" onmouseout="this.style.background='rgba(99,102,241,.12)'">📅 ${lbl}</button>`;
+      const iso = s.iso || s;
+      const lbl = s.label || new Date(iso).toLocaleString('es-MX', { weekday:'long', month:'long', day:'numeric', hour:'2-digit', minute:'2-digit' });
+      return `<button onclick="_acBookSlot('${iso}')" style="text-align:left;background:rgba(99,102,241,.12);border:1px solid rgba(99,102,241,.3);color:var(--text);border-radius:8px;padding:9px 14px;cursor:pointer;font-size:12.5px;font-family:var(--font);transition:background .15s;" onmouseover="this.style.background='rgba(99,102,241,.25)'" onmouseout="this.style.background='rgba(99,102,241,.12)'">📅 ${lbl}</button>`;
     }).join('');
   } catch(e) {
     document.getElementById('agendar-cita-status').textContent = 'Error cargando horarios: ' + e.message;
