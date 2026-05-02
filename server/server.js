@@ -476,45 +476,79 @@ app.post('/twilio/whatsapp-incoming', async (req, res) => {
     return res.type('text/xml').send('<Response></Response>');
   }
 
-  // ── Interview: slot selection ─────────────────────────────────────────────
+  // ── Interview: slot selection / escalation ───────────────────────────────
   const _ivState = _twLeadData?.fields?.interview_state?.stringValue;
   if (_ivState === 'awaiting_slot' && Body?.trim()) {
-    let pendingSlots = [];
-    try { pendingSlots = JSON.parse(_twLeadData.fields?.pending_slots?.stringValue || '[]'); } catch {}
+    let ivData = {};
+    try { ivData = JSON.parse(_twLeadData.fields?.pending_slots?.stringValue || '{}'); } catch {}
+    const allSlots    = ivData.slots || [];
+    const offeringDay = ivData.offeringDay || 1;
+    const leadId      = _twLeadData?.name?.split('/').pop();
+    const nombre      = _twLeadData?.fields?.nombre?.stringValue || '';
+    const firstName   = nombre.split(' ')[0] || 'amigo';
 
-    if (pendingSlots.length) {
-      let choiceIdx = -1;
-      const numMatch = Body.match(/\b([1-9])\b/);
-      if (numMatch) {
-        const n = parseInt(numMatch[1]) - 1;
-        if (n >= 0 && n < pendingSlots.length) choiceIdx = n;
-      }
-      if (choiceIdx < 0) {
-        try {
-          const Anthropic = require('@anthropic-ai/sdk');
-          const hk = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-          const hkr = await hk.messages.create({
-            model: 'claude-haiku-4-5-20251001', max_tokens: 5,
-            system: `El candidato debe elegir entre ${pendingSlots.length} opciones de horario numeradas. Su mensaje fue: "${Body}". Responde SOLO con el número (1 a ${pendingSlots.length}) o "0" si no es claro.`,
-            messages: [{ role: 'user', content: Body }],
-          });
-          const n = parseInt(hkr.content[0].text.trim()) - 1;
-          if (n >= 0 && n < pendingSlots.length) choiceIdx = n;
-        } catch {}
-      }
+    // Get the slots currently being offered (by day group)
+    const dayDates   = [...new Set(allSlots.map(s => new Date(s.iso).toISOString().slice(0,10)))];
+    const currentDay = dayDates[offeringDay - 1];
+    const daySlots   = allSlots.filter(s => new Date(s.iso).toISOString().slice(0,10) === currentDay);
 
-      if (choiceIdx >= 0) {
-        const chosen     = pendingSlots[choiceIdx];
-        const leadId     = _twLeadData?.name?.split('/').pop();
-        const nombre     = _twLeadData?.fields?.nombre?.stringValue || '';
-        console.log(`[Interview] Candidato ${cleanFrom} eligió slot ${choiceIdx + 1}: ${chosen.iso}`);
+    if (daySlots.length) {
+      const fmtH = h => h === 0 ? '12am' : h === 12 ? '12pm' : h < 12 ? `${h}am` : `${h-12}pm`;
+      const times = daySlots.map(s => fmtH(new Date(s.iso).getHours()));
+
+      // Ask Haiku to classify: chose a time, declined, or unclear
+      let decision = '?';
+      try {
+        const Anthropic = require('@anthropic-ai/sdk');
+        const hk = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+        const hkr = await hk.messages.create({
+          model: 'claude-haiku-4-5-20251001', max_tokens: 8,
+          system: `El candidato debe elegir o rechazar estos horarios de entrevista: ${times.map((t,i)=>`opción ${i+1} (${t})`).join(', ')}. Responde SOLO con el número elegido (${times.map((_,i)=>i+1).join('/')}) si eligió uno, "NO" si no puede en ninguno, o "?" si no está claro.`,
+          messages: [{ role: 'user', content: Body }],
+        });
+        decision = hkr.content[0].text.trim().toUpperCase();
+      } catch {}
+
+      const choiceIdx = parseInt(decision) - 1;
+
+      if (!isNaN(choiceIdx) && choiceIdx >= 0 && choiceIdx < daySlots.length) {
+        // ── Booked ──────────────────────────────────────────────────────────
+        const chosen = daySlots[choiceIdx];
+        console.log(`[Interview] ${cleanFrom} eligió: ${chosen.iso}`);
         try {
           await bookInterview({ leadPhone: cleanFrom, leadName: nombre, slotIso: chosen.iso, convKey: From });
           if (leadId) await fsUpdateLeadFields(leadId, { interview_state: 'booked', pending_slots: '', quiere_entrevista: false });
-        } catch (e) { console.error('[Interview] Error booking slot:', e.message); }
+        } catch (e) { console.error('[Interview] Error booking:', e.message); }
+        return res.type('text/xml').send('<Response></Response>');
+
+      } else if (decision === 'NO') {
+        // ── Declined this day ────────────────────────────────────────────────
+        const twC = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
+        const sendFn2 = async (to, text) => { const c = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN); await c.messages.create({ from: TWILIO_WA_FROM, to, body: text }); };
+
+        if (offeringDay === 1 && dayDates.length > 1) {
+          // Offer day 2
+          const day2Date  = dayDates[1];
+          const day2Slots = allSlots.filter(s => new Date(s.iso).toISOString().slice(0,10) === day2Date);
+          const DIAS_FULL = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
+          const d2        = new Date(day2Slots[0].iso);
+          const t2        = day2Slots.map(s => fmtH(new Date(s.iso).getHours()));
+          const tList2    = t2.length === 1 ? `a las ${t2[0]}` : t2.length === 2 ? `a las ${t2[0]} o a las ${t2[1]}` : `a las ${t2[0]}, a las ${t2[1]} o a las ${t2[2]}`;
+          const msg2      = `Sin problema, ¡${firstName}! 😊 El ${DIAS_FULL[d2.getDay()]} también tengo disponible ${tList2}. ¿Alguna te funciona?`;
+          await humanDelay(msg2);
+          await sendFn2(From, msg2);
+          if (leadId) await fsUpdateLeadFields(leadId, { pending_slots: JSON.stringify({ slots: allSlots, offeringDay: 2 }) });
+        } else {
+          // Both days rejected → escalate to manager
+          const escMsg = `Entendido, ${firstName}. Voy a pedirle a un encargado que te contacte para encontrar un horario que te funcione. 🙏`;
+          await humanDelay(escMsg);
+          await sendFn2(From, escMsg);
+          if (leadId) await fsUpdateLeadFields(leadId, { interview_state: '', pending_slots: '', sin_manager: true });
+          triggerEscalation(cleanFrom, nombre, 'sin-horario', `Candidato no puede en ningún horario ofrecido (día 1 y día 2)`, sendFn2).catch(() => {});
+        }
         return res.type('text/xml').send('<Response></Response>');
       }
-      // Slot not clear — fall through so Ana asks again
+      // '?' → fall through so Ana asks to clarify
     }
   }
 
@@ -545,33 +579,41 @@ app.post('/twilio/whatsapp-incoming', async (req, res) => {
       if (agendar) {
         (async () => {
           try {
-            const cfg   = await loadInterviewConfig();
-            const slots = await getAvailableSlots(cfg);
+            const cfg      = await loadInterviewConfig();
+            const slots    = await getAvailableSlots(cfg);
+            const nombre2  = _twLeadData?.fields?.nombre?.stringValue || '';
+            const first2   = nombre2.split(' ')[0] || '';
+
             if (!slots.length) {
-              await humanDelay('Un momento...');
-              await sendFn(From, 'En este momento no tenemos horarios disponibles. Un manager se pondrá en contacto contigo muy pronto para agendar tu entrevista. 🙏');
+              const noSlotMsg = `${first2 ? '¡'+first2+'! ' : ''}En este momento no hay horarios disponibles. Un encargado se pondrá en contacto contigo muy pronto para agendar. 🙏`;
+              await humanDelay(noSlotMsg);
+              await sendFn(From, noSlotMsg);
               return;
             }
-            const DIAS  = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
-            const MESES = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
-            const lines = slots.map((s, i) => {
-              const d = new Date(s.iso);
-              return `${i + 1}. 📅 ${DIAS[d.getDay()]} ${d.getDate()} ${MESES[d.getMonth()]} · ${String(d.getHours()).padStart(2,'0')}:00 hs`;
-            });
-            const slotsMsg = `Aquí tienes los horarios disponibles:\n\n${lines.join('\n')}\n\nResponde con el número de tu preferencia (${slots.map((_,i)=>i+1).join(', ')}) y lo confirmamos al instante. 🗓️`;
+
+            // Group by day and build conversational message for day 1
+            const DIAS_FULL = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
+            const fmtH2 = h => h === 0 ? '12am' : h === 12 ? '12pm' : h < 12 ? `${h}am` : `${h-12}pm`;
+            const dayDates2 = [...new Set(slots.map(s => new Date(s.iso).toISOString().slice(0,10)))];
+            const day1Slots = slots.filter(s => new Date(s.iso).toISOString().slice(0,10) === dayDates2[0]);
+            const d1   = new Date(day1Slots[0].iso);
+            const t1   = day1Slots.map(s => fmtH2(new Date(s.iso).getHours()));
+            const tList = t1.length === 1 ? `a las ${t1[0]}` : t1.length === 2 ? `a las ${t1[0]} o a las ${t1[1]}` : `a las ${t1[0]}, a las ${t1[1]} o a las ${t1[2]}`;
+            const slotsMsg = `${first2 ? '¡'+first2+'! ' : ''}😊 Para tu entrevista, el ${DIAS_FULL[d1.getDay()]} tengo disponible ${tList}. ¿Alguna te funciona?`;
+
             await humanDelay(slotsMsg);
             await sendFn(From, slotsMsg);
-            // Update lead state
+
             const doc = await fsGetLeadByPhone(cleanFrom);
             if (doc) {
               const lid = doc.name.split('/').pop();
               await fsUpdateLeadFields(lid, {
-                quiere_entrevista:  true,
-                interview_state:    'awaiting_slot',
-                pending_slots:      JSON.stringify(slots),
+                quiere_entrevista: true,
+                interview_state:   'awaiting_slot',
+                pending_slots:     JSON.stringify({ slots, offeringDay: 1 }),
               });
             }
-            console.log(`[Interview] Slots ofrecidos a ${From} (${slots.length} opciones)`);
+            console.log(`[Interview] Slots ofrecidos a ${From} — día 1: ${DIAS_FULL[d1.getDay()]}, horarios: ${t1.join(', ')}`);
           } catch (e) { console.error('[AGENDAR] Error:', e.message); }
         })();
       }
