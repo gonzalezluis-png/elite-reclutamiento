@@ -113,7 +113,6 @@ async function showAIPanel() {
 
     <!-- Secciones -->
     ${[
-      { id:'interviews',icon:'🎙', title:'Entrevistas',                  desc:'Entrevistador, horario semanal, Zoom, recordatorios y confirmaciones.' },
       { id:'history',  icon:'💬', title:'Conversaciones activas',      desc:'Historial de chats en memoria de Ana.' },
       { id:'general',  icon:'📄', title:'Personalidad e instrucciones', desc:'Prompt base: rol, misión y flujo de conversación.' },
       { id:'qa',       icon:'❔', title:'Preguntas frecuentes',          desc:'Respuestas predefinidas para las consultas más comunes.' },
@@ -150,12 +149,6 @@ function aiToggleSection(id) {
 }
 
 function _aiInjectSectionContent() {
-  // Interviews
-  document.getElementById('ai-section-interviews').innerHTML = `
-    <div style="display:flex;flex-direction:column;gap:14px;padding-top:4px;" id="iv-config-wrap">
-      <div style="color:var(--text2);font-size:12px;">Cargando configuración…</div>
-    </div>`;
-
   // History
   document.getElementById('ai-section-history').innerHTML = `
     <div style="padding-top:4px;display:flex;flex-direction:column;gap:10px;">
@@ -234,11 +227,10 @@ function _aiInjectSectionContent() {
 async function aiLoadPanel() {
   _aiInjectSectionContent();
   try {
-    const [cs, ss, hs, iv, tpls] = await Promise.all([
+    const [cs, ss, hs, tpls] = await Promise.all([
       fetch(`${SERVER_URL}/ai/config`).then(r=>r.json()),
       fetch(`${SERVER_URL}/ai/settings`).then(r=>r.json()),
       fetch(`${SERVER_URL}/ai/history`).then(r=>r.json()),
-      fetch(`${SERVER_URL}/interviews/config`).then(r=>r.json()).catch(()=>({config:{}})),
       fetch(`${SERVER_URL}/ai/templates`).then(r=>r.json()).catch(()=>({templates:{}})),
     ]);
 
@@ -249,7 +241,6 @@ async function aiLoadPanel() {
     aiRenderQA(_aiConfig.qa || []);
     aiRenderCases(_aiConfig.cases || []);
     aiRenderTriggers(_aiConfig.triggers || []);
-    ivRenderConfig(iv.config || {});
     aiRenderTemplates(tpls.templates || {});
 
     // Channel status pills
@@ -826,6 +817,7 @@ async function showAIEntrevistas() {
     </div>
 
     ${[
+      { id:'config',   icon:'🎙', title:'Configuración de entrevistas',             desc:'Entrevistador, horario semanal, Zoom, recordatorios y confirmaciones.' },
       { id:'general',  icon:'📄', title:'Instrucciones para la fase de entrevistas', desc:'Cómo debe comportarse Ana una vez que el candidato confirma que quiere ir a la entrevista.' },
       { id:'qa',       icon:'❔', title:'Preguntas frecuentes sobre entrevistas',    desc:'Dudas comunes que tiene el candidato al agendar: Zoom, duración, qué llevar, etc.' },
       { id:'forbidden',icon:'🚫', title:'Temas prohibidos',                          desc:'Lo que Ana nunca debe mencionar ni responder en esta fase.' },
@@ -864,7 +856,14 @@ function _aieInjectSection(id) {
   if (!el || el.dataset.loaded) return;
   el.dataset.loaded = '1';
 
-  if (id === 'general') {
+  if (id === 'config') {
+    el.innerHTML = `<div style="display:flex;flex-direction:column;gap:14px;padding-top:4px;" id="iv-config-wrap">
+      <div style="color:var(--text2);font-size:12px;">Cargando configuración…</div>
+    </div>`;
+    ivRenderConfig(_ivConfig || {});
+  }
+
+  else if (id === 'general') {
     el.innerHTML = `<div style="display:flex;flex-direction:column;gap:10px;padding-top:4px;">
       <div style="font-size:11px;color:var(--text2);line-height:1.6;">Describe cómo debe comportarse Ana en esta fase: tono, pasos a seguir, cómo confirmar la cita, qué información pedir, etc.</div>
       <textarea id="aie-general-ta" style="width:100%;height:240px;background:#0d0f1a;border:1px solid rgba(120,75,209,.35);border-radius:8px;color:#e2d9f3;font-size:12px;font-family:monospace;padding:14px;line-height:1.7;resize:vertical;outline:none;box-sizing:border-box;" placeholder="Ej: Una vez que el candidato confirma que vio el webinar y quiere la entrevista, Ana debe:\n1. Felicitarlo y confirmar su interés\n2. Ofrecer horarios disponibles\n3. Confirmar los datos de Zoom\n...">${esc(_aieConfig?.general||'')}</textarea>
@@ -948,12 +947,15 @@ function _aieInjectSection(id) {
 
 async function aiLoadEntrevistasPanel() {
   try {
-    const res = await fetch(`${SERVER_URL}/ai/config/entrevistas`);
-    const data = await res.json();
-    _aieConfig = data.config || {};
+    const [entData, ivData] = await Promise.all([
+      fetch(`${SERVER_URL}/ai/config/entrevistas`).then(r=>r.json()),
+      fetch(`${SERVER_URL}/interviews/config`).then(r=>r.json()).catch(()=>({config:{}})),
+    ]);
+    _aieConfig = entData.config || {};
+    _ivConfig  = ivData.config  || {};
   } catch(e) { showToast('Error cargando config entrevistas: ' + e.message); }
   // Re-inject open sections
-  ['general','qa','forbidden','cases','triggers','templates'].forEach(id => {
+  ['config','general','qa','forbidden','cases','triggers','templates'].forEach(id => {
     const el = document.getElementById(`aie-section-${id}`);
     if (el && el.style.display !== 'none') { el.dataset.loaded = ''; _aieInjectSection(id); }
   });
