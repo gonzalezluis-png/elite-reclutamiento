@@ -557,6 +557,7 @@ async function openAgendarCitaModal(leadId) {
 function closeAgendarCitaModal() {
   document.getElementById('agendar-cita-modal').classList.add('hidden');
   _acLead = null;
+  _acManualOpen = false;
 }
 
 async function _acBookSlot(slot) {
@@ -610,6 +611,109 @@ async function _acBookSlot(slot) {
   } catch(e) {
     document.getElementById('agendar-cita-status').textContent = 'Error: ' + e.message;
   }
+}
+
+// ── Calendario manual de citas ───────────────────────────────────────────────
+let _acManualOpen   = false;
+let _acManualCfg    = null;
+let _acManualYear   = null;
+let _acManualMonth  = null;
+let _acManualDay    = null;
+
+async function _acToggleManual() {
+  _acManualOpen = !_acManualOpen;
+  const wrap = document.getElementById('agendar-manual-wrap');
+  const btn  = document.getElementById('agendar-manual-btn');
+  if (!_acManualOpen) { wrap.style.display = 'none'; btn.textContent = '🗓️ Buscar cita manualmente'; return; }
+  btn.textContent = '🗓️ Buscar cita manualmente ▲';
+  wrap.style.display = 'block';
+  wrap.innerHTML = '<div style="font-size:12px;color:var(--text2);">Cargando configuración…</div>';
+  try {
+    const res  = await fetch(`${SERVER_URL}/interviews/config`);
+    const data = await res.json();
+    _acManualCfg = data.config || {};
+    const now = new Date();
+    _acManualYear  = now.getFullYear();
+    _acManualMonth = now.getMonth();
+    _acManualDay   = null;
+    _acRenderCalendar();
+  } catch(e) {
+    wrap.innerHTML = `<div style="font-size:12px;color:var(--red);">Error: ${e.message}</div>`;
+  }
+}
+
+function _acRenderCalendar() {
+  const wrap     = document.getElementById('agendar-manual-wrap');
+  const cfg      = _acManualCfg;
+  const schedule = cfg.schedule || {};
+  const allowedDays = schedule.days ?? [1,2,3,4,5];
+  const startH   = schedule.startHour ?? 9;
+  const endH     = schedule.endHour   ?? 18;
+
+  const y = _acManualYear, m = _acManualMonth;
+  const firstDay  = new Date(y, m, 1).getDay();
+  const daysInMon = new Date(y, m + 1, 0).getDate();
+  const today     = new Date(); today.setHours(0,0,0,0);
+  const monthName = new Date(y, m, 1).toLocaleDateString('es-MX', { month:'long', year:'numeric' });
+
+  let cells = '';
+  for (let i = 0; i < firstDay; i++) cells += '<div></div>';
+  for (let d = 1; d <= daysInMon; d++) {
+    const date    = new Date(y, m, d);
+    const dayOfW  = date.getDay();
+    const isAvail = allowedDays.includes(dayOfW) && date >= today;
+    const isSel   = _acManualDay === d;
+    const bg      = isSel ? 'rgba(99,102,241,.5)' : isAvail ? 'rgba(99,102,241,.1)' : 'transparent';
+    const border  = isSel ? 'rgba(99,102,241,.8)' : isAvail ? 'rgba(99,102,241,.3)' : 'transparent';
+    const color   = isSel ? '#fff' : isAvail ? 'var(--text)' : 'rgba(255,255,255,.15)';
+    const onclick = isAvail ? `onclick="_acSelectDay(${d})"` : '';
+    cells += `<div style="text-align:center;padding:5px 2px;font-size:12px;font-weight:600;cursor:${isAvail?'pointer':'default'};background:${bg};border:1px solid ${border};border-radius:6px;color:${color};" ${onclick}>${d}</div>`;
+  }
+
+  const dayNames = ['Do','Lu','Ma','Mi','Ju','Vi','Sá'].map(d =>
+    `<div style="text-align:center;font-size:10px;font-weight:700;color:var(--text2);padding-bottom:4px;">${d}</div>`
+  ).join('');
+
+  wrap.innerHTML = `
+    <div style="background:var(--card2);border:1px solid var(--border);border-radius:10px;padding:12px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+        <button onclick="_acCalNav(-1)" style="background:none;border:1px solid var(--border);border-radius:6px;color:var(--text2);padding:3px 9px;cursor:pointer;font-size:13px;">‹</button>
+        <span style="font-size:12px;font-weight:700;color:var(--text);text-transform:capitalize;">${monthName}</span>
+        <button onclick="_acCalNav(1)"  style="background:none;border:1px solid var(--border);border-radius:6px;color:var(--text2);padding:3px 9px;cursor:pointer;font-size:13px;">›</button>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-bottom:6px;">${dayNames}</div>
+      <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;">${cells}</div>
+      <div style="margin-top:8px;font-size:10px;color:var(--text2);">Días disponibles: ${startH}:00 – ${endH}:00 hs</div>
+    </div>
+    <div id="ac-manual-slots" style="margin-top:10px;display:flex;flex-wrap:wrap;gap:6px;"></div>`;
+
+  if (_acManualDay) _acRenderManualSlots(startH, endH);
+}
+
+function _acCalNav(dir) {
+  _acManualMonth += dir;
+  if (_acManualMonth < 0)  { _acManualMonth = 11; _acManualYear--; }
+  if (_acManualMonth > 11) { _acManualMonth = 0;  _acManualYear++; }
+  _acManualDay = null;
+  _acRenderCalendar();
+}
+
+function _acSelectDay(d) {
+  _acManualDay = d;
+  _acRenderCalendar();
+}
+
+function _acRenderManualSlots(startH, endH) {
+  const el = document.getElementById('ac-manual-slots');
+  if (!el) return;
+  const slots = [];
+  for (let h = startH; h < endH; h++) {
+    const iso = new Date(_acManualYear, _acManualMonth, _acManualDay, h, 0, 0).toISOString();
+    slots.push({ iso, lbl: `${String(h).padStart(2,'0')}:00` });
+  }
+  el.innerHTML = slots.map(s =>
+    `<button onclick="_acBookSlot('${s.iso}')" style="background:rgba(99,102,241,.12);border:1px solid rgba(99,102,241,.3);color:var(--text);border-radius:7px;padding:6px 12px;cursor:pointer;font-size:12px;font-family:var(--font);">🕐 ${s.lbl}</button>`
+  ).join('');
 }
 
 // ════════════════════════════════════════════
