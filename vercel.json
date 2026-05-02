@@ -4,12 +4,14 @@
     { "src": "index.html",    "use": "@vercel/static" },
     { "src": "webinar.html",  "use": "@vercel/static" },
     { "src": "registro.html", "use": "@vercel/static" },
+    { "src": "utils.js",        "use": "@vercel/static" },
     { "src": "app.js",         "use": "@vercel/static" },
     { "src": "config-panel.js","use": "@vercel/static" },
     { "src": "messaging.js",   "use": "@vercel/static" },
     { "src": "styles.css",    "use": "@vercel/static" }
   ],
   "routes": [
+    { "src": "/utils.js",        "dest": "/utils.js"        },
     { "src": "/app.js",          "dest": "/app.js"          },
     { "src": "/config-panel.js", "dest": "/config-panel.js" },
     { "src": "/messaging.js",    "dest": "/messaging.js"    },
