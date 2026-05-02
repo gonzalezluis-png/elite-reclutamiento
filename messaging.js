@@ -481,6 +481,7 @@ function lcOpen() {
   clearInterval(_lcPollInt);
   const phone = lead.telefono || '';
   document.getElementById('lc-contact-num').textContent = phone || '(sin número)';
+  lcUpdateIAState(lead.ia_paused);
   lcRenderActivity(lead);
   lcRenderTimeline(lead);
   if (phone) {
@@ -488,6 +489,73 @@ function lcOpen() {
     lcFetchMessages(lead);
     _lcPollInt = setInterval(() => lcFetchMessages(leads.find(l => l.id === currentLeadId)), 10000);
   }
+}
+
+function lcUpdateIAState(paused) {
+  const banner = document.getElementById('lc-ia-banner');
+  const dot    = document.getElementById('lc-ia-dot');
+  const label  = document.getElementById('lc-ia-label');
+  const sub    = document.getElementById('lc-ia-sub');
+  const pill   = document.getElementById('lc-ia-pill');
+  const compose = document.querySelector('.lc-compose');
+  if (!banner) return;
+
+  if (paused) {
+    banner.style.background   = 'rgba(34,197,94,.08)';
+    banner.style.borderColor  = 'rgba(34,197,94,.25)';
+    dot.style.background      = '#22c55e';
+    dot.style.boxShadow       = '0 0 6px #22c55e';
+    label.textContent         = 'IA pausada — modo manual';
+    label.style.color         = '#22c55e';
+    sub.textContent           = 'Puedes escribir mensajes manualmente. Haz clic para reactivar la IA.';
+    sub.style.color           = 'rgba(34,197,94,.7)';
+    pill.textContent          = 'MANUAL';
+    pill.style.background     = 'rgba(34,197,94,.2)';
+    pill.style.color          = '#22c55e';
+    if (compose) compose.style.opacity = '1';
+    document.getElementById('lc-textarea')?.removeAttribute('disabled');
+    document.getElementById('lc-send-btn')?.removeAttribute('disabled');
+    document.getElementById('lc-ch-sms')?.removeAttribute('disabled');
+    document.getElementById('lc-ch-wa')?.removeAttribute('disabled');
+  } else {
+    banner.style.background   = 'rgba(168,85,247,.08)';
+    banner.style.borderColor  = 'rgba(168,85,247,.25)';
+    dot.style.background      = '#a855f7';
+    dot.style.boxShadow       = '0 0 6px #a855f7';
+    label.textContent         = '🤖 IA activa — Ana está respondiendo';
+    label.style.color         = '#c084fc';
+    sub.textContent           = 'Los mensajes manuales están bloqueados. Haz clic para pausar la IA.';
+    sub.style.color           = 'rgba(192,132,252,.6)';
+    pill.textContent          = 'ACTIVA';
+    pill.style.background     = 'rgba(168,85,247,.2)';
+    pill.style.color          = '#c084fc';
+    if (compose) compose.style.opacity = '.4';
+    document.getElementById('lc-textarea')?.setAttribute('disabled', 'true');
+    document.getElementById('lc-send-btn')?.setAttribute('disabled', 'true');
+    document.getElementById('lc-ch-sms')?.setAttribute('disabled', 'true');
+    document.getElementById('lc-ch-wa')?.setAttribute('disabled', 'true');
+  }
+}
+
+async function lcToggleIA() {
+  const lead = leads.find(l => l.id === currentLeadId);
+  if (!lead) return;
+  lead.ia_paused = !lead.ia_paused;
+  lcUpdateIAState(lead.ia_paused);
+  saveLeads(lead.id);
+  showToast(lead.ia_paused
+    ? '⏸ IA pausada — ahora puedes escribir manualmente'
+    : '🤖 IA reactivada — Ana vuelve a responder'
+  );
+
+  // Sync ia_paused to server so Ana stops/resumes immediately
+  try {
+    await fetch(`${SERVER_URL}/ai/pause`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone: lead.telefono, paused: lead.ia_paused }),
+    });
+  } catch {}
 }
 
 function lcSetChannel(ch) {

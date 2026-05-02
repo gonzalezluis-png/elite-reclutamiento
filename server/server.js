@@ -705,6 +705,20 @@ app.delete('/ai/history', (req, res) => {
   res.json({ ok: true });
 });
 
+// ── IA pause/resume for a specific lead ──────────────────────────────────────
+app.post('/ai/pause', async (req, res) => {
+  const { phone, paused } = req.body;
+  if (!phone) return res.status(400).json({ ok: false, error: 'phone requerido' });
+  try {
+    const { fsGetLeadByPhone, fsUpdateLeadFields } = require('./pipeline');
+    const doc = await fsGetLeadByPhone(phone);
+    if (doc) await fsUpdateLeadFields(doc.id || doc.name?.split('/').pop(), { ia_paused: paused });
+    res.json({ ok: true });
+  } catch(e) {
+    res.json({ ok: false, error: e.message });
+  }
+});
+
 // ── Interview config ──────────────────────────────────────────────────────────
 app.get('/interviews/config', async (req, res) => {
   const cfg = await loadInterviewConfig();

@@ -191,6 +191,17 @@
           <div style="font-size:10px;color:rgba(255,255,255,.18);background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);border-radius:6px;padding:4px 10px;font-weight:600;letter-spacing:.4px">MENSAJES</div>
         </div>
         <div class="lc-timeline" id="lc-timeline"><div class="lc-loading">Abriendo…</div></div>
+
+        <!-- IA TOGGLE BANNER -->
+        <div id="lc-ia-banner" onclick="lcToggleIA()" style="cursor:pointer;margin:0 0 0 0;padding:8px 14px;display:flex;align-items:center;gap:10px;border-top:1px solid var(--border);transition:background .2s;">
+          <div id="lc-ia-dot" style="width:9px;height:9px;border-radius:50%;flex-shrink:0;"></div>
+          <div style="flex:1;min-width:0;">
+            <div id="lc-ia-label" style="font-size:12px;font-weight:700;"></div>
+            <div id="lc-ia-sub"   style="font-size:10px;margin-top:1px;"></div>
+          </div>
+          <div id="lc-ia-pill" style="font-size:10px;font-weight:800;padding:3px 10px;border-radius:20px;letter-spacing:.5px;"></div>
+        </div>
+
         <div class="lc-compose">
           <div class="lc-channel-row">
             <button class="lc-ch-btn active sms" id="lc-ch-sms" onclick="lcSetChannel('sms')">💬 SMS</button>
