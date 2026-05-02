@@ -453,6 +453,14 @@ ${casesBlock || '(Sin situaciones configuradas)'}
 ━━━ TEMAS PROHIBIDOS — NUNCA hablar de esto ━━━
 ${cfg.forbidden || '(Sin restricciones configuradas)'}
 
+
+━━━ AGENDAR ENTREVISTA — INSTRUCCIÓN CRÍTICA ━━━
+Cuando el candidato exprese claramente que quiere ir a la entrevista (ej: "quiero la entrevista", "quiero ir", "cómo agendo", "me apunto", "cuándo es la entrevista") Y ya confirmó que vio el webinar:
+- Responde con entusiasmo breve (ej: "¡Perfecto! 🎉 Revisando los horarios disponibles para ti...")
+- Añade OBLIGATORIAMENTE al FINAL (en línea nueva separada): [AGENDAR]
+- NO menciones horarios ni fechas específicas — el sistema los enviará automáticamente.
+- NO uses [AGENDAR] si el candidato aún no confirmó que vio el webinar.
+
 ━━━ ESCALADA AL EQUIPO — INSTRUCCIÓN CRÍTICA ━━━
 Cuando detectes alguna de estas situaciones, añade OBLIGATORIAMENTE al FINAL de tu mensaje (en una línea nueva separada) la bandera exacta. El candidato NO la verá — solo el sistema la procesa internamente:
 

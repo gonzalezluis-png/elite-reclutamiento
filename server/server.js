@@ -7,7 +7,7 @@ const twilio     = require('twilio');
 // nodemailer removed — usando Resend API
 const { askClaude, textToSpeech, loadConfig, loadConfigFromFirestore, saveConfig, DEFAULT_CONFIG, conversationHistory, aiEnabled, loadEntrevistasConfig, saveEntrevistasConfig } = require('./ai');
 const { registerMetaRoutes } = require('./meta');
-const { fsLeadExists, fsCreateLeadWA, fsGetLeadByPhone, runWAPipeline, humanDelay } = require('./pipeline');
+const { fsLeadExists, fsCreateLeadWA, fsGetLeadByPhone, fsUpdateLeadFields, runWAPipeline, humanDelay } = require('./pipeline');
 const { triggerEscalation, handleManagerReply, isManagerPhone, loadManagers, saveManagers, DEFAULT_MANAGERS, getTeamMessages } = require('./escalation');
 const { loadInterviewConfig, saveInterviewConfig, getAvailableSlots, bookInterview, listInterviews, updateInterview, checkInterviewReminders, DEFAULT_INTERVIEW_CONFIG } = require('./interviews');
 
@@ -476,14 +476,57 @@ app.post('/twilio/whatsapp-incoming', async (req, res) => {
     return res.type('text/xml').send('<Response></Response>');
   }
 
+  // ── Interview: slot selection ─────────────────────────────────────────────
+  const _ivState = _twLeadData?.fields?.interview_state?.stringValue;
+  if (_ivState === 'awaiting_slot' && Body?.trim()) {
+    let pendingSlots = [];
+    try { pendingSlots = JSON.parse(_twLeadData.fields?.pending_slots?.stringValue || '[]'); } catch {}
+
+    if (pendingSlots.length) {
+      let choiceIdx = -1;
+      const numMatch = Body.match(/\b([1-9])\b/);
+      if (numMatch) {
+        const n = parseInt(numMatch[1]) - 1;
+        if (n >= 0 && n < pendingSlots.length) choiceIdx = n;
+      }
+      if (choiceIdx < 0) {
+        try {
+          const Anthropic = require('@anthropic-ai/sdk');
+          const hk = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+          const hkr = await hk.messages.create({
+            model: 'claude-haiku-4-5-20251001', max_tokens: 5,
+            system: `El candidato debe elegir entre ${pendingSlots.length} opciones de horario numeradas. Su mensaje fue: "${Body}". Responde SOLO con el número (1 a ${pendingSlots.length}) o "0" si no es claro.`,
+            messages: [{ role: 'user', content: Body }],
+          });
+          const n = parseInt(hkr.content[0].text.trim()) - 1;
+          if (n >= 0 && n < pendingSlots.length) choiceIdx = n;
+        } catch {}
+      }
+
+      if (choiceIdx >= 0) {
+        const chosen     = pendingSlots[choiceIdx];
+        const leadId     = _twLeadData?.name?.split('/').pop();
+        const nombre     = _twLeadData?.fields?.nombre?.stringValue || '';
+        console.log(`[Interview] Candidato ${cleanFrom} eligió slot ${choiceIdx + 1}: ${chosen.iso}`);
+        try {
+          await bookInterview({ leadPhone: cleanFrom, leadName: nombre, slotIso: chosen.iso, convKey: From });
+          if (leadId) await fsUpdateLeadFields(leadId, { interview_state: 'booked', pending_slots: '', quiere_entrevista: false });
+        } catch (e) { console.error('[Interview] Error booking slot:', e.message); }
+        return res.type('text/xml').send('<Response></Response>');
+      }
+      // Slot not clear — fall through so Ana asks again
+    }
+  }
+
   if (aiEnabled.wa && Body?.trim()) {
     try {
       const rawReply = await askClaude(From, Body, 'wa');
-      const escMatch = rawReply.match(/\[ESC:([^\]]+)\]/);
-      const reply    = rawReply.replace(/\[ESC:[^\]]*\]\n?/g, '').trim();
+      const escMatch  = rawReply.match(/\[ESC:([^\]]+)\]/);
+      const agendar   = rawReply.includes('[AGENDAR]');
+      const reply     = rawReply.replace(/\[ESC:[^\]]*\]\n?/g, '').replace(/\[AGENDAR\]\n?/g, '').trim();
 
       if (escMatch) {
-        const leadName = _twLeadData?.nombre || _twLeadData?.fields?.nombre?.stringValue || '';
+        const leadName = _twLeadData?.fields?.nombre?.stringValue || '';
         triggerEscalation(cleanFrom, leadName, escMatch[1], Body, twSendWAToManager).catch(e => console.error('[ESC]', e.message));
       }
 
@@ -492,11 +535,46 @@ app.post('/twilio/whatsapp-incoming', async (req, res) => {
       const twilioClient = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
       await twilioClient.messages.create({ from: TWILIO_WA_FROM, to: From, body: reply });
 
-      // Build Twilio-specific sendFn for the pipeline
+      // Build Twilio-specific sendFn
       const sendFn = async (to, text) => {
         const c = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
         await c.messages.create({ from: TWILIO_WA_FROM, to, body: text });
       };
+
+      // ── Interview: offer slots after Ana's response ─────────────────────
+      if (agendar) {
+        (async () => {
+          try {
+            const cfg   = await loadInterviewConfig();
+            const slots = await getAvailableSlots(cfg);
+            if (!slots.length) {
+              await humanDelay('Un momento...');
+              await sendFn(From, 'En este momento no tenemos horarios disponibles. Un manager se pondrá en contacto contigo muy pronto para agendar tu entrevista. 🙏');
+              return;
+            }
+            const DIAS  = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+            const MESES = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+            const lines = slots.map((s, i) => {
+              const d = new Date(s.iso);
+              return `${i + 1}. 📅 ${DIAS[d.getDay()]} ${d.getDate()} ${MESES[d.getMonth()]} · ${String(d.getHours()).padStart(2,'0')}:00 hs`;
+            });
+            const slotsMsg = `Aquí tienes los horarios disponibles:\n\n${lines.join('\n')}\n\nResponde con el número de tu preferencia (${slots.map((_,i)=>i+1).join(', ')}) y lo confirmamos al instante. 🗓️`;
+            await humanDelay(slotsMsg);
+            await sendFn(From, slotsMsg);
+            // Update lead state
+            const doc = await fsGetLeadByPhone(cleanFrom);
+            if (doc) {
+              const lid = doc.name.split('/').pop();
+              await fsUpdateLeadFields(lid, {
+                quiere_entrevista:  true,
+                interview_state:    'awaiting_slot',
+                pending_slots:      JSON.stringify(slots),
+              });
+            }
+            console.log(`[Interview] Slots ofrecidos a ${From} (${slots.length} opciones)`);
+          } catch (e) { console.error('[AGENDAR] Error:', e.message); }
+        })();
+      }
 
       ;(async () => {
         try {
@@ -723,7 +801,6 @@ app.post('/ai/pause', async (req, res) => {
   const { phone, paused } = req.body;
   if (!phone) return res.status(400).json({ ok: false, error: 'phone requerido' });
   try {
-    const { fsGetLeadByPhone, fsUpdateLeadFields } = require('./pipeline');
     const doc = await fsGetLeadByPhone(phone);
     if (doc) await fsUpdateLeadFields(doc.id || doc.name?.split('/').pop(), { ia_paused: paused });
     res.json({ ok: true });
