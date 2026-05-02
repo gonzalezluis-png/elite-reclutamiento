@@ -123,12 +123,14 @@ Responde SOLO con JSON válido, sin texto adicional:
   "tiene_experiencia": true/false/null,
   "tiene_papeles": true/false/null,
   "mayor_edad": true/false/null,
-  "webinar_intent": true/false/null
+  "webinar_intent": true/false/null,
+  "vio_webinar": true/false/null
 }
 - tiene_experiencia: true si el candidato mencionó experiencia laboral o trabajo previo. false si dijo que no. null si no se mencionó.
 - tiene_papeles: true si confirmó documentos legales para trabajar (SSN, permiso, ciudadanía). false si dijo que no. null si no se sabe.
 - mayor_edad: true si es mayor de 18 años. false si es menor. null si no se sabe.
 - webinar_intent: true si el candidato mostró interés en ver el webinar/video/presentación, o dio su correo para recibir el link. false si lo rechazó. null si no aplica aún.
+- vio_webinar: true si el candidato confirmó que ya vio el webinar/video/presentación (ej: "ya lo vi", "lo acabo de ver", responde preguntas sobre el contenido, o el asistente pregunta su opinión sobre lo que vio). false si dijo que no lo vio. null si no se sabe.
 Solo incluye campos mencionados explícitamente. Si no hay info clara, pon null.`,
       messages,
     });
@@ -168,6 +170,8 @@ Solo incluye campos mencionados explícitamente. Si no hay info clara, pon null.
                                                                               updates.tiene_papeles   = extracted.tiene_papeles;
     if (extracted.mayor_edad !== null && extracted.mayor_edad !== undefined && existing.mayor_edad?.booleanValue !== true)
                                                                               updates.mayor_edad      = extracted.mayor_edad;
+    if (extracted.vio_webinar === true && existing.vio_webinar?.booleanValue !== true)
+                                                                              updates.vio_webinar     = true;
 
     if (!Object.keys(updates).length) return null;
     await fsUpdateLeadFields(leadId, updates);

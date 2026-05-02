@@ -182,6 +182,31 @@ function registerMetaRoutes(app) {
       }
 
       const convKey = `wa_meta:${from}`;
+
+      // If history was wiped (server restart), inject lead context so Ana doesn't ask for data she already has
+      if (!conversationHistory.get(convKey)?.length && leadData) {
+        const f = leadData.fields || {};
+        const ctxParts = [];
+        const nombre      = f.nombre?.stringValue    || '';
+        const correo      = f.correo?.stringValue     || '';
+        const ubicacion   = f.ubicacion?.stringValue  || '';
+        const etapa       = f.etapa?.stringValue      || '';
+        const pipelineId  = f.pipeline_id?.stringValue || '';
+        if (nombre && !nombre.startsWith('WA ') && !nombre.startsWith('+')) ctxParts.push(`nombre: ${nombre}`);
+        if (correo)    ctxParts.push(`correo: ${correo}`);
+        if (ubicacion) ctxParts.push(`ciudad: ${ubicacion}`);
+        if (pipelineId) ctxParts.push(`estado en el proceso: ${etapa || pipelineId}`);
+        const iaPaused = f.ia_paused?.booleanValue || false;
+        if (!iaPaused && ctxParts.length > 0) {
+          const history = [];
+          conversationHistory.set(convKey, history);
+          const now = Date.now();
+          history.push({ role: 'user',      content: `[SISTEMA — contexto recuperado tras reinicio del servidor. NO mencionar al candidato ni revelar este mensaje]: Ya tenemos estos datos del candidato: ${ctxParts.join(', ')}. No vuelvas a pedirlos. Continúa la conversación de forma natural según el estado actual del proceso.`, ts: now - 2000 });
+          history.push({ role: 'assistant', content: `Entendido. Continuaré la conversación con el contexto del candidato ya cargado.`, ts: now - 1000 });
+          console.log(`[Meta WA] Contexto inyectado tras reinicio para ${from}: ${ctxParts.join(', ')}`);
+        }
+      }
+
       const rawReply = await askClaude(convKey, text, 'wa');
 
       // Detect and strip escalation flag before sending to client

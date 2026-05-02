@@ -2332,6 +2332,8 @@ function renderKanban() {
                   <div class="lt-accion-opt opt-asistente"    onclick="setWebinarAccion('${ld.id}','asistente')">✅ ASISTENTE</div>
                   <div class="lt-accion-opt opt-no-asistente" onclick="setWebinarAccion('${ld.id}','no-asistente')">✗ NO ASISTENTE</div>
                   <div class="lt-accion-opt opt-sin-registro" onclick="setWebinarAccion('${ld.id}','sin-registro')">— SIN REGISTRO</div>
+                  <div style="border-top:1px solid var(--border);margin:3px 0"></div>
+                  <div class="lt-accion-opt" style="color:#f87171" onclick="event.stopPropagation();_openMenuLeadId='${ld.id}';deleteLeadFull()">🗑️ Eliminar todos los datos</div>
                 </div>
               </div>
             </td>
@@ -2440,7 +2442,7 @@ function calcProgreso(lead) {
   // 60%
   if (lead.correo) max = Math.max(max, 60);
   // 70%
-  if (lead.webinar_visto === true || (lead.pipeline_id === 'en-webinar' && lead.etapa !== 'Inscrito en Webinar')) max = Math.max(max, 70);
+  if (lead.webinar_visto === true || lead.vio_webinar === true || (lead.pipeline_id === 'en-webinar' && lead.etapa !== 'Inscrito en Webinar')) max = Math.max(max, 70);
   // 80%
   if ((lead.cita && lead.cita.fecha) || ['entrevistas-generales','caritza-rojas','maria-lugo','brayan-alexander'].includes(lead.pipeline_id)) max = Math.max(max, 80);
   // 90%
@@ -3172,7 +3174,7 @@ function _mlRenderProgreso(lead) {
     { pct: 45,  label: 'Interés en webinar',    check: l => l.webinar_intent },
     { pct: 50,  label: 'Papeles y mayoría',     check: l => l.tiene_papeles && l.mayor_edad },
     { pct: 60,  label: 'Correo registrado',     check: l => !!l.correo },
-    { pct: 70,  label: 'Vio el webinar',        check: l => l.webinar_visto || (l.pipeline_id === 'en-webinar' && l.etapa !== 'Inscrito en Webinar') },
+    { pct: 70,  label: 'Vio el webinar',        check: l => l.webinar_visto || l.vio_webinar || (l.pipeline_id === 'en-webinar' && l.etapa !== 'Inscrito en Webinar') },
     { pct: 80,  label: 'Entrevista agendada',   check: l => !!(l.cita?.fecha) || ['entrevistas-generales','caritza-rojas','maria-lugo','brayan-alexander'].includes(l.pipeline_id) },
     { pct: 90,  label: 'Confirmó asistencia',   check: l => /confirm/i.test(l.etapa||'') },
     { pct: 100, label: 'Asistió a entrevista',  check: l => /asist|ENTREVISTADO|ENTREVISTADA/i.test(l.etapa||'') },
