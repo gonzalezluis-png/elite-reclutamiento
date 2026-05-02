@@ -468,10 +468,10 @@ async function mlEnviarWebinar() {
 }
 
 async function renderCalendario() {
-  const DIAS_SHORT = ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
-  const MESES = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+  const DIAS = ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
+  const MESES_LONG  = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  const MESES_SHORT = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
 
-  // Build week days (Mon–Sun)
   const week = [];
   for (let i = 0; i < 7; i++) {
     const d = new Date(calWeekStart);
@@ -479,108 +479,113 @@ async function renderCalendario() {
     week.push(d);
   }
 
-  // Week label for topbar
+  // Topbar label
   const w0 = week[0], w6 = week[6];
   const sameMonth = w0.getMonth() === w6.getMonth();
   const weekLabel = sameMonth
-    ? `${w0.getDate()} – ${w6.getDate()} ${MESES[w6.getMonth()]} ${w6.getFullYear()}`
-    : `${w0.getDate()} ${MESES[w0.getMonth()]} – ${w6.getDate()} ${MESES[w6.getMonth()]} ${w6.getFullYear()}`;
+    ? `${w0.getDate()} – ${w6.getDate()} de ${MESES_LONG[w6.getMonth()]} ${w6.getFullYear()}`
+    : `${w0.getDate()} ${MESES_SHORT[w0.getMonth()]} – ${w6.getDate()} ${MESES_SHORT[w6.getMonth()]} ${w6.getFullYear()}`;
   document.getElementById('cal-month-label').textContent = weekLabel;
 
-  // Fetch interview config
   let cfg = {};
-  try { const r = await fetch(`${SERVER_URL}/interviews/config`); cfg = (await r.json()).config || {}; } catch {}
-  const sched      = cfg.schedule || {};
-  const availDays  = sched.days ?? [1,2,3,4,5]; // 0=Sun
-  const startH     = sched.startHour ?? 9;
-  const endH       = sched.endHour   ?? 18;
+  try { cfg = (await fetch(`${SERVER_URL}/interviews/config`).then(r=>r.json())).config || {}; } catch {}
+  const sched     = cfg.schedule || {};
+  const availDays = sched.days ?? [1,2,3,4,5];
+  const startH    = sched.startHour ?? 9;
+  const endH      = sched.endHour   ?? 18;
 
-  // Fetch booked interviews
   let booked = [];
-  try { const r = await fetch(`${SERVER_URL}/interviews`); booked = (await r.json()).interviews || []; } catch {}
+  try { booked = (await fetch(`${SERVER_URL}/interviews`).then(r=>r.json())).interviews || []; } catch {}
 
+  const now   = new Date();
   const today = new Date(); today.setHours(0,0,0,0);
   const hours = [];
   for (let h = startH; h < endH; h++) hours.push(h);
 
-  // Helper: leads with cita on a given date+hour
   function citaLeadsAt(date, h) {
-    const dateStr = date.toISOString().slice(0,10);
+    const ds = date.toISOString().slice(0,10);
     return leads.filter(l => {
       if (!l.cita?.fecha) return false;
       const [lh] = (l.cita.hora || '0:00').split(':');
-      return l.cita.fecha === dateStr && parseInt(lh) === h;
+      return l.cita.fecha === ds && parseInt(lh) === h;
     });
   }
-
-  // Helper: booked interviews at date+hour
   function bookedAt(date, h) {
-    const dateStr = date.toISOString().slice(0,10);
+    const ds = date.toISOString().slice(0,10);
     return booked.filter(iv => {
       if (!iv.slotIso) return false;
       const d = new Date(iv.slotIso);
-      return d.toISOString().slice(0,10) === dateStr && d.getHours() === h && iv.status !== 'cancelled';
+      return d.toISOString().slice(0,10) === ds && d.getHours() === h && iv.status !== 'cancelled';
     });
   }
 
-  // Build grid HTML
-  const cols = 7;
-  // Header row
+  // Header
   let headerHtml = `<div class="cwk-corner"></div>`;
   week.forEach((d, i) => {
-    const isToday = d.getTime() === today.getTime();
-    const dow = d.getDay(); // 0=Sun
-    const isAvailDay = availDays.includes(dow);
+    const isToday    = d.getTime() === today.getTime();
+    const isAvailDay = availDays.includes(d.getDay());
     headerHtml += `<div class="cwk-day-hdr${isToday?' today':''}${isAvailDay?'':' unavail'}">
-      <div class="cwk-day-name">${DIAS_SHORT[i]}</div>
-      <div class="cwk-day-date${isToday?' today':''}">${d.getDate()} ${MESES[d.getMonth()]}</div>
+      <div class="cwk-day-name">${DIAS[i]}</div>
+      <div class="cwk-day-num${isToday?' today':''}">${d.getDate()}</div>
     </div>`;
   });
 
-  // Body rows (one per hour)
+  // Body
   let bodyHtml = '';
+  const todayInView = week.some(d => d.getTime() === today.getTime());
+  const nowMinutes  = now.getHours() * 60 + now.getMinutes();
+  const rangeMinutes= startH * 60;
+  const totalMin    = (endH - startH) * 60;
+
   for (const h of hours) {
     const hLabel = `${String(h).padStart(2,'0')}:00`;
     bodyHtml += `<div class="cwk-hour-label">${hLabel}</div>`;
+
     week.forEach(d => {
-      const dow       = d.getDay();
-      const isAvail   = availDays.includes(dow) && d >= today;
-      const clead     = citaLeadsAt(d, h);
-      const blist     = bookedAt(d, h);
-      const isToday   = d.getTime() === today.getTime();
+      const isAvail = availDays.includes(d.getDay()) && d >= today;
+      const isToday = d.getTime() === today.getTime();
+      const clead   = citaLeadsAt(d, h);
+      const blist   = bookedAt(d, h);
 
       let cellContent = '';
-      // Booked interviews (from /interviews)
       blist.forEach(iv => {
-        cellContent += `<div class="cwk-booked" title="${esc(iv.leadName||'')}">
-          <div class="cwk-booked-name">🎙 ${esc(iv.leadName || 'Entrevista')}</div>
-          <div class="cwk-booked-sub">${String(h).padStart(2,'0')}:00</div>
+        cellContent += `<div class="cwk-event interview" title="${esc(iv.leadName||'Entrevista')}">
+          <div class="cwk-event-name">🎙 ${esc(iv.leadName || 'Entrevista')}</div>
+          <div class="cwk-event-meta">${hLabel}</div>
         </div>`;
       });
-      // CRM cita leads
       clead.forEach(l => {
-        cellContent += `<div class="cwk-booked cwk-cita" onclick="openLead('${l.id}','cita')" title="${esc(l.nombre)}">
-          <div class="cwk-booked-name">📋 ${esc(l.nombre)}</div>
-          <div class="cwk-booked-sub">${l.cita.hora||hLabel} · ${esc(l.cita.tipo||'')}</div>
+        cellContent += `<div class="cwk-event cita" onclick="openLead('${l.id}','cita')" title="${esc(l.nombre)}">
+          <div class="cwk-event-name">📋 ${esc(l.nombre)}</div>
+          <div class="cwk-event-meta">${l.cita.hora||hLabel}${l.cita.tipo ? ' · '+esc(l.cita.tipo) : ''}</div>
         </div>`;
       });
 
-      const isEmpty = !cellContent;
-      const cellCls = [
-        'cwk-cell',
-        isAvail   ? 'avail'   : 'unavail',
-        isToday   ? 'today'   : '',
-        !isEmpty  ? 'has-event' : '',
-      ].filter(Boolean).join(' ');
-
+      const cellCls = ['cwk-cell', isAvail?'avail':'unavail', isToday?'today':''].filter(Boolean).join(' ');
       bodyHtml += `<div class="${cellCls}">
-        ${isEmpty && isAvail ? `<div class="cwk-free">Libre</div>` : cellContent}
+        ${!cellContent && isAvail ? `<div class="cwk-free"></div>` : cellContent}
       </div>`;
     });
   }
 
-  document.getElementById('cal-grid').innerHTML =
-    `<div class="cwk-grid" style="--cwk-cols:${cols};">
+  // Current-time line
+  let nowLineHtml = '';
+  if (todayInView && nowMinutes >= rangeMinutes && nowMinutes < rangeMinutes + totalMin) {
+    const pct = ((nowMinutes - rangeMinutes) / totalMin * 100).toFixed(2);
+    const todayColIdx = week.findIndex(d => d.getTime() === today.getTime()); // 0-based
+    nowLineHtml = `<div style="grid-column:1/-1;position:relative;height:0;pointer-events:none;z-index:4;">
+      <div style="position:absolute;top:0;left:0;right:0;display:grid;grid-template-columns:56px repeat(7,1fr);">
+        <div></div>
+        ${week.map((_, ci) => ci === todayColIdx
+          ? `<div style="position:relative;"><div style="position:absolute;top:0;left:0;right:0;height:2px;background:rgba(239,68,68,.8);"></div><div style="position:absolute;top:-4px;left:-4px;width:8px;height:8px;border-radius:50%;background:#ef4444;"></div></div>`
+          : `<div></div>`
+        ).join('')}
+      </div>
+    </div>`;
+  }
+
+  document.getElementById('cal-grid').innerHTML = `
+    <div class="cwk-grid">
       ${headerHtml}
       ${bodyHtml}
     </div>`;
