@@ -126,9 +126,9 @@ function renderKanban() {
               <div class="lt-accion-btn">
                 <button class="lt-accion-trigger ${accion}" onclick="toggleAccionMenu(event,'${ld.id}')">${accionLabel} ▾</button>
                 <div class="lt-accion-menu" id="accion-menu-${ld.id}">
-                  <div class="lt-accion-opt opt-asistente"    onclick="setWebinarAccion('${ld.id}','asistente')">✅ ASISTENTE</div>
-                  <div class="lt-accion-opt opt-no-asistente" onclick="setWebinarAccion('${ld.id}','no-asistente')">✗ NO ASISTENTE</div>
-                  <div class="lt-accion-opt opt-sin-registro" onclick="setWebinarAccion('${ld.id}','sin-registro')">— SIN REGISTRO</div>
+                  <div class="lt-accion-opt opt-asistente"    onclick="event.stopPropagation();setWebinarAccion('${ld.id}','asistente')">✅ ASISTENTE</div>
+                  <div class="lt-accion-opt opt-no-asistente" onclick="event.stopPropagation();setWebinarAccion('${ld.id}','no-asistente')">✗ NO ASISTENTE</div>
+                  <div class="lt-accion-opt opt-sin-registro" onclick="event.stopPropagation();setWebinarAccion('${ld.id}','sin-registro')">— SIN REGISTRO</div>
                   <div style="border-top:1px solid var(--border);margin:3px 0"></div>
                   <div class="lt-accion-opt" style="color:#a5b4fc" onclick="event.stopPropagation();openAgendarCitaModal('${ld.id}')">📅 Agendar entrevista</div>
                   <div style="border-top:1px solid var(--border);margin:3px 0"></div>
