@@ -1,7 +1,7 @@
 const crypto = require('crypto');
 const { askClaude, conversationHistory } = require('./ai');
 const { fsLeadExists, fsCreateLeadWA, fsGetLeadByPhone, runWAPipeline, humanDelay } = require('./pipeline');
-const { triggerEscalation, handleManagerReply, checkTimeouts, isManagerPhone, logTeamMessage, getManagers } = require('./escalation');
+const { triggerEscalation, cancelEscalation, handleManagerReply, checkTimeouts, isManagerPhone, logTeamMessage, getManagers } = require('./escalation');
 
 const SERVER_URL  = process.env.SERVER_URL  || 'https://elite-reclutamiento-production.up.railway.app';
 const WEBINAR_URL = process.env.WEBINAR_URL || 'https://crm.grupoelitework.com/webinar.html';
@@ -190,7 +190,11 @@ function registerMetaRoutes(app) {
 
       if (escMatch) {
         const leadName = leadData?.nombre || leadData?.fields?.nombre?.stringValue || '';
-        triggerEscalation(from, leadName, escMatch[1], text, sendWAToManager).catch(e => console.error('[ESC]', e.message));
+        if (escMatch[1] === 'resolved') {
+          cancelEscalation(from, leadName, sendWAToManager).catch(e => console.error('[ESC-cancel]', e.message));
+        } else {
+          triggerEscalation(from, leadName, escMatch[1], text, sendWAToManager).catch(e => console.error('[ESC]', e.message));
+        }
       }
 
       console.log(`[Meta WA] → ${from}: ${reply}`);

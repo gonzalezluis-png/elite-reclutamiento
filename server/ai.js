@@ -403,6 +403,8 @@ Cuando detectes alguna de estas situaciones, añade OBLIGATORIAMENTE al FINAL de
 
 ${(cfg.triggers || []).map(t => `[ESC:${t.escKey}] → ${t.description}`).join('\n')}
 
+[ESC:resolved] → El candidato confirmó que el problema YA SE RESOLVIÓ solo (ej: "ya me llegó el correo", "ya pude entrar", "ya lo vi"). Usa esta bandera SOLO cuando hayas activado previamente una alerta y el candidato ahora confirma que todo está bien.
+
 REGLA: Añade la bandera UNA sola vez por situación. Nunca más de una por mensaje.`;
 }
 

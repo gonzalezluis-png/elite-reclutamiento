@@ -115,6 +115,21 @@ const TEMPLATES = {
     ],
   },
 
+  caso_resuelto: {
+    name: 'ge_caso_resuelto',
+    language: 'es',
+    category: 'UTILITY',
+    recipient: 'manager',
+    description: 'Notificación al encargado cuando el candidato confirma que el problema ya se resolvió.',
+    body:
+      '✅ Caso resuelto automáticamente — Grupo Élite\n\n' +
+      'El candidato *{{1}}* confirmó que el problema se resolvió solo.\n\n' +
+      'No necesitas hacer nada. El caso fue cerrado.',
+    variables: [
+      { n: 1, label: 'Nombre del candidato', ejemplo: 'Carlos Mendoza' },
+    ],
+  },
+
   enlace_zoom_inicio: {
     name: 'ge_enlace_zoom',
     language: 'es',

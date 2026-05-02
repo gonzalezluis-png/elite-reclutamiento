@@ -171,6 +171,34 @@ async function updateEscalation(id, updates) {
   await fsPatch(`escalations/${id}`, updates);
 }
 
+// ── Cancel escalation when issue resolves itself ─────────────────────────────
+async function cancelEscalation(leadPhone, leadName, sendWAFn) {
+  try {
+    const pending  = await getPendingEscalations();
+    const matching = pending.filter(e => e.leadPhone === leadPhone);
+    if (!matching.length) return;
+
+    const managers = await getManagers();
+
+    for (const esc of matching) {
+      await updateEscalation(esc._id, { status: 'resolved', resolvedAt: new Date().toISOString() });
+
+      // Notify every manager who already received the alert
+      const notifyLevels = [1, 2, 3].filter(l => esc[`level${l}SentAt`]);
+      for (const level of notifyLevels) {
+        const mgr = managers.find(m => m.level === level);
+        if (!mgr) continue;
+        const fallback = `✅ Caso resuelto — El candidato ${leadName || leadPhone} confirmó que el problema se resolvió solo. No necesitas hacer nada.`;
+        await sendTemplateOrFallback(mgr.phone, 'caso_resuelto', [leadName || leadPhone], fallback, sendWAFn).catch(() => {});
+        logTeamMessage(mgr.phone, mgr.name, 'out', fallback).catch(() => {});
+      }
+      console.log(`[ESC] Escalación ${esc._id} marcada como resuelta para ${leadPhone}`);
+    }
+  } catch (e) {
+    console.error('[ESC] cancelEscalation error:', e.message);
+  }
+}
+
 // ── Pause Ana for a lead ──────────────────────────────────────────────────────
 async function pauseLeadByPhone(phone) {
   try {
@@ -414,6 +442,7 @@ async function checkTimeouts(sendWAFn) {
 
 module.exports = {
   triggerEscalation,
+  cancelEscalation,
   handleManagerReply,
   checkTimeouts,
   isManagerPhone,
