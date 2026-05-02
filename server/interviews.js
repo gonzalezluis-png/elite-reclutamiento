@@ -134,42 +134,56 @@ function deepMerge(defaults, override) {
 
 // ── Available slots ───────────────────────────────────────────────────────────
 async function getAvailableSlots(cfg, fromDate) {
-  const now    = fromDate || new Date();
-  const slots  = [];
-  const rules  = cfg.rules;
-  const sched  = cfg.schedule;
-  const minMs  = rules.minHoursAhead * 60 * 60 * 1000;
+  const now      = fromDate || new Date();
+  const rules    = cfg.rules;
+  const sched    = cfg.schedule;
+  const minMs    = (rules.minHoursAhead || 3) * 60 * 60 * 1000;
   const earliest = new Date(now.getTime() + minMs);
+  const booked   = await getBookedSlots();
+  const SLOTS_PER_DAY = 3;
+  const MAX_LOOK = 14; // days to scan
 
-  // Load booked interviews
-  const booked = await getBookedSlots();
-
-  for (let dayOffset = 0; dayOffset <= rules.maxDaysOut + 1; dayOffset++) {
-    const date = new Date(now);
-    date.setDate(date.getDate() + dayOffset);
-    date.setHours(0, 0, 0, 0);
-
-    const weekday = date.getDay(); // 0=Sun,1=Mon…
+  function getSlotsForDay(date) {
+    const weekday  = date.getDay();
     const override = (sched.overrides || []).find(o => o.date === toDateStr(date));
-    const enabled  = override ? override.enabled !== false : sched.days.includes(weekday);
-    if (!enabled) continue;
-
-    const startH = override ? override.startHour : sched.startHour;
-    const endH   = override ? override.endHour   : sched.endHour;
-
+    const enabled  = override ? override.enabled !== false : (sched.days || [1,2,3,4,5]).includes(weekday);
+    if (!enabled) return [];
+    const startH = override ? override.startHour : (sched.startHour ?? 9);
+    const endH   = override ? override.endHour   : (sched.endHour   ?? 18);
+    const daySlots = [];
     for (let h = startH; h < endH; h++) {
       const slotTime = new Date(date);
       slotTime.setHours(h, 0, 0, 0);
       if (slotTime < earliest) continue;
-
       const slotKey = toDateStr(date) + 'T' + String(h).padStart(2,'0') + ':00';
       if (booked.has(slotKey)) continue;
-
-      slots.push({ date: toDateStr(date), hour: h, iso: slotTime.toISOString(), label: formatSlotLabel(slotTime) });
-      if (slots.length >= rules.maxOptions) return slots;
+      daySlots.push({ date: toDateStr(date), hour: h, iso: slotTime.toISOString(), label: formatSlotLabel(slotTime) });
+      if (daySlots.length >= SLOTS_PER_DAY) break;
     }
+    return daySlots;
   }
-  return slots;
+
+  // Day 1: today (or first available day)
+  let day1Slots = [], day1Offset = -1;
+  for (let offset = 0; offset < MAX_LOOK; offset++) {
+    const date = new Date(now);
+    date.setDate(date.getDate() + offset);
+    date.setHours(0, 0, 0, 0);
+    const s = getSlotsForDay(date);
+    if (s.length) { day1Slots = s; day1Offset = offset; break; }
+  }
+
+  // Day 2: next available day after day1
+  let day2Slots = [];
+  for (let offset = day1Offset + 1; offset < MAX_LOOK; offset++) {
+    const date = new Date(now);
+    date.setDate(date.getDate() + offset);
+    date.setHours(0, 0, 0, 0);
+    const s = getSlotsForDay(date);
+    if (s.length) { day2Slots = s; break; }
+  }
+
+  return [...day1Slots, ...day2Slots];
 }
 
 async function getBookedSlots() {
