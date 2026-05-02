@@ -749,6 +749,7 @@ tr.lead-resuelto td:last-child { pointer-events:none;opacity:.4; }
       <div class="sidebar-item" onclick="showMessaging()" id="nav-messaging">💬 &nbsp;Mensajería</div>
       <div class="sidebar-item" onclick="openExternalApplicant()" style="color:#60a5fa;">📥 &nbsp;Aplicantes Externos</div>
       <div class="sidebar-item sidebar-webinar-link" onclick="openRegistroWebinar()">📝 &nbsp;Registro Webinar</div>
+      <div class="sidebar-item" onclick="showTeamChat()" id="nav-team-chat">💬 &nbsp;Conversación con el equipo</div>
       <div class="sidebar-item" onclick="showAIPanel()" id="nav-ai">🤖 &nbsp;Asistente IA</div>
       <div class="sidebar-item sidebar-config-btn" id="sidebar-config-btn" onclick="showConfig()">⚙️ &nbsp;Configuraciones</div>
       <div class="sidebar-item" onclick="doLogout()" style="color:var(--red);">🚪 &nbsp;Cerrar sesión</div>
@@ -792,6 +793,9 @@ tr.lead-resuelto td:last-child { pointer-events:none;opacity:.4; }
 
     <!-- MENSAJERÍA -->
     <div id="messaging-view" style="display:none;flex:1;overflow:hidden;background:var(--bg);"></div>
+
+    <!-- CONVERSACIÓN CON EL EQUIPO -->
+    <div id="team-chat-view" style="display:none;flex:1;overflow-y:auto;background:var(--bg);padding:28px 32px;"></div>
 
     <!-- ASISTENTE IA -->
     <div id="ai-view" style="display:none;flex:1;overflow-y:auto;background:var(--bg);padding:28px 32px;"></div>
@@ -4191,10 +4195,80 @@ function _hideAllViews() {
   document.getElementById('conversations-view').classList.remove('active');
   document.getElementById('conversations-view').style.display = 'none';
   document.getElementById('ai-view').style.display           = 'none';
+  document.getElementById('team-chat-view').style.display    = 'none';
   document.getElementById('pipeline-tabs').style.display    = 'none';
   document.getElementById('pipeline-subtabs').style.display = 'none';
   document.getElementById('search-input').style.display     = 'none';
   clearInterval(_cvPollInt);
+}
+
+async function showTeamChat() {
+  _hideAllViews();
+  activeView = 'team-chat';
+  document.getElementById('board-title').textContent = 'Conversación con el equipo';
+  const el = document.getElementById('team-chat-view');
+  el.style.display = 'block';
+  renderSidebar();
+
+  el.innerHTML = `
+  <div style="max-width:900px;margin:0 auto;padding-bottom:40px;">
+    <div style="border-bottom:1px solid var(--border);padding-bottom:16px;margin-bottom:20px;display:flex;align-items:flex-end;justify-content:space-between;gap:12px;">
+      <div>
+        <div style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px;">Grupo Élite · CRM</div>
+        <h2 style="font-size:20px;font-weight:800;color:var(--text);margin:0;">💬 Conversación con el equipo</h2>
+        <p style="font-size:12px;color:var(--text2);margin:4px 0 0;">Mensajes de WhatsApp entre Ana y los encargados / entrevistador.</p>
+      </div>
+      <button class="btn-secondary" onclick="_tcRefresh()" style="font-size:12px;padding:7px 14px;flex-shrink:0;">🔄 Actualizar</button>
+    </div>
+    <div style="display:flex;gap:16px;align-items:flex-start;">
+      <!-- Members list -->
+      <div id="tc-members" style="width:200px;flex-shrink:0;display:flex;flex-direction:column;gap:6px;"></div>
+      <!-- Chat area -->
+      <div style="flex:1;min-width:0;">
+        <div id="tc-chat" style="background:var(--card);border:1px solid var(--border);border-radius:12px;min-height:300px;max-height:560px;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:10px;">
+          <div style="color:var(--text2);font-size:12px;text-align:center;padding:20px 0;">Selecciona un integrante para ver la conversación.</div>
+        </div>
+      </div>
+    </div>
+  </div>`;
+
+  try {
+    const [mData, tData] = await Promise.all([
+      fetch(`${SERVER_URL}/ai/managers`).then(r=>r.json()).catch(()=>({managers:[],interviewer:null})),
+      fetch(`${SERVER_URL}/ai/team-messages`).then(r=>r.json()).catch(()=>({messages:[]})),
+    ]);
+    aiInitTeamChat(mData.managers || [], mData.interviewer || null, tData.messages || []);
+    _tcRenderMembers();
+    if (_teamMembers.length) aiSelectTeamTab(_teamMembers[0].phone);
+  } catch(e) {
+    document.getElementById('tc-chat').innerHTML = `<div style="color:var(--red);font-size:12px;">Error: ${e.message}</div>`;
+  }
+}
+
+function _tcRenderMembers() {
+  const el = document.getElementById('tc-members');
+  if (!el) return;
+  el.innerHTML = _teamMembers.map(m => {
+    const msgs  = _teamMessages.filter(msg => (msg.phone||'').replace(/^\+/,'') === m.phone.replace(/^\+/,'')).length;
+    const color = m.role === 'interviewer' ? '#a5b4fc' : '#fdba74';
+    const bg    = m.role === 'interviewer' ? 'rgba(99,102,241,.1)' : 'rgba(249,115,22,.08)';
+    const border= m.role === 'interviewer' ? 'rgba(99,102,241,.3)' : 'rgba(249,115,22,.25)';
+    return `<button id="tc-tab-${m.phone.replace(/[^0-9]/g,'')}" onclick="aiSelectTeamTab('${m.phone}');_tcRenderMembers();"
+      style="text-align:left;background:${bg};border:1px solid ${border};border-radius:10px;padding:10px 12px;cursor:pointer;width:100%;">
+      <div style="font-size:12px;font-weight:700;color:${color};">${esc(m.name)}</div>
+      <div style="font-size:10px;color:var(--text2);margin-top:2px;">${m.role==='interviewer'?'Entrevistador':'Encargado nivel '+(_teamMembers.indexOf(m)+1)} · ${msgs} msg</div>
+    </button>`;
+  }).join('');
+}
+
+async function _tcRefresh() {
+  try {
+    const data = await fetch(`${SERVER_URL}/ai/team-messages`).then(r=>r.json());
+    _teamMessages = data.messages || [];
+    _tcRenderMembers();
+    if (_teamActiveTab) _aiRenderTeamMessages(_teamActiveTab);
+    showToast('Actualizado ✓');
+  } catch(e) { showToast('Error: '+e.message, 'error'); }
 }
 
 async function showAIPanel() {
@@ -4233,7 +4307,6 @@ async function showAIPanel() {
       { id:'webinar',  icon:'🎥', title:'Manejo del Webinar',             desc:'Flujo e instrucciones para cuando el candidato tiene problemas con el webinar.' },
       { id:'triggers', icon:'🚨', title:'Cuándo buscar un manager',      desc:'Situaciones que activan una alerta al equipo de escalada.' },
       { id:'managers', icon:'👥', title:'Equipo de escalada',            desc:'Los tres encargados y el entrevistador que reciben alertas por WhatsApp.' },
-      { id:'equipo',     icon:'💬', title:'Conversación con el equipo',    desc:'Intercambios de WhatsApp entre Ana y los encargados / entrevistador.' },
       { id:'templates',  icon:'📋', title:'Plantillas de WhatsApp',        desc:'Mensajes automáticos que deben aprobarse en Meta Business Manager.' },
     ].map(s => `
     <div style="border:1px solid var(--border);border-radius:10px;margin-bottom:6px;overflow:hidden;background:var(--card);">
@@ -4356,32 +4429,17 @@ function _aiInjectSectionContent() {
       </div>
     </div>`;
 
-  // Team chat section
-  document.getElementById('ai-section-equipo').innerHTML = `
-    <div style="padding-top:4px;display:flex;flex-direction:column;gap:10px;">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
-        <span style="font-size:11px;color:var(--text2);">Mensajes entre Ana y el equipo por WhatsApp.</span>
-        <button class="btn-secondary" onclick="aiLoadTeamChat()" style="font-size:11px;padding:4px 10px;">🔄 Actualizar</button>
-      </div>
-      <!-- Tabs por integrante -->
-      <div id="ai-team-tabs" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
-      <!-- Chat -->
-      <div id="ai-team-chat" style="background:var(--bg);border:1px solid var(--border);border-radius:10px;min-height:180px;max-height:420px;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:8px;">
-        <div style="color:var(--text2);font-size:12px;text-align:center;">Haz clic en un integrante para ver la conversación.</div>
-      </div>
-    </div>`;
 }
 
 async function aiLoadPanel() {
   _aiInjectSectionContent();
   try {
-    const [cs, ss, hs, ms, iv, tm, tpls] = await Promise.all([
+    const [cs, ss, hs, ms, iv, tpls] = await Promise.all([
       fetch(`${SERVER_URL}/ai/config`).then(r=>r.json()),
       fetch(`${SERVER_URL}/ai/settings`).then(r=>r.json()),
       fetch(`${SERVER_URL}/ai/history`).then(r=>r.json()),
       fetch(`${SERVER_URL}/ai/managers`).then(r=>r.json()).catch(()=>({managers:[],interviewer:null})),
       fetch(`${SERVER_URL}/interviews/config`).then(r=>r.json()).catch(()=>({config:{}})),
-      fetch(`${SERVER_URL}/ai/team-messages`).then(r=>r.json()).catch(()=>({messages:[]})),
       fetch(`${SERVER_URL}/ai/templates`).then(r=>r.json()).catch(()=>({templates:{}})),
     ]);
 
@@ -4394,7 +4452,6 @@ async function aiLoadPanel() {
     aiRenderTriggers(_aiConfig.triggers || []);
     aiRenderManagers(ms.managers || [], ms.interviewer || null);
     ivRenderConfig(iv.config || {});
-    aiInitTeamChat(ms.managers || [], ms.interviewer || null, tm.messages || []);
     aiRenderTemplates(tpls.templates || {});
 
     // Channel status pills
@@ -4920,7 +4977,7 @@ function aiInitTeamChat(managers, interviewer, messages) {
 }
 
 function _aiRenderTeamTabs() {
-  const tabs = document.getElementById('ai-team-tabs');
+  const tabs = document.getElementById('ai-team-tabs'); // only used in old inline panel (now standalone view)
   if (!tabs) return;
   tabs.innerHTML = _teamMembers.map(m => {
     const count = _teamMessages.filter(msg => msg.phone?.replace(/^\+/,'') === m.phone.replace(/^\+/,'')).length;
@@ -4935,22 +4992,15 @@ function _aiRenderTeamTabs() {
 
 function aiSelectTeamTab(phone) {
   _teamActiveTab = phone;
-  // Highlight active tab
-  _teamMembers.forEach(m => {
-    const btn = document.getElementById(`ai-team-tab-${m.phone.replace(/[^0-9]/g,'')}`);
-    if (!btn) return;
-    const isActive = m.phone.replace(/^\+/,'') === phone.replace(/^\+/,'');
-    btn.style.fontWeight = isActive ? '700' : '400';
-    btn.style.background = isActive ? (m.role==='interviewer'?'rgba(99,102,241,.2)':'rgba(249,115,22,.12)') : 'transparent';
-  });
   _aiRenderTeamMessages(phone);
+  if (document.getElementById('tc-members')) _tcRenderMembers();
 }
 
 function _aiRenderTeamMessages(phone) {
   const clean  = phone.replace(/^\+/, '');
   const msgs   = _teamMessages.filter(m => (m.phone || '').replace(/^\+/, '') === clean);
   const member = _teamMembers.find(m => m.phone.replace(/^\+/,'') === clean);
-  const el     = document.getElementById('ai-team-chat');
+  const el     = document.getElementById('tc-chat');
   if (!el) return;
 
   if (!msgs.length) {
