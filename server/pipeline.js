@@ -138,6 +138,7 @@ Solo incluye campos mencionados explícitamente. Si no hay info clara, pon null.
 
     let extracted;
     try {
+      if (!extraction.content?.[0]?.text) return;
       let raw = extraction.content[0].text.trim()
         .replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
       const match = raw.match(/\{[\s\S]*\}/);
