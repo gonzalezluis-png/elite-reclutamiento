@@ -1,7 +1,7 @@
 const crypto = require('crypto');
 const { askClaude, conversationHistory } = require('./ai');
 const { fsLeadExists, fsCreateLeadWA, fsGetLeadByPhone, fsUpdateLeadFields, runWAPipeline, humanDelay } = require('./pipeline');
-const { triggerEscalation, cancelEscalation, handleManagerReply, checkTimeouts, isManagerPhone, logTeamMessage, getManagers } = require('./escalation');
+const { triggerEscalation, cancelEscalation, handleManagerReply, checkTimeouts, isManagerPhone, logTeamMessage, loadManagers } = require('./escalation');
 const { pixelLead } = require('./pixel');
 
 const SERVER_URL  = process.env.SERVER_URL  || 'https://elite-reclutamiento-production.up.railway.app';
@@ -163,7 +163,7 @@ function registerMetaRoutes(app) {
       // Check if message is from a manager responding to an escalation
       if (await isManagerPhone(from)) {
         // Log all manager messages, handled or not
-        const managers = await getManagers().catch(() => []);
+        const managers = await loadManagers().catch(() => []);
         const mgr = managers.find(m => m.phone.replace(/^\+/, '') === from.replace(/^\+/, ''));
         if (mgr) logTeamMessage(mgr.phone, mgr.name, 'in', text).catch(() => {});
 
