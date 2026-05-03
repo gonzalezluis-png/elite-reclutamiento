@@ -19,7 +19,7 @@ async function sendCAPIEvent(eventName, lead, customData = {}) {
   }
 
   const eventTime = Math.floor(Date.now() / 1000);
-  const eventId   = `${eventName}_${(lead.id || lead.telefono || '').replace(/\D/g, '')}_${eventTime}`;
+  const eventId   = `elite_crm_${eventName}_${(lead.id || lead.telefono || '').replace(/\D/g, '')}_${eventTime}`;
 
   const userData = {};
   const phone = normalizePhone(lead.telefono);
