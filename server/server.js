@@ -268,10 +268,18 @@ app.get('/ai/tts/:id', (req, res) => {
 app.post('/twilio/voice', async (req, res) => {
   const { VoiceResponse } = twilio.twiml;
   const twiml = new VoiceResponse();
-  const to = req.body.To;
+  const to     = req.body.To;
+  const callSid = req.body.CallSid;
 
   // Inbound call → AI assistant (To is one of our numbers or empty)
   if (aiEnabled.voice && (!to || OUR_NUMBERS.has(to))) {
+    // Start recording immediately for inbound calls
+    if (callSid && TWILIO_ACCOUNT_SID && TWILIO_AUTH_TOKEN) {
+      const tc = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
+      tc.calls(callSid).recordings.create({ recordingChannels: 'dual' })
+        .then(r => console.log(`[Twilio] Grabación iniciada: ${r.sid}`))
+        .catch(e => console.warn('[Twilio] Error grabación:', e.message));
+    }
     const greeting = 'Hola, gracias por llamar a Grupo Elite Work. Soy Ana, tu asistente virtual. ¿En qué puedo ayudarte hoy?';
     try {
       const id  = await _genTTS(greeting);
@@ -290,7 +298,7 @@ app.post('/twilio/voice', async (req, res) => {
   if (to) {
     const callerId = pickCallerId(to);
     console.log(`[Twilio] Llamando a ${to} → caller ID: ${callerId}`);
-    const dial = twiml.dial({ callerId, timeout: 30, record: 'do-not-record' });
+    const dial = twiml.dial({ callerId, timeout: 30, record: 'record-from-answer', recordingChannels: 'dual' });
     dial.number(to);
   } else {
     twiml.say({ language: 'es-MX' }, 'No se especificó un número de destino.');
