@@ -2,6 +2,7 @@ const crypto = require('crypto');
 const { askClaude, conversationHistory } = require('./ai');
 const { fsLeadExists, fsCreateLeadWA, fsGetLeadByPhone, fsUpdateLeadFields, runWAPipeline, humanDelay } = require('./pipeline');
 const { triggerEscalation, cancelEscalation, handleManagerReply, checkTimeouts, isManagerPhone, logTeamMessage, getManagers } = require('./escalation');
+const { pixelLead } = require('./pixel');
 
 const SERVER_URL  = process.env.SERVER_URL  || 'https://elite-reclutamiento-production.up.railway.app';
 const WEBINAR_URL = process.env.WEBINAR_URL || 'https://crm.grupoelitework.com/webinar.html';
@@ -172,7 +173,10 @@ function registerMetaRoutes(app) {
 
       // Auto-create lead if not in CRM
       const exists = await fsLeadExists(from);
-      if (!exists) await fsCreateLeadWA(`wa_meta:${from}`);
+      if (!exists) {
+        await fsCreateLeadWA(`wa_meta:${from}`);
+        pixelLead({ telefono: from, correo: '' }).catch(() => {});
+      }
 
       // Tag lead source if message came from a Meta ad (Click-to-WhatsApp)
       if (msg.referral?.source_type === 'ad') {

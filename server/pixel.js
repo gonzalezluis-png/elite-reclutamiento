@@ -52,9 +52,18 @@ async function sendCAPIEvent(eventName, lead, customData = {}) {
   }
 }
 
+// Lead nuevo llega al CRM — primera etapa del embudo
+function pixelLead(lead) {
+  return sendCAPIEvent('initial_lead', lead, {
+    content_name: 'Lead WhatsApp Grupo Élite',
+    currency:     'MXN',
+    value:        0,
+  });
+}
+
 // Lead inscrito en webinar — audiencia calificada
 function pixelWebinar(lead) {
-  return sendCAPIEvent('CompleteRegistration', lead, {
+  return sendCAPIEvent('qualified_lead', lead, {
     content_name: 'Webinar Grupo Élite',
     status:       'inscrito',
     currency:     'MXN',
@@ -72,4 +81,4 @@ function pixelEntrevista(lead) {
   });
 }
 
-module.exports = { pixelWebinar, pixelEntrevista };
+module.exports = { pixelLead, pixelWebinar, pixelEntrevista };
