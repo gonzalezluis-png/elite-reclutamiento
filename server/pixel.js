@@ -36,6 +36,7 @@ async function sendCAPIEvent(eventName, lead, customData = {}) {
       user_data:     userData,
       custom_data:   customData,
     }],
+    ...(process.env.META_TEST_EVENT_CODE ? { test_event_code: process.env.META_TEST_EVENT_CODE } : {}),
   };
 
   try {
