@@ -924,6 +924,37 @@ app.post('/interviews/book', async (req, res) => {
   res.json({ ok: true, id, doc, interview: { id, slot: slotIso, zoom_link: doc.zoomLink, status: doc.status } });
 });
 
+// ── Grabaciones de llamadas ───────────────────────────────────────────────────
+app.get('/recordings', async (req, res) => {
+  const phone = (req.query.phone || '').replace(/\D/g, '');
+  if (!phone || !TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN) return res.json({ ok: true, recordings: [] });
+  try {
+    const tc = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
+    const [callsTo, callsFrom] = await Promise.all([
+      tc.calls.list({ to: `+${phone}`, limit: 50 }),
+      tc.calls.list({ from: `+${phone}`, limit: 50 }),
+    ]);
+    const allCalls = [...callsTo, ...callsFrom];
+    const recArrays = await Promise.all(
+      allCalls.map(c => tc.recordings.list({ callSid: c.sid }).catch(() => []))
+    );
+    const recordings = recArrays.flat()
+      .filter(r => r.duration > 0)
+      .sort((a, b) => new Date(b.dateCreated) - new Date(a.dateCreated))
+      .slice(0, 20)
+      .map(r => ({
+        sid:      r.sid,
+        duration: r.duration,
+        date:     r.dateCreated,
+        url:      `https://api.twilio.com/2010-04-01/Accounts/${TWILIO_ACCOUNT_SID}/Recordings/${r.sid}.mp3`,
+      }));
+    res.json({ ok: true, recordings });
+  } catch (e) {
+    console.error('[Recordings]', e.message);
+    res.json({ ok: true, recordings: [] });
+  }
+});
+
 app.get('/interviews', async (req, res) => {
   let list = await listInterviews();
   if (req.query.phone) {

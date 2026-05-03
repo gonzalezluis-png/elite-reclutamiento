@@ -82,6 +82,7 @@ function openLead(id, tabName) {
   document.getElementById('lead-modal').classList.remove('hidden');
   _mlSetMode(false);
   lcOpen();
+  loadRecordings(lead.telefono);
 }
 
 function closeLead() {
@@ -900,6 +901,43 @@ function quickAction(type, leadId) {
   if (type === 'call' && lead.telefono) window.open('tel:'+lead.telefono.replace(/\s/g,''));
   else if (type === 'msg' && lead.telefono) window.open('https://wa.me/'+lead.telefono.replace(/[^0-9]/g,''));
   else showToast('Sin teléfono registrado');
+}
+
+// ════════════════════════════════════════════
+//  GRABACIONES DE LLAMADAS
+// ════════════════════════════════════════════
+async function loadRecordings(telefono) {
+  const box = document.getElementById('ml-recordings');
+  if (!box) return;
+  box.innerHTML = '<div style="font-size:11px;color:rgba(255,255,255,.2);">Cargando…</div>';
+  if (!telefono) { box.innerHTML = '<div style="font-size:11px;color:rgba(255,255,255,.2);">Sin teléfono</div>'; return; }
+
+  try {
+    const phone = telefono.replace(/\D/g, '');
+    const res   = await fetch(`/recordings?phone=${phone}`);
+    const data  = await res.json();
+    if (!data.recordings?.length) {
+      box.innerHTML = '<div style="font-size:11px;color:rgba(255,255,255,.2);">Sin grabaciones</div>';
+      return;
+    }
+    box.innerHTML = data.recordings.map(r => {
+      const d    = new Date(r.date);
+      const fecha = d.toLocaleDateString('es-MX', { month:'short', day:'numeric', year:'2-digit' });
+      const hora  = d.toLocaleTimeString('es-MX', { hour:'2-digit', minute:'2-digit' });
+      const min   = Math.floor(r.duration / 60);
+      const seg   = String(r.duration % 60).padStart(2,'0');
+      const dur   = min > 0 ? `${min}:${seg} min` : `${r.duration}s`;
+      return `<div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:8px 10px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+          <span style="font-size:11px;color:rgba(255,255,255,.5);">${fecha} ${hora}</span>
+          <span style="font-size:10px;color:rgba(255,255,255,.3);">${dur}</span>
+        </div>
+        <audio controls style="width:100%;height:28px;" src="${r.url}"></audio>
+      </div>`;
+    }).join('');
+  } catch(e) {
+    box.innerHTML = '<div style="font-size:11px;color:rgba(255,255,255,.2);">Error al cargar</div>';
+  }
 }
 
 // ════════════════════════════════════════════
