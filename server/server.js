@@ -467,7 +467,11 @@ app.post('/twilio/whatsapp-incoming', async (req, res) => {
   }
 
   const exists = await fsLeadExists(cleanFrom);
-  if (!exists) await fsCreateLeadWA(From);
+  if (!exists) {
+    await fsCreateLeadWA(From);
+    const { pixelLead } = require('./pixel');
+    pixelLead({ telefono: cleanFrom, correo: '' }).catch(() => {});
+  }
 
   // Check if IA is paused for this lead
   const _twLeadData = await fsGetLeadByPhone(cleanFrom);
