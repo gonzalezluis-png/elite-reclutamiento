@@ -41,7 +41,7 @@ async function sendWhatsApp(to, text) {
   }
   const parts = splitMessage(text);
   for (const part of parts) {
-    await fetch(`${GRAPH_URL}/${META_WA_PHONE_ID}/messages`, {
+    const r = await fetch(`${GRAPH_URL}/${META_WA_PHONE_ID}/messages`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${META_WA_TOKEN}`,
@@ -54,6 +54,8 @@ async function sendWhatsApp(to, text) {
         text: { body: part },
       }),
     });
+    const json = await r.json();
+    if (json.error) console.error(`[Meta WA] Error enviando a ${to}:`, JSON.stringify(json.error));
   }
 }
 
