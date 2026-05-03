@@ -280,7 +280,7 @@ app.post('/twilio/voice', async (req, res) => {
         .then(r => console.log(`[Twilio] Grabación iniciada: ${r.sid}`))
         .catch(e => console.warn('[Twilio] Error grabación:', e.message));
     }
-    const greeting = 'Hola, gracias por llamar a Grupo Elite Work. Soy Ana, tu asistente virtual. ¿En qué puedo ayudarte hoy?';
+    const greeting = 'Hola, te has comunicado con el Departamento de Recursos Humanos de Grupo Élite. ¿En qué te puedo ayudar?';
     try {
       const id  = await _genTTS(greeting);
       const gather = twiml.gather({ input: 'speech', action: '/twilio/voice/respond', speechTimeout: 'auto', language: 'es-MX', speechModel: 'phone_call' });
