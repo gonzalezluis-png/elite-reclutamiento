@@ -16,11 +16,72 @@ const META_PAGE_ACCESS_TOKEN = process.env.META_PAGE_ACCESS_TOKEN || ''; // Mess
 const META_IG_ACCESS_TOKEN   = process.env.META_IG_ACCESS_TOKEN   || ''; // Instagram token
 
 // App 2 — WhatsApp
-const META_APP_SECRET_WA     = process.env.META_APP_SECRET_WA     || '80dc2555ece1fd87afb133222ff2b5eb';
-const META_WA_TOKEN          = process.env.META_WA_TOKEN          || ''; // WhatsApp access token
-const META_WA_PHONE_ID       = process.env.META_WA_PHONE_ID       || ''; // Phone Number ID
+const META_APP_SECRET_WA = process.env.META_APP_SECRET_WA || '80dc2555ece1fd87afb133222ff2b5eb';
+const META_APP_ID        = process.env.META_APP_ID        || '1447919720444811';
+const META_WA_PHONE_ID   = process.env.META_WA_PHONE_ID   || '';
 
-const GRAPH_URL = 'https://graph.facebook.com/v21.0';
+const GRAPH_URL  = 'https://graph.facebook.com/v21.0';
+const FS_PROJECT = 'elite-reclutamiento-crm';
+const FS_KEY     = 'AIzaSyCW2t1oHb7xc2Vi6vJROGRM7E7nu-CbU3s';
+const FS_BASE    = `https://firestore.googleapis.com/v1/projects/${FS_PROJECT}/databases/(default)/documents`;
+
+// ── Token management — auto-refresh before expiry ────────────────────────────
+let _waToken = process.env.META_WA_TOKEN || '';
+
+async function _loadTokenFromFS() {
+  try {
+    const res  = await fetch(`${FS_BASE}/config/wa_token?key=${FS_KEY}`);
+    const doc  = await res.json();
+    if (!doc.fields) return;
+    const token   = doc.fields.token?.stringValue;
+    const expires = doc.fields.expires_at?.integerValue || doc.fields.expires_at?.doubleValue;
+    if (token && expires && Date.now() < Number(expires) * 1000) {
+      _waToken = token;
+      console.log('[Meta WA] Token cargado desde Firestore — expira:', new Date(Number(expires) * 1000).toLocaleDateString());
+    }
+  } catch (e) { console.warn('[Meta WA] No se pudo cargar token desde FS:', e.message); }
+}
+
+async function _saveTokenToFS(token, expiresIn) {
+  const expiresAt = Math.floor(Date.now() / 1000) + expiresIn;
+  await fetch(`${FS_BASE}/config/wa_token?key=${FS_KEY}&updateMask.fieldPaths=token&updateMask.fieldPaths=expires_at`, {
+    method:  'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ fields: { token: { stringValue: token }, expires_at: { integerValue: String(expiresAt) } } }),
+  });
+}
+
+async function _refreshToken() {
+  if (!META_APP_ID || !META_APP_SECRET_WA || !_waToken) return;
+  try {
+    const res  = await fetch(`${GRAPH_URL.replace('v21.0','v21.0')}/oauth/access_token?grant_type=fb_exchange_token&client_id=${META_APP_ID}&client_secret=${META_APP_SECRET_WA}&fb_exchange_token=${_waToken}`);
+    const data = await res.json();
+    if (data.access_token) {
+      _waToken = data.access_token;
+      await _saveTokenToFS(data.access_token, data.expires_in || 5184000);
+      console.log('[Meta WA] Token renovado automáticamente ✓');
+    } else {
+      console.error('[Meta WA] Error renovando token:', JSON.stringify(data));
+    }
+  } catch (e) { console.error('[Meta WA] Error en refresh token:', e.message); }
+}
+
+async function _checkTokenExpiry() {
+  try {
+    const res  = await fetch(`${FS_BASE}/config/wa_token?key=${FS_KEY}`);
+    const doc  = await res.json();
+    const expires = Number(doc.fields?.expires_at?.integerValue || 0);
+    const sevenDays = 7 * 24 * 60 * 60;
+    if (expires && (expires - Math.floor(Date.now() / 1000)) < sevenDays) {
+      console.log('[Meta WA] Token expira pronto — renovando…');
+      await _refreshToken();
+    }
+  } catch (e) { console.warn('[Meta WA] Error verificando expiración:', e.message); }
+}
+
+// Load token on startup and check expiry every 24 hours
+_loadTokenFromFS().then(() => _checkTokenExpiry());
+setInterval(_checkTokenExpiry, 24 * 60 * 60 * 1000);
 
 // ── Signature verification ────────────────────────────────────────────────────
 function verifySignature(req, appSecret) {
@@ -35,7 +96,7 @@ function verifySignature(req, appSecret) {
 
 // ── Send WhatsApp message via Meta Cloud API ──────────────────────────────────
 async function sendWhatsApp(to, text) {
-  if (!META_WA_TOKEN || !META_WA_PHONE_ID) {
+  if (!_waToken || !META_WA_PHONE_ID) {
     console.warn('[Meta WA] Token o Phone ID no configurados');
     return;
   }
@@ -44,7 +105,7 @@ async function sendWhatsApp(to, text) {
     const r = await fetch(`${GRAPH_URL}/${META_WA_PHONE_ID}/messages`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${META_WA_TOKEN}`,
+        'Authorization': `Bearer ${_waToken}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
@@ -55,7 +116,13 @@ async function sendWhatsApp(to, text) {
       }),
     });
     const json = await r.json();
-    if (json.error) console.error(`[Meta WA] Error enviando a ${to}:`, JSON.stringify(json.error));
+    if (json.error) {
+      console.error(`[Meta WA] Error enviando a ${to}:`, JSON.stringify(json.error));
+      if (json.error.code === 190) {
+        console.log('[Meta WA] Token expirado — renovando…');
+        await _refreshToken();
+      }
+    }
   }
 }
 
