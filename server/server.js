@@ -635,7 +635,7 @@ app.post('/twilio/whatsapp-incoming', async (req, res) => {
   const cleanFrom = From.replace('whatsapp:', '');
 
   // ── Auth verification — must be FIRST ─────────────────────────────────────
-  if (handleAuthWAReply(cleanFrom, Body)) {
+  if (await handleAuthWAReply(cleanFrom, Body)) {
     return res.type('text/xml').send('<Response></Response>');
   }
 
