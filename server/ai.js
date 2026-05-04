@@ -421,7 +421,13 @@ async function saveEntrevistasConfig(config) {
 
 // ── Build system prompt from config ──────────────────────────────────────────
 async function buildSystemPrompt(channel = 'text') {
-  const cfg = await loadConfigFromFirestore().catch(() => loadConfig());
+  const [entrevistasCfg, oldCfg] = await Promise.all([
+    loadEntrevistasConfig().catch(() => ({})),
+    loadConfigFromFirestore().catch(() => ({})),
+  ]);
+  // ai_entrevistas_config has the admin-edited prompts (general, qa, cases, triggers, forbidden)
+  // ai_config has webinar which isn't part of the entrevistas editor
+  const cfg = { ...oldCfg, ...entrevistasCfg, webinar: oldCfg.webinar || entrevistasCfg.webinar || '' };
 
   const channelNote = channel === 'voice'
     ? 'Estás en una LLAMADA DE VOZ. Responde en máximo 2 oraciones cortas y directas.'
