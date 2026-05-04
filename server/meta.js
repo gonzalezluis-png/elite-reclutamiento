@@ -4,7 +4,7 @@ const { askClaude, conversationHistory } = require('./ai');
 const { fsLeadExists, fsCreateLeadWA, fsGetLeadByPhone, fsUpdateLeadFields, runWAPipeline, humanDelay } = require('./pipeline');
 const { triggerEscalation, cancelEscalation, handleManagerReply, checkTimeouts, isManagerPhone, logTeamMessage, loadManagers } = require('./escalation');
 const { pixelLead } = require('./pixel');
-const { loadInterviewConfig, getAvailableSlots } = require('./interviews');
+const { loadInterviewConfig, getAvailableSlots, bookInterview } = require('./interviews');
 
 const SERVER_URL  = process.env.SERVER_URL  || 'https://elite-reclutamiento-production.up.railway.app';
 const WEBINAR_URL = process.env.WEBINAR_URL || 'https://crm.grupoelitework.com/webinar.html';
@@ -335,6 +335,78 @@ function registerMetaRoutes(app) {
         }
       }
 
+      // ── Interview: slot selection state machine ──────────────────────────
+      const _ivState = leadData?.fields?.interview_state?.stringValue;
+      if (_ivState === 'awaiting_slot' && combinedText?.trim()) {
+        let ivData = {};
+        try {
+          const _raw = JSON.parse(leadData.fields?.pending_slots?.stringValue || '{}');
+          ivData = Array.isArray(_raw) ? { slots: _raw, offeringDay: 1 } : _raw;
+        } catch {}
+        const allSlots    = ivData.slots || [];
+        const offeringDay = ivData.offeringDay || 1;
+        const leadId      = leadData?.name?.split('/').pop();
+        const nombre      = leadData?.fields?.nombre?.stringValue || '';
+        const firstName   = nombre.split(' ')[0] || 'amigo';
+        const fmtH        = h => h === 0 ? '12am' : h === 12 ? '12pm' : h < 12 ? `${h}am` : `${h-12}pm`;
+        const DIAS_FULL   = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
+
+        const dayDates   = [...new Set(allSlots.map(s => new Date(s.iso).toISOString().slice(0,10)))];
+        const currentDay = dayDates[offeringDay - 1];
+        const daySlots   = allSlots.filter(s => new Date(s.iso).toISOString().slice(0,10) === currentDay);
+
+        if (daySlots.length) {
+          const times = daySlots.map(s => fmtH(new Date(s.iso).getHours()));
+
+          let decision = '?';
+          try {
+            const Anthropic = require('@anthropic-ai/sdk');
+            const hk  = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+            const hkr = await hk.messages.create({
+              model: 'claude-haiku-4-5-20251001', max_tokens: 8,
+              system: `El candidato debe elegir o rechazar estos horarios de entrevista: ${times.map((t,i)=>`opción ${i+1} (${t})`).join(', ')}. Responde SOLO con el número elegido (${times.map((_,i)=>i+1).join('/')}) si eligió uno, "NO" si no puede en ninguno, o "?" si no está claro.`,
+              messages: [{ role: 'user', content: combinedText }],
+            });
+            decision = hkr.content[0].text.trim().toUpperCase();
+          } catch {}
+
+          const choiceIdx = parseInt(decision) - 1;
+
+          if (!isNaN(choiceIdx) && choiceIdx >= 0 && choiceIdx < daySlots.length) {
+            // Candidate chose a slot → book it
+            const chosen = daySlots[choiceIdx];
+            console.log(`[Interview] ${from} eligió: ${chosen.iso}`);
+            try {
+              await bookInterview({ leadPhone: from, leadName: nombre, slotIso: chosen.iso, convKey });
+              if (leadId) await fsUpdateLeadFields(leadId, { interview_state: 'booked', pending_slots: '', quiere_entrevista: false, webinar_accion: 'en-entrevista' });
+            } catch (e) { console.error('[Interview] Error booking:', e.message); }
+            return;
+
+          } else if (decision === 'NO') {
+            if (offeringDay === 1 && dayDates.length > 1) {
+              // Offer day 2
+              const day2Slots = allSlots.filter(s => new Date(s.iso).toISOString().slice(0,10) === dayDates[1]);
+              const d2   = new Date(day2Slots[0].iso);
+              const t2   = day2Slots.map(s => fmtH(new Date(s.iso).getHours()));
+              const tList2 = t2.length === 1 ? `a las ${t2[0]}` : t2.length === 2 ? `a las ${t2[0]} o a las ${t2[1]}` : `a las ${t2[0]}, a las ${t2[1]} o a las ${t2[2]}`;
+              const msg2   = `Sin problema, ¡${firstName}! 😊 El ${DIAS_FULL[d2.getDay()]} también tengo disponible ${tList2}. ¿Alguna te funciona?`;
+              await humanDelay(msg2);
+              await sendWhatsApp(from, msg2);
+              if (leadId) await fsUpdateLeadFields(leadId, { pending_slots: JSON.stringify({ slots: allSlots, offeringDay: 2 }) });
+            } else {
+              // Both days rejected → escalate
+              const escMsg = `Entendido, ${firstName}. Voy a pedirle a un encargado que te contacte para encontrar un horario que te funcione. 🙏`;
+              await humanDelay(escMsg);
+              await sendWhatsApp(from, escMsg);
+              if (leadId) await fsUpdateLeadFields(leadId, { interview_state: '', pending_slots: '', sin_manager: true });
+              triggerEscalation(from, nombre, 'sin-horario', `Candidato no puede en ningún horario ofrecido (día 1 y día 2)`, sendWAToManager).catch(() => {});
+            }
+            return;
+          }
+          // '?' → fall through so Ana asks for clarification
+        }
+      }
+
       const rawReply = await askClaude(convKey, combinedText, 'wa');
       const escMatch = rawReply.match(/\[ESC:([^\]]+)\]/);
       const agendar  = rawReply.includes('[AGENDAR]');
@@ -380,7 +452,7 @@ function registerMetaRoutes(app) {
             await humanDelay(slotsMsg);
             await sendWhatsApp(from, slotsMsg);
 
-            const doc = await fsGetLeadByPhone(`+${from}`);
+            const doc = await fsGetLeadByPhone(from);
             if (doc) {
               const lid = doc.name.split('/').pop();
               await fsUpdateLeadFields(lid, {
