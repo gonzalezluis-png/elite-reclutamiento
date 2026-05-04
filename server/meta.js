@@ -95,10 +95,25 @@ function verifySignature(req, appSecret) {
   return crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected));
 }
 
+// Outbound dedup: prevent sending the same text to the same number within 30 s
+const _sentDedup = new Map(); // `${to}:${text}` → timestamp
+function _isDupSend(to, text) {
+  const key = `${to}:${text}`;
+  const last = _sentDedup.get(key) || 0;
+  if (Date.now() - last < 30_000) return true;
+  _sentDedup.set(key, Date.now());
+  setTimeout(() => _sentDedup.delete(key), 60_000);
+  return false;
+}
+
 // ── Send WhatsApp message via Meta Cloud API ──────────────────────────────────
 async function sendWhatsApp(to, text) {
   if (!_waToken || !META_WA_PHONE_ID) {
     console.warn('[Meta WA] Token o Phone ID no configurados');
+    return;
+  }
+  if (_isDupSend(to, text)) {
+    console.warn(`[Meta WA] Envío duplicado ignorado → ${to}`);
     return;
   }
   const parts = splitMessage(text);
@@ -349,7 +364,7 @@ function registerMetaRoutes(app) {
       }
 
       // Auth 2FA intercept (fast path — no debounce needed)
-      if (handleAuthWAReply(from, text)) return;
+      if (await handleAuthWAReply(from, text)) return;
 
       // Buffer message and (re)start debounce timer
       if (!_msgBuffer.has(from)) _msgBuffer.set(from, []);
