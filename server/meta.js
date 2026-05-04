@@ -4,6 +4,7 @@ const { askClaude, conversationHistory } = require('./ai');
 const { fsLeadExists, fsCreateLeadWA, fsGetLeadByPhone, fsUpdateLeadFields, runWAPipeline, humanDelay } = require('./pipeline');
 const { triggerEscalation, cancelEscalation, handleManagerReply, checkTimeouts, isManagerPhone, logTeamMessage, loadManagers } = require('./escalation');
 const { pixelLead } = require('./pixel');
+const { loadInterviewConfig, getAvailableSlots } = require('./interviews');
 
 const SERVER_URL  = process.env.SERVER_URL  || 'https://elite-reclutamiento-production.up.railway.app';
 const WEBINAR_URL = process.env.WEBINAR_URL || 'https://crm.grupoelitework.com/webinar.html';
@@ -336,7 +337,8 @@ function registerMetaRoutes(app) {
 
       const rawReply = await askClaude(convKey, combinedText, 'wa');
       const escMatch = rawReply.match(/\[ESC:([^\]]+)\]/);
-      const reply    = rawReply.replace(/\[ESC:[^\]]*\]\n?/g, '').trim();
+      const agendar  = rawReply.includes('[AGENDAR]');
+      const reply    = rawReply.replace(/\[ESC:[^\]]*\]\n?/g, '').replace(/\[AGENDAR\]\n?/g, '').trim();
 
       if (escMatch) {
         const leadName = leadData?.fields?.nombre?.stringValue || '';
@@ -350,6 +352,47 @@ function registerMetaRoutes(app) {
       console.log(`[Meta WA] → ${from}: ${reply}`);
       await humanDelay(reply);
       await sendWhatsApp(from, reply);
+
+      if (agendar) {
+        (async () => {
+          try {
+            const cfg   = await loadInterviewConfig();
+            const slots = await getAvailableSlots(cfg);
+            const nombre = leadData?.fields?.nombre?.stringValue || '';
+            const first  = nombre.split(' ')[0] || '';
+            const DIAS_FULL = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
+            const fmtH = h => h === 0 ? '12am' : h === 12 ? '12pm' : h < 12 ? `${h}am` : `${h-12}pm`;
+
+            if (!slots.length) {
+              const noSlotMsg = `${first ? '¡'+first+'! ' : ''}En este momento no hay horarios disponibles. Un encargado se pondrá en contacto contigo muy pronto para agendar. 🙏`;
+              await humanDelay(noSlotMsg);
+              await sendWhatsApp(from, noSlotMsg);
+              return;
+            }
+
+            const dayDates = [...new Set(slots.map(s => new Date(s.iso).toISOString().slice(0,10)))];
+            const day1Slots = slots.filter(s => new Date(s.iso).toISOString().slice(0,10) === dayDates[0]);
+            const d1   = new Date(day1Slots[0].iso);
+            const t1   = day1Slots.map(s => fmtH(new Date(s.iso).getHours()));
+            const tList = t1.length === 1 ? `a las ${t1[0]}` : t1.length === 2 ? `a las ${t1[0]} o a las ${t1[1]}` : `a las ${t1[0]}, a las ${t1[1]} o a las ${t1[2]}`;
+            const slotsMsg = `${first ? '¡'+first+'! ' : ''}😊 Para tu entrevista, el ${DIAS_FULL[d1.getDay()]} tengo disponible ${tList}. ¿Alguna te funciona?`;
+
+            await humanDelay(slotsMsg);
+            await sendWhatsApp(from, slotsMsg);
+
+            const doc = await fsGetLeadByPhone(`+${from}`);
+            if (doc) {
+              const lid = doc.name.split('/').pop();
+              await fsUpdateLeadFields(lid, {
+                quiere_entrevista: true,
+                interview_state:   'awaiting_slot',
+                pending_slots:     JSON.stringify({ slots, offeringDay: 1 }),
+              });
+            }
+            console.log(`[Interview] Slots ofrecidos a ${from} — día 1: ${DIAS_FULL[d1.getDay()]}, horarios: ${t1.join(', ')}`);
+          } catch (e) { console.error('[AGENDAR Meta] Error:', e.message); }
+        })();
+      }
 
       ;(async () => {
         try {
