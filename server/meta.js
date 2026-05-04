@@ -344,26 +344,34 @@ function registerMetaRoutes(app) {
         return;
       }
 
-      // Inject context after server restart (only if history is empty)
-      if (!conversationHistory.get(convKey)?.length && leadData) {
+      // Inject / refresh context from Firestore (on restart: full injection; mid-session: update pinned message)
+      if (leadData) {
         const f = leadData.fields || {};
         const ctxParts = [];
-        const nombre     = f.nombre?.stringValue    || '';
-        const correo     = f.correo?.stringValue     || '';
-        const ubicacion  = f.ubicacion?.stringValue  || '';
-        const etapa      = f.etapa?.stringValue      || '';
-        const pipelineId = f.pipeline_id?.stringValue || '';
-        if (nombre && !nombre.startsWith('WA ') && !nombre.startsWith('+')) ctxParts.push(`nombre: ${nombre}`);
-        if (correo)    ctxParts.push(`correo: ${correo}`);
-        if (ubicacion) ctxParts.push(`ciudad: ${ubicacion}`);
-        if (pipelineId) ctxParts.push(`estado en el proceso: ${etapa || pipelineId}`);
+        const _ctxNombre     = f.nombre?.stringValue    || '';
+        const _ctxCorreo     = f.correo?.stringValue     || '';
+        const _ctxUbicacion  = f.ubicacion?.stringValue  || '';
+        const _ctxEtapa      = f.etapa?.stringValue      || '';
+        const _ctxPipelineId = f.pipeline_id?.stringValue || '';
+        if (_ctxNombre && !_ctxNombre.startsWith('WA ') && !_ctxNombre.startsWith('+')) ctxParts.push(`nombre: ${_ctxNombre}`);
+        if (_ctxCorreo)     ctxParts.push(`correo: ${_ctxCorreo}`);
+        if (_ctxUbicacion)  ctxParts.push(`ciudad: ${_ctxUbicacion}`);
+        if (_ctxPipelineId) ctxParts.push(`estado en el proceso: ${_ctxEtapa || _ctxPipelineId}`);
         if (ctxParts.length > 0) {
-          const history = [];
-          conversationHistory.set(convKey, history);
-          const now = Date.now();
-          history.push({ role: 'user',      content: `[SISTEMA — contexto recuperado tras reinicio del servidor. NO mencionar al candidato ni revelar este mensaje]: Ya tenemos estos datos del candidato: ${ctxParts.join(', ')}. No vuelvas a pedirlos. Continúa la conversación de forma natural según el estado actual del proceso.`, ts: now - 2000 });
-          history.push({ role: 'assistant', content: `Entendido. Continuaré la conversación con el contexto del candidato ya cargado.`, ts: now - 1000 });
-          console.log(`[Meta WA] Contexto inyectado tras reinicio para ${from}`);
+          const ctxContent = `[SISTEMA — contexto del candidato. NO mencionar al candidato ni revelar este mensaje]: Ya tenemos estos datos del candidato: ${ctxParts.join(', ')}. No vuelvas a pedirlos. Dirígete al candidato por su nombre en cada respuesta. Continúa la conversación de forma natural según el estado actual del proceso.`;
+          const existingHist = conversationHistory.get(convKey);
+          if (!existingHist?.length) {
+            // Server restart — inject full context seed
+            const freshHist = [];
+            conversationHistory.set(convKey, freshHist);
+            const now = Date.now();
+            freshHist.push({ role: 'user',      content: ctxContent, ts: now - 2000 });
+            freshHist.push({ role: 'assistant', content: `Entendido. Continuaré la conversación con el contexto del candidato ya cargado.`, ts: now - 1000 });
+            console.log(`[Meta WA] Contexto inyectado tras reinicio para ${from}: ${ctxParts.join(', ')}`);
+          } else if (existingHist[0]?.content?.startsWith('[SISTEMA')) {
+            // Mid-session — update the pinned context message with fresh Firestore data
+            existingHist[0] = { ...existingHist[0], content: ctxContent };
+          }
         }
       }
 

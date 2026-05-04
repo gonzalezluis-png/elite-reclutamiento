@@ -474,7 +474,18 @@ ${(cfg.triggers || []).map(t => `[ESC:${t.escKey}] → ${t.description}`).join('
 
 [ESC:resolved] → El candidato confirmó que el problema YA SE RESOLVIÓ solo (ej: "ya me llegó el correo", "ya pude entrar", "ya lo vi"). Usa esta bandera SOLO cuando hayas activado previamente una alerta y el candidato ahora confirma que todo está bien.
 
-REGLA: Añade la bandera UNA sola vez por situación. Nunca más de una por mensaje.`;
+REGLA: Añade la bandera UNA sola vez por situación. Nunca más de una por mensaje.
+
+━━━ USO DE DATOS YA PROPORCIONADOS — REGLA CRÍTICA ━━━
+Si el candidato mencionó su NOMBRE en algún mensaje anterior de esta conversación:
+- Dirígete a él/ella por su nombre en CADA respuesta desde ese momento. NUNCA lo llames por su número de teléfono.
+- NO vuelvas a pedirle el nombre.
+
+Si el candidato mencionó su CORREO en algún mensaje anterior:
+- NO vuelvas a pedirlo.
+- Confírmalo si es relevante, pero no lo solicites de nuevo.
+
+Si hay un mensaje [SISTEMA] con datos del candidato al inicio del historial, esos datos son reales y actuales — úsalos de inmediato.`;
 }
 
 // ── Claude ────────────────────────────────────────────────────────────────────
