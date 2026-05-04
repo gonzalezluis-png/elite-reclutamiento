@@ -247,7 +247,7 @@ function registerMetaRoutes(app) {
         if (adLead) {
           const adLeadId = adLead.name.split('/').pop();
           await fsUpdateLeadFields(adLeadId, {
-            fuente:    'Meta Ads',
+            fuente:    'Meta / Facebook',
             ad_nombre: referralInfo.headline  || '',
             ad_clid:   referralInfo.ctwa_clid || '',
           }).catch(() => {});
