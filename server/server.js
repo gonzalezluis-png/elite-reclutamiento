@@ -1227,6 +1227,12 @@ app.delete('/leads/:id', async (req, res) => {
         })
     );
 
+    // 5. Delete wa_messages record (Meta WA message history)
+    if (phone) {
+      const bare = phone.replace(/[^0-9]/g, '');
+      await fetch(`${FS_BASE}/wa_messages/${bare}?key=${FS_KEY}`, { method: 'DELETE' }).catch(() => {});
+    }
+
     console.log(`[Data Deletion] Lead ${leadId} eliminado. Historial: [${deleted.history.join(', ')}]. Escalaciones: [${deleted.escalations.join(', ')}]`);
     res.json({ ok: true, deleted });
   } catch (e) {
