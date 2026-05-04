@@ -562,14 +562,12 @@ app.post('/auth/login', async (req, res) => {
     await fsSetSession(sessionId, session);
 
     // Send WA notification (non-blocking, informational)
-    if (TWILIO_ACCOUNT_SID && TWILIO_AUTH_TOKEN && user.telefono) {
+    if (user.telefono) {
       try {
-        const c  = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
-        const to = user.telefono.startsWith('+') ? `whatsapp:${user.telefono}` : `whatsapp:+${user.telefono}`;
-        c.messages.create({
-          from: TWILIO_WA_FROM, to,
-          body: `🔐 *Grupo Elite Work*\n\nHola ${user.nombre.split(' ')[0]}, iniciaste sesión con tu cuenta (${user.correo}).`,
-        }).catch(e => console.error('[Auth] WA error:', e.message));
+        const { sendWhatsApp: _authWA } = require('./meta');
+        const phone = user.telefono.replace(/^\+/, '');
+        _authWA(phone, `🔐 *Grupo Elite Work*\n\nHola ${user.nombre.split(' ')[0]}, iniciaste sesión con tu cuenta (${user.correo}).`)
+          .catch(e => console.error('[Auth] WA error:', e.message));
       } catch(e) {}
     }
     res.json({ ok: true, sessionId, name: user.nombre, role: user.role, verified: true });
@@ -1116,11 +1114,8 @@ app.post('/interviews/book', async (req, res) => {
     const hora  = `${h12}:00 ${ampm}`;
     const fallback = `📅 Nueva entrevista agendada — Grupo Élite\n\nCandidato: ${leadName || 'Candidato'}\nTeléfono: ${leadPhone}\nFecha y hora: ${fecha} · ${hora}\nEnlace Zoom: ${cfg.zoomLink}\n\nResponde CONFIRMAR o REAGENDAR.`;
     const ivPhone = cfg.interviewer.phone.replace(/^\+/, '');
-    // Interviewer gets notified via Twilio 817 (internal-only number)
-    if (TWILIO_ACCOUNT_SID && TWILIO_AUTH_TOKEN) {
-      const c = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
-      c.messages.create({ from: TWILIO_WA_FROM, to: `whatsapp:+${ivPhone}`, body: fallback }).catch(() => {});
-    }
+    const { sendWhatsApp: _ivNotifyWA } = require('./meta');
+    _ivNotifyWA(ivPhone, fallback).catch(() => {});
   }
   res.json({ ok: true, id, doc, interview: { id, slot: slotIso, zoom_link: doc.zoomLink, status: doc.status } });
 });
@@ -1170,13 +1165,11 @@ app.patch('/interviews/:id', async (req, res) => {
   res.json({ ok });
 });
 
-// Reminder cron — every minute
-// sendWA (Meta 214) → candidates  |  sendInternal (Twilio 817) → managers/interviewers
+// Reminder cron — every minute (both candidates and interviewers via Meta)
 const { sendWhatsApp: _ivSendWA } = require('./meta');
 const _ivSendInternal = async (to, text) => {
-  if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN) return;
-  const c = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
-  await c.messages.create({ from: TWILIO_WA_FROM, to: `whatsapp:+${to.replace(/^\+/, '')}`, body: text });
+  const { sendWhatsApp: _ivInternalWA } = require('./meta');
+  await _ivInternalWA(to.replace(/^\+/, ''), text);
 };
 setInterval(() => checkInterviewReminders(_ivSendWA, _ivSendInternal).catch(e => console.error('[IV-Reminder]', e.message)), 60_000);
 
