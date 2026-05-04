@@ -344,6 +344,9 @@ function registerMetaRoutes(app) {
         return;
       }
 
+      const _histBeforeRestart = conversationHistory.get(convKey);
+      const _wasEmptyOnRestart = !_histBeforeRestart?.length;
+
       // Inject / refresh context from Firestore (on restart: full injection; mid-session: update pinned message)
       if (leadData) {
         const f = leadData.fields || {};
@@ -372,6 +375,47 @@ function registerMetaRoutes(app) {
             // Mid-session — update the pinned context message with fresh Firestore data
             existingHist[0] = { ...existingHist[0], content: ctxContent };
           }
+        }
+      }
+
+      // On server restart: reconstruct conversation history from wa_messages stored in Firestore
+      // This prevents Ana from restarting the conversation after a Railway redeploy
+      if (_wasEmptyOnRestart) {
+        try {
+          const _waDoc = await fetch(`${FS_BASE}/wa_messages/${from}?key=${FS_KEY}`).then(r => r.json()).catch(() => ({}));
+          const _allStored = ((_waDoc.fields?.messages?.arrayValue?.values) || [])
+            .map(v => {
+              const mf = v.mapValue?.fields || {};
+              return { dir: mf.direction?.stringValue, text: mf.text?.stringValue || '', ts: Number(mf.ts?.integerValue || 0) };
+            })
+            .filter(m => m.text && (m.dir === 'in' || m.dir === 'out'));
+
+          // Exclude the current incoming message (already logged at the top of this handler)
+          const _prevStored = _allStored.slice(0, -1).slice(-24);
+
+          // Merge consecutive same-direction messages (e.g. split sends counted as multiple 'out')
+          const _merged = [];
+          for (const m of _prevStored) {
+            if (_merged.length && _merged[_merged.length - 1].dir === m.dir) {
+              _merged[_merged.length - 1].text += '\n' + m.text;
+            } else {
+              _merged.push({ ...m });
+            }
+          }
+
+          // Remove leading 'out' messages so history starts with a user message
+          while (_merged.length && _merged[0].dir === 'out') _merged.shift();
+
+          if (_merged.length) {
+            if (!conversationHistory.has(convKey)) conversationHistory.set(convKey, []);
+            const _hist = conversationHistory.get(convKey);
+            for (const m of _merged) {
+              _hist.push({ role: m.dir === 'out' ? 'assistant' : 'user', content: m.text, ts: m.ts });
+            }
+            console.log(`[Meta WA] Historial reconstruido desde Firestore para ${from}: ${_merged.length} msgs`);
+          }
+        } catch (_e) {
+          console.warn(`[Meta WA] No se pudo reconstruir historial para ${from}:`, _e.message);
         }
       }
 
