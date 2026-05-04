@@ -95,6 +95,34 @@ function verifySignature(req, appSecret) {
   return crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected));
 }
 
+// ── Meta WA message log (Firestore) ──────────────────────────────────────────
+async function fsLogWAMessage(phone, direction, text) {
+  try {
+    const clean = phone.replace(/^\+/, '');
+    const doc   = `${FS_BASE}/wa_messages/${clean}?key=${FS_KEY}`;
+    // Read existing
+    const existing = await fetch(doc).then(r => r.json()).catch(() => ({}));
+    const msgs = (existing.fields?.messages?.arrayValue?.values || []).map(v => {
+      const f = v.mapValue?.fields || {};
+      return { direction: f.direction?.stringValue, text: f.text?.stringValue, ts: Number(f.ts?.integerValue || 0) };
+    });
+    msgs.push({ direction, text, ts: Date.now() });
+    // Keep last 200 messages
+    const trimmed = msgs.slice(-200);
+    await fetch(doc, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fields: { messages: { arrayValue: { values: trimmed.map(m => ({
+        mapValue: { fields: {
+          direction: { stringValue: m.direction },
+          text:      { stringValue: m.text || '' },
+          ts:        { integerValue: String(m.ts) },
+        }}
+      })) } } } }),
+    });
+  } catch {}
+}
+
 // Outbound dedup: prevent sending the same text to the same number within 30 s
 const _sentDedup = new Map(); // `${to}:${text}` → timestamp
 function _isDupSend(to, text) {
@@ -116,6 +144,7 @@ async function sendWhatsApp(to, text) {
     console.warn(`[Meta WA] Envío duplicado ignorado → ${to}`);
     return;
   }
+  fsLogWAMessage(to, 'out', text).catch(() => {});
   const parts = splitMessage(text);
   for (const part of parts) {
     const r = await fetch(`${GRAPH_URL}/${META_WA_PHONE_ID}/messages`, {
@@ -238,6 +267,7 @@ function registerMetaRoutes(app) {
 
     const combinedText = texts.join('\n');
     console.log(`[Meta WA] ← ${from} (${texts.length} msg): ${combinedText}`);
+    fsLogWAMessage(from, 'in', combinedText).catch(() => {});
 
     try {
       // Check if message is from a manager responding to an escalation
@@ -424,6 +454,27 @@ function registerMetaRoutes(app) {
       }
     } catch (e) {
       console.error('[Meta IG/MS] Error:', e.message);
+    }
+  });
+
+  // ── Meta WA inbox (messages stored in Firestore) ─────────────────────────
+  app.get('/meta/wa-inbox', async (req, res) => {
+    const phone = (req.query.phone || '').replace(/^\+/, '').replace(/\D/g, '');
+    if (!phone) return res.status(400).json({ ok: false });
+    try {
+      const doc  = await fetch(`${FS_BASE}/wa_messages/${phone}?key=${FS_KEY}`).then(r => r.json());
+      const msgs = (doc.fields?.messages?.arrayValue?.values || []).map(v => {
+        const f = v.mapValue?.fields || {};
+        return {
+          sid:       `meta_${f.ts?.integerValue || Date.now()}`,
+          body:      f.text?.stringValue || '',
+          direction: f.direction?.stringValue === 'out' ? 'outbound' : 'inbound',
+          dateSent:  new Date(Number(f.ts?.integerValue || 0)).toISOString(),
+        };
+      });
+      res.json({ ok: true, messages: msgs });
+    } catch(e) {
+      res.json({ ok: true, messages: [] });
     }
   });
 

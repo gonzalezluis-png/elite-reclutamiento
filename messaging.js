@@ -656,12 +656,12 @@ async function lcFetchCalls(lead) {
 
 async function lcFetchMessages(lead) {
   if (!lead?.telefono) return;
-  // Only show messages from when this lead was created (filters out history from deleted leads)
   const since = lead.created_at ? new Date(lead.created_at).getTime() : 0;
   try {
-    const [r1, r2] = await Promise.all([
+    const [r1, r2, r3] = await Promise.all([
       fetch(`${SERVER_URL}/twilio/sms-inbox?phone=${encodeURIComponent(lead.telefono)}`),
       fetch(`${SERVER_URL}/twilio/whatsapp-inbox?phone=${encodeURIComponent(lead.telefono)}`),
+      fetch(`${SERVER_URL}/meta/wa-inbox?phone=${encodeURIComponent(lead.telefono)}`),
     ]);
     let updated = false;
     const d1 = await r1.json();
@@ -682,6 +682,16 @@ async function lcFetchMessages(lead) {
         const ex = lead.whatsapp.find(s => s.sid === m.sid);
         if (!ex) { lead.whatsapp.push(m); updated = true; }
         else if (!ex.dateSent && m.dateSent) { Object.assign(ex, m); updated = true; }
+      }
+    }
+    // Meta WA messages (stored in Firestore by server)
+    const d3 = await r3.json();
+    if (d3.messages) {
+      if (!lead.whatsapp) lead.whatsapp = [];
+      for (const m of d3.messages) {
+        if (since && m.dateSent && new Date(m.dateSent).getTime() < since) continue;
+        const ex = lead.whatsapp.find(s => s.sid === m.sid);
+        if (!ex) { lead.whatsapp.push(m); updated = true; }
       }
     }
     if (updated) { saveLeads(); lcRenderTimeline(lead); }
