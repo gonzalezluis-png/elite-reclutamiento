@@ -589,7 +589,43 @@ function registerMetaRoutes(app) {
 
       const msg  = value.messages[0];
       const from = msg.from;
-      const text = msg.type === 'text' ? msg.text?.body : null;
+
+      // Extract text from multiple message types
+      let text = null;
+      switch (msg.type) {
+        case 'text':
+          text = msg.text?.body || null;
+          break;
+        case 'image':
+          text = msg.image?.caption || '[El candidato envió una imagen]';
+          break;
+        case 'video':
+          text = msg.video?.caption || '[El candidato envió un video]';
+          break;
+        case 'document':
+          text = msg.document?.caption || `[El candidato envió un documento: ${msg.document?.filename || 'archivo'}]`;
+          break;
+        case 'audio':
+        case 'voice':
+          text = '[El candidato envió un mensaje de voz]';
+          break;
+        case 'interactive':
+          // Button reply or list reply
+          text = msg.interactive?.button_reply?.title
+              || msg.interactive?.list_reply?.title
+              || null;
+          break;
+        case 'button':
+          text = msg.button?.text || null;
+          break;
+        case 'sticker':
+        case 'reaction':
+          // Silently ignore stickers and emoji reactions
+          return;
+        default:
+          console.log(`[Meta WA] Tipo de mensaje no soportado: ${msg.type} de ${from}`);
+          return;
+      }
       if (!text) return;
 
       // Skip duplicate deliveries (Meta retries on timeout)
