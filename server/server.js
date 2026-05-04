@@ -522,8 +522,11 @@ app.post('/twilio/whatsapp-incoming', async (req, res) => {
 
       } else if (decision === 'NO') {
         // ── Declined this day ────────────────────────────────────────────────
-        const twC = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
-        const sendFn2 = async (to, text) => { const c = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN); await c.messages.create({ from: TWILIO_WA_FROM, to, body: text }); };
+        const { sendWhatsApp: _metaWA } = require('./meta');
+        const sendToCandidate = async (to, text) => {
+          const phone = to.replace('whatsapp:', '').replace(/^\+/, '');
+          await _metaWA(phone, text);
+        };
 
         if (offeringDay === 1 && dayDates.length > 1) {
           // Offer day 2
@@ -535,15 +538,15 @@ app.post('/twilio/whatsapp-incoming', async (req, res) => {
           const tList2    = t2.length === 1 ? `a las ${t2[0]}` : t2.length === 2 ? `a las ${t2[0]} o a las ${t2[1]}` : `a las ${t2[0]}, a las ${t2[1]} o a las ${t2[2]}`;
           const msg2      = `Sin problema, ¡${firstName}! 😊 El ${DIAS_FULL[d2.getDay()]} también tengo disponible ${tList2}. ¿Alguna te funciona?`;
           await humanDelay(msg2);
-          await sendFn2(From, msg2);
+          await sendToCandidate(From, msg2);
           if (leadId) await fsUpdateLeadFields(leadId, { pending_slots: JSON.stringify({ slots: allSlots, offeringDay: 2 }) });
         } else {
           // Both days rejected → escalate to manager
           const escMsg = `Entendido, ${firstName}. Voy a pedirle a un encargado que te contacte para encontrar un horario que te funcione. 🙏`;
           await humanDelay(escMsg);
-          await sendFn2(From, escMsg);
+          await sendToCandidate(From, escMsg);
           if (leadId) await fsUpdateLeadFields(leadId, { interview_state: '', pending_slots: '', sin_manager: true });
-          triggerEscalation(cleanFrom, nombre, 'sin-horario', `Candidato no puede en ningún horario ofrecido (día 1 y día 2)`, sendFn2).catch(() => {});
+          triggerEscalation(cleanFrom, nombre, 'sin-horario', `Candidato no puede en ningún horario ofrecido (día 1 y día 2)`, twSendWAToManager).catch(() => {});
         }
         return res.type('text/xml').send('<Response></Response>');
       }
@@ -565,13 +568,13 @@ app.post('/twilio/whatsapp-incoming', async (req, res) => {
 
       console.log(`[WA-AI] Ana → ${From}: "${reply}"`);
       await humanDelay(reply);
-      const twilioClient = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
-      await twilioClient.messages.create({ from: TWILIO_WA_FROM, to: From, body: reply });
+      const { sendWhatsApp: _metaWASend } = require('./meta');
+      await _metaWASend(cleanFrom.replace(/^\+/, ''), reply);
 
-      // Build Twilio-specific sendFn
+      // Send via Meta (214) — candidates only interact on this number
       const sendFn = async (to, text) => {
-        const c = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
-        await c.messages.create({ from: TWILIO_WA_FROM, to, body: text });
+        const phone = to.replace('whatsapp:', '').replace(/^\+/, '');
+        await _metaWASend(phone, text);
       };
 
       // ── Interview: offer slots after Ana's response ─────────────────────
@@ -652,12 +655,13 @@ app.post('/twilio/sms-incoming', async (req, res) => {
         const reply = await askClaude(From, Body, 'wa');
         console.log(`[WA-AI via SMS hook] Ana → ${From}: "${reply}"`);
         await humanDelay(reply);
-        const twilioClient = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
-        await twilioClient.messages.create({ from: TWILIO_WA_FROM, to: From, body: reply });
+        const { sendWhatsApp: _metaWASms } = require('./meta');
+        const smsPhone = From.replace('whatsapp:', '').replace(/^\+/, '');
+        await _metaWASms(smsPhone, reply);
 
         const sendFn = async (to, text) => {
-          const c = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
-          await c.messages.create({ from: TWILIO_WA_FROM, to, body: text });
+          const phone = to.replace('whatsapp:', '').replace(/^\+/, '');
+          await _metaWASms(phone, text);
         };
 
         ;(async () => {
@@ -897,13 +901,12 @@ app.post('/interviews/book', async (req, res) => {
     const fecha = `${days[d.getDay()]} ${d.getDate()} de ${months[d.getMonth()]}`;
     const hora  = `${h12}:00 ${ampm}`;
     const fallback = `📅 Nueva entrevista agendada — Grupo Élite\n\nCandidato: ${leadName || 'Candidato'}\nTeléfono: ${leadPhone}\nFecha y hora: ${fecha} · ${hora}\nEnlace Zoom: ${cfg.zoomLink}\n\nResponde CONFIRMAR o REAGENDAR.`;
-    const { sendWhatsApp } = require('./meta');
-    const { sendTemplateOrFallback } = require('./templates');
     const ivPhone = cfg.interviewer.phone.replace(/^\+/, '');
-    sendTemplateOrFallback(ivPhone, 'entrevista_agendada_int',
-      [leadName || 'Candidato', leadPhone, `${fecha} · ${hora}`, cfg.zoomLink || ''],
-      fallback, sendWhatsApp
-    ).catch(() => {});
+    // Interviewer gets notified via Twilio 817 (internal-only number)
+    if (TWILIO_ACCOUNT_SID && TWILIO_AUTH_TOKEN) {
+      const c = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
+      c.messages.create({ from: TWILIO_WA_FROM, to: `whatsapp:+${ivPhone}`, body: fallback }).catch(() => {});
+    }
   }
   res.json({ ok: true, id, doc, interview: { id, slot: slotIso, zoom_link: doc.zoomLink, status: doc.status } });
 });
@@ -954,8 +957,14 @@ app.patch('/interviews/:id', async (req, res) => {
 });
 
 // Reminder cron — every minute
+// sendWA (Meta 214) → candidates  |  sendInternal (Twilio 817) → managers/interviewers
 const { sendWhatsApp: _ivSendWA } = require('./meta');
-setInterval(() => checkInterviewReminders(_ivSendWA).catch(e => console.error('[IV-Reminder]', e.message)), 60_000);
+const _ivSendInternal = async (to, text) => {
+  if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN) return;
+  const c = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
+  await c.messages.create({ from: TWILIO_WA_FROM, to: `whatsapp:+${to.replace(/^\+/, '')}`, body: text });
+};
+setInterval(() => checkInterviewReminders(_ivSendWA, _ivSendInternal).catch(e => console.error('[IV-Reminder]', e.message)), 60_000);
 
 // ── Legal data deletion — removes lead + all associated data ──────────────────
 app.delete('/leads/:id', async (req, res) => {

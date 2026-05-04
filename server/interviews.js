@@ -259,9 +259,10 @@ async function bookInterview({ leadPhone, leadName, slotIso, convKey }) {
   const firstName = (leadName || 'Candidato').split(' ')[0];
   const phoneClean = (leadPhone || '').replace(/^\+/, '');
 
-  // Confirmation to candidate
+  // Confirmation to candidate via Meta 214
   const confFallback = `¡Hola ${firstName}! 🎉\n\nTu entrevista con Grupo Élite Work ha sido confirmada.\n\n📅 Fecha: ${fecha}\n🕐 Hora: ${hora}\n🔗 Enlace Zoom: ${cfg.zoomLink}\n\n¡Te esperamos!`;
-  sendTemplateOrFallback(phoneClean, 'confirmacion_entrevista', [firstName, fecha, hora, cfg.zoomLink], confFallback, null).catch(() => {});
+  const { sendWhatsApp: _metaConfirmWA } = require('./meta');
+  sendTemplateOrFallback(phoneClean, 'confirmacion_entrevista', [firstName, fecha, hora, cfg.zoomLink], confFallback, _metaConfirmWA).catch(() => {});
 
   return { id, cfg, doc };
 }
@@ -310,7 +311,9 @@ async function getInterview(id) {
 }
 
 // ── Reminder checker (called every minute by server) ─────────────────────────
-async function checkInterviewReminders(sendWA) {
+// sendWA      = Meta 214 — messages to candidates
+// sendInternal = Twilio 817 — messages to managers/interviewers (internal)
+async function checkInterviewReminders(sendWA, sendInternal) {
   const cfg         = await loadInterviewConfig();
   const interviews  = await listInterviews();
   const now         = new Date();
@@ -325,8 +328,7 @@ async function checkInterviewReminders(sendWA) {
 
       let shouldSend = false;
       if (rem.trigger === 'morning_of') {
-        // Send at rem.value:00 AM on the day of the interview
-        const sameDay  = toDateStr(slotTime) === toDateStr(now);
+        const sameDay   = toDateStr(slotTime) === toDateStr(now);
         const rightHour = now.getHours() === rem.value && now.getMinutes() < 5;
         shouldSend = sameDay && rightHour;
       } else if (rem.trigger === 'hours_before') {
@@ -344,24 +346,21 @@ async function checkInterviewReminders(sendWA) {
       const { fecha, hora } = _fmtSlot(slotTime);
 
       if (rem.notifyManager || rem.notifyInterviewer) {
-        // Notify interviewer via template
-        if (cfg.interviewer.phone) {
-          const ivPhone  = cfg.interviewer.phone.replace(/^\+/, '');
+        // Notify interviewer via Twilio 817 (internal number)
+        if (cfg.interviewer.phone && sendInternal) {
+          const ivPhone    = cfg.interviewer.phone.replace(/^\+/, '');
           const ivFallback = `📅 Recordatorio: tienes una entrevista con ${iv.leadName || 'un candidato'} el ${fecha} a las ${hora}.\nZoom: ${iv.zoomLink}`;
-          await sendTemplateOrFallback(ivPhone, 'entrevista_agendada_int',
-            [iv.leadName || 'Candidato', iv.leadPhone || '', `${fecha} · ${hora}`, iv.zoomLink || ''],
-            ivFallback, sendWA
-          ).catch(() => {});
+          await sendInternal(ivPhone, ivFallback).catch(() => {});
         }
       } else {
-        // Notify candidate via template
+        // Notify candidate via Meta 214
         const phone = (iv.leadPhone || '').replace(/^\+/, '');
         if (phone) {
-          let tplKey = 'recordatorio_dia_antes';
+          let tplKey    = 'recordatorio_dia_antes';
           let tplParams = [firstName, fecha, hora, iv.zoomLink || ''];
 
           if (rem.trigger === 'hours_before') {
-            tplKey   = 'recordatorio_horas_antes';
+            tplKey    = 'recordatorio_horas_antes';
             tplParams = [firstName, String(rem.value), iv.zoomLink || ''];
           }
 
@@ -374,13 +373,13 @@ async function checkInterviewReminders(sendWA) {
       await updateInterview(iv.id, { reminders });
     }
 
-    // Send Zoom link at exact slot time
+    // Send Zoom link at exact slot time → candidate via Meta 214
     if (!reminders['zoom_sent']) {
       const diffMin = (now - slotTime) / (1000 * 60);
       if (diffMin >= 0 && diffMin < 5) {
         const phone = (iv.leadPhone || '').replace(/^\+/, '');
         if (phone) {
-          const firstName = (iv.leadName || 'Candidato').split(' ')[0];
+          const firstName    = (iv.leadName || 'Candidato').split(' ')[0];
           const zoomFallback = `🎥 Tu entrevista comienza ahora. Únete aquí:\n${iv.zoomLink}`;
           await sendTemplateOrFallback(phone, 'enlace_zoom_inicio',
             [firstName, iv.zoomLink || ''], zoomFallback, sendWA
