@@ -268,6 +268,12 @@ async function doLogin() {
     }
     _sessionToken = data.sessionId;
     btn.disabled = false; btn.textContent = 'Entrar';
+    // Developer (or pre-verified) → skip WA screen
+    if (data.verified) {
+      sessionStorage.setItem('er_session', JSON.stringify({ token: data.sessionId, name: data.name, role: data.role }));
+      initAppWithUser({ token: data.sessionId, name: data.name, role: data.role });
+      return;
+    }
     document.getElementById('login-page').classList.add('hidden');
     const wsEl = document.getElementById('wa-verify-screen');
     wsEl.style.display = 'flex';

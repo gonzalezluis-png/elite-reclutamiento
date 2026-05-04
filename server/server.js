@@ -554,6 +554,14 @@ app.post('/auth/login', async (req, res) => {
     const session   = { userId: user.id, name: user.nombre, role: user.role,
                         phone: normalizePhone(user.telefono), verified: false,
                         expires: Date.now() + 30 * 60 * 1000 }; // 30 min to verify
+    // Developer bypasses WA — auto-verified immediately
+    if (user.role === 'developer') {
+      session.verified = true;
+      session.expires  = Date.now() + 24 * 60 * 60 * 1000;
+      AUTH_SESSIONS.set(sessionId, session);
+      return res.json({ ok: true, sessionId, name: user.nombre, role: user.role, verified: true });
+    }
+
     AUTH_SESSIONS.set(sessionId, session);
     if (user.telefono) AUTH_PHONE_PENDING.set(normalizePhone(user.telefono), sessionId);
 
