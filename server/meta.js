@@ -379,7 +379,8 @@ function registerMetaRoutes(app) {
         const offeringDay = ivData.offeringDay || 1;
         const leadId      = leadData?.name?.split('/').pop();
         const nombre      = leadData?.fields?.nombre?.stringValue || '';
-        const firstName   = nombre.split(' ')[0] || 'amigo';
+        const _validName  = !nombre || nombre.startsWith('WA ') || nombre.startsWith('+') ? '' : nombre;
+        const firstName   = _validName.split(' ')[0] || '';
         const fmtH        = h => h === 0 ? '12am' : h === 12 ? '12pm' : h < 12 ? `${h}am` : `${h-12}pm`;
         const DIAS_FULL   = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
 
@@ -463,7 +464,8 @@ function registerMetaRoutes(app) {
             const cfg   = await loadInterviewConfig();
             const slots = await getAvailableSlots(cfg);
             const nombre = leadData?.fields?.nombre?.stringValue || '';
-            const first  = nombre.split(' ')[0] || '';
+            const _realName = !nombre || nombre.startsWith('WA ') || nombre.startsWith('+') ? '' : nombre;
+            const first  = _realName.split(' ')[0] || '';
             const DIAS_FULL = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
             const fmtH = h => h === 0 ? '12am' : h === 12 ? '12pm' : h < 12 ? `${h}am` : `${h-12}pm`;
 

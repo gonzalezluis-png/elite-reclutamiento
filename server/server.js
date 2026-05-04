@@ -676,7 +676,7 @@ app.post('/twilio/whatsapp-incoming', async (req, res) => {
     const offeringDay = ivData.offeringDay || 1;
     const leadId      = _twLeadData?.name?.split('/').pop();
     const nombre      = _twLeadData?.fields?.nombre?.stringValue || '';
-    const firstName   = nombre.split(' ')[0] || 'amigo';
+    const firstName   = (!nombre || nombre.startsWith('WA ') || nombre.startsWith('+')) ? '' : nombre.split(' ')[0];
 
     // Get the slots currently being offered (by day group)
     const dayDates   = [...new Set(allSlots.map(s => new Date(s.iso).toISOString().slice(0,10)))];
@@ -776,7 +776,7 @@ app.post('/twilio/whatsapp-incoming', async (req, res) => {
             const cfg      = await loadInterviewConfig();
             const slots    = await getAvailableSlots(cfg);
             const nombre2  = _twLeadData?.fields?.nombre?.stringValue || '';
-            const first2   = nombre2.split(' ')[0] || '';
+            const first2   = (!nombre2 || nombre2.startsWith('WA ') || nombre2.startsWith('+')) ? '' : nombre2.split(' ')[0];
 
             if (!slots.length) {
               const noSlotMsg = `${first2 ? '¡'+first2+'! ' : ''}En este momento no hay horarios disponibles. Un encargado se pondrá en contacto contigo muy pronto para agendar. 🙏`;
