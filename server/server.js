@@ -442,7 +442,7 @@ const FS_BASE    = `https://firestore.googleapis.com/v1/projects/${FS_PROJECT}/d
 // ═══════════════════════════════════════════════════════════════════════════════
 //  AUTH SYSTEM
 // ═══════════════════════════════════════════════════════════════════════════════
-const { AUTH_SESSIONS, AUTH_PHONE_PENDING, normalizePhone, handleAuthWAReply } = require('./auth-sessions');
+const { AUTH_PHONE_PENDING, normalizePhone, handleAuthWAReply, fsGetSession, fsSetSession } = require('./auth-sessions');
 
 const AUTH_FS_BASE = `https://firestore.googleapis.com/v1/projects/elite-reclutamiento-crm/databases/(default)/documents`;
 const AUTH_FS_KEY  = 'AIzaSyCW2t1oHb7xc2Vi6vJROGRM7E7nu-CbU3s';
@@ -530,14 +530,16 @@ async function dbDeleteUser(id) {
 })();
 
 function requireSession(role) {
-  return (req, res, next) => {
+  return async (req, res, next) => {
     const token = req.headers['x-session-token'];
     if (!token) return res.status(401).json({ ok: false, error: 'No autorizado' });
-    const s = AUTH_SESSIONS.get(token);
-    if (!s || !s.verified || s.expires < Date.now()) return res.status(401).json({ ok: false, error: 'Sesión inválida' });
-    if (role && s.role !== role) return res.status(403).json({ ok: false, error: 'Sin permiso' });
-    req.authSession = s;
-    next();
+    try {
+      const s = await fsGetSession(token);
+      if (!s || !s.verified || s.expires < Date.now()) return res.status(401).json({ ok: false, error: 'Sesión inválida' });
+      if (role && s.role !== role) return res.status(403).json({ ok: false, error: 'Sin permiso' });
+      req.authSession = s;
+      next();
+    } catch(e) { res.status(500).json({ ok: false, error: 'Error de sesión' }); }
   };
 }
 
@@ -558,11 +560,11 @@ app.post('/auth/login', async (req, res) => {
     if (user.role === 'developer') {
       session.verified = true;
       session.expires  = Date.now() + 24 * 60 * 60 * 1000;
-      AUTH_SESSIONS.set(sessionId, session);
+      await fsSetSession(sessionId, session);
       return res.json({ ok: true, sessionId, name: user.nombre, role: user.role, verified: true });
     }
 
-    AUTH_SESSIONS.set(sessionId, session);
+    await fsSetSession(sessionId, session);
     if (user.telefono) AUTH_PHONE_PENDING.set(normalizePhone(user.telefono), sessionId);
 
     // Send WA
@@ -585,10 +587,12 @@ app.post('/auth/login', async (req, res) => {
 });
 
 // ── GET /auth/status/:id ──────────────────────────────────────────────────────
-app.get('/auth/status/:id', (req, res) => {
-  const s = AUTH_SESSIONS.get(req.params.id);
-  if (!s || s.expires < Date.now()) return res.json({ ok: true, verified: false, expired: true });
-  res.json({ ok: true, verified: s.verified, name: s.name, role: s.role });
+app.get('/auth/status/:id', async (req, res) => {
+  try {
+    const s = await fsGetSession(req.params.id);
+    if (!s || s.expires < Date.now()) return res.json({ ok: true, verified: false, expired: true });
+    res.json({ ok: true, verified: s.verified, name: s.name, role: s.role });
+  } catch(e) { res.json({ ok: true, verified: false, expired: false }); }
 });
 
 // ── GET /auth/users ───────────────────────────────────────────────────────────
