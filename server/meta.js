@@ -412,6 +412,14 @@ function registerMetaRoutes(app) {
             try {
               await bookInterview({ leadPhone: from, leadName: nombre, slotIso: chosen.iso, convKey });
               if (leadId) await fsUpdateLeadFields(leadId, { interview_state: 'booked', pending_slots: '', quiere_entrevista: false, webinar_accion: 'en-entrevista' });
+              // Inject booking context so Ana knows the interview is scheduled
+              const hist = conversationHistory.get(convKey) || [];
+              const d = new Date(chosen.iso);
+              const dias = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
+              const meses = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+              const fechaStr = `${dias[d.getDay()]} ${d.getDate()} de ${meses[d.getMonth()]}`;
+              const horaStr = (() => { const h = d.getHours(); return `${h%12||12}:00 ${h>=12?'PM':'AM'}`; })();
+              hist.push({ role: 'assistant', content: `[SISTEMA] La entrevista quedó agendada para el ${fechaStr} a las ${horaStr}. Ya le envié la confirmación al candidato con el enlace Zoom. El proceso de agendamiento está completo.`, ts: Date.now() });
             } catch (e) { console.error('[Interview] Error booking:', e.message); }
             return;
 

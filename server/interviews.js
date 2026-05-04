@@ -256,7 +256,8 @@ async function bookInterview({ leadPhone, leadName, slotIso, convKey }) {
 
   // Build fecha/hora strings for templates
   const { fecha, hora } = _fmtSlot(slot);
-  const firstName = (leadName || 'Candidato').split(' ')[0];
+  const _cleanName = (!leadName || leadName.startsWith('WA ') || leadName.startsWith('+')) ? '' : leadName;
+  const firstName = _cleanName.split(' ')[0] || 'Candidato';
   const phoneClean = (leadPhone || '').replace(/^\+/, '');
 
   // Confirmation to candidate via Meta 214

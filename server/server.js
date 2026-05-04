@@ -709,6 +709,14 @@ app.post('/twilio/whatsapp-incoming', async (req, res) => {
         try {
           await bookInterview({ leadPhone: cleanFrom, leadName: nombre, slotIso: chosen.iso, convKey: From });
           if (leadId) await fsUpdateLeadFields(leadId, { interview_state: 'booked', pending_slots: '', quiere_entrevista: false, webinar_accion: 'en-entrevista' });
+          // Inject booking context so Ana knows the interview is scheduled
+          const hist = conversationHistory.get(From) || [];
+          const _d = new Date(chosen.iso);
+          const _dias = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
+          const _meses = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+          const _fechaStr = `${_dias[_d.getDay()]} ${_d.getDate()} de ${_meses[_d.getMonth()]}`;
+          const _horaStr = (() => { const h = _d.getHours(); return `${h%12||12}:00 ${h>=12?'PM':'AM'}`; })();
+          hist.push({ role: 'assistant', content: `[SISTEMA] La entrevista quedó agendada para el ${_fechaStr} a las ${_horaStr}. Ya le envié la confirmación al candidato con el enlace Zoom. El proceso de agendamiento está completo.`, ts: Date.now() });
         } catch (e) { console.error('[Interview] Error booking:', e.message); }
         return res.type('text/xml').send('<Response></Response>');
 
