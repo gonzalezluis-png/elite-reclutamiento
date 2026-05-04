@@ -556,30 +556,23 @@ app.post('/auth/login', async (req, res) => {
     const session   = { userId: user.id, name: user.nombre, role: user.role,
                         phone: normalizePhone(user.telefono), verified: false,
                         expires: Date.now() + 30 * 60 * 1000 }; // 30 min to verify
-    // Developer bypasses WA — auto-verified immediately
-    if (user.role === 'developer') {
-      session.verified = true;
-      session.expires  = Date.now() + 24 * 60 * 60 * 1000;
-      await fsSetSession(sessionId, session);
-      return res.json({ ok: true, sessionId, name: user.nombre, role: user.role, verified: true });
-    }
-
+    // Auto-verify all users — WA is informational only
+    session.verified = true;
+    session.expires  = Date.now() + 24 * 60 * 60 * 1000;
     await fsSetSession(sessionId, session);
-    if (user.telefono) AUTH_PHONE_PENDING.set(normalizePhone(user.telefono), sessionId);
 
-    // Send WA
+    // Send WA notification (non-blocking, informational)
     if (TWILIO_ACCOUNT_SID && TWILIO_AUTH_TOKEN && user.telefono) {
       try {
-        const c   = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
-        const to  = user.telefono.startsWith('+') ? `whatsapp:${user.telefono}` : `whatsapp:+${user.telefono}`;
-        await c.messages.create({
+        const c  = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
+        const to = user.telefono.startsWith('+') ? `whatsapp:${user.telefono}` : `whatsapp:+${user.telefono}`;
+        c.messages.create({
           from: TWILIO_WA_FROM, to,
-          body: `🔐 *Grupo Elite Work*\n\nHola ${user.nombre.split(' ')[0]}, alguien inició sesión con tu cuenta (${user.correo}).\n\n¿Eres tú? Responde *SÍ* para autorizar el acceso.\n\nSi no fuiste tú, ignora este mensaje.`,
-        });
-        console.log(`[Auth] WA enviado a ${user.telefono}`);
-      } catch (e) { console.error('[Auth] WA error:', e.message); }
+          body: `🔐 *Grupo Elite Work*\n\nHola ${user.nombre.split(' ')[0]}, iniciaste sesión con tu cuenta (${user.correo}).`,
+        }).catch(e => console.error('[Auth] WA error:', e.message));
+      } catch(e) {}
     }
-    res.json({ ok: true, sessionId, name: user.nombre, role: user.role });
+    res.json({ ok: true, sessionId, name: user.nombre, role: user.role, verified: true });
   } catch (e) {
     console.error('[Auth] Login error:', e.message);
     res.status(500).json({ ok: false, error: 'Error del servidor' });
