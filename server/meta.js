@@ -1,4 +1,5 @@
 const crypto = require('crypto');
+const { handleAuthWAReply } = require('./auth-sessions');
 const { askClaude, conversationHistory } = require('./ai');
 const { fsLeadExists, fsCreateLeadWA, fsGetLeadByPhone, fsUpdateLeadFields, runWAPipeline, humanDelay } = require('./pipeline');
 const { triggerEscalation, cancelEscalation, handleManagerReply, checkTimeouts, isManagerPhone, logTeamMessage, loadManagers } = require('./escalation');
@@ -228,6 +229,9 @@ function registerMetaRoutes(app) {
       if (!text) return;
 
       console.log(`[Meta WA] ← ${from}: ${text}`);
+
+      // ── Auth 2FA intercept ───────────────────────────────────────────────
+      if (handleAuthWAReply(from, text)) return;
 
       // Check if message is from a manager responding to an escalation
       if (await isManagerPhone(from)) {

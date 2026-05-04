@@ -442,13 +442,14 @@ const FS_BASE    = `https://firestore.googleapis.com/v1/projects/${FS_PROJECT}/d
 // ═══════════════════════════════════════════════════════════════════════════════
 //  AUTH SYSTEM
 // ═══════════════════════════════════════════════════════════════════════════════
+const { AUTH_SESSIONS, AUTH_PHONE_PENDING, normalizePhone, handleAuthWAReply } = require('./auth-sessions');
+
 const AUTH_FS_BASE = `https://firestore.googleapis.com/v1/projects/elite-reclutamiento-crm/databases/(default)/documents`;
 const AUTH_FS_KEY  = 'AIzaSyCW2t1oHb7xc2Vi6vJROGRM7E7nu-CbU3s';
 
 function hashPass(pass) {
   return crypto.createHash('sha256').update(String(pass)).digest('hex');
 }
-function normalizePhone(p) { return (p || '').replace(/\D/g, ''); }
 
 function docToUser(doc) {
   const f = doc.fields || {};
@@ -528,17 +529,6 @@ async function dbDeleteUser(id) {
   } catch (e) { console.error('[Auth] Seed error:', e.message); }
 })();
 
-// ── Session store ─────────────────────────────────────────────────────────────
-const AUTH_SESSIONS     = new Map(); // sessionId → { userId, name, role, phone, verified, expires }
-const AUTH_PHONE_PENDING = new Map(); // normalizedPhone → sessionId
-
-setInterval(() => {
-  const now = Date.now();
-  for (const [id, s] of AUTH_SESSIONS) {
-    if (s.expires < now) { AUTH_PHONE_PENDING.delete(s.phone); AUTH_SESSIONS.delete(id); }
-  }
-}, 60_000);
-
 function requireSession(role) {
   return (req, res, next) => {
     const token = req.headers['x-session-token'];
@@ -549,25 +539,6 @@ function requireSession(role) {
     req.authSession = s;
     next();
   };
-}
-
-// ── WA verification handler (called from incoming webhook) ────────────────────
-function handleAuthWAReply(rawPhone, body) {
-  const norm      = normalizePhone(rawPhone);
-  const sessionId = AUTH_PHONE_PENDING.get(norm);
-  if (!sessionId) return false;
-  const s = AUTH_SESSIONS.get(sessionId);
-  if (!s || s.verified) return false;
-  const reply = (body || '').trim().toLowerCase()
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-  if (reply === 'si' || reply === 'yes' || reply === '1') {
-    s.verified = true;
-    s.expires  = Date.now() + 24 * 60 * 60 * 1000; // extend to 24h
-    AUTH_PHONE_PENDING.delete(norm);
-    console.log(`[Auth] ✓ WA verificado — ${rawPhone} sesión ${sessionId.slice(0,10)}…`);
-    return true;
-  }
-  return false;
 }
 
 // ── POST /auth/login ──────────────────────────────────────────────────────────
@@ -582,7 +553,7 @@ app.post('/auth/login', async (req, res) => {
     const sessionId = crypto.randomBytes(32).toString('hex');
     const session   = { userId: user.id, name: user.nombre, role: user.role,
                         phone: normalizePhone(user.telefono), verified: false,
-                        expires: Date.now() + 5 * 60 * 1000 }; // 5 min to verify
+                        expires: Date.now() + 30 * 60 * 1000 }; // 30 min to verify
     AUTH_SESSIONS.set(sessionId, session);
     if (user.telefono) AUTH_PHONE_PENDING.set(normalizePhone(user.telefono), sessionId);
 

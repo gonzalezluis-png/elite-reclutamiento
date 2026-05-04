@@ -282,7 +282,7 @@ function startWAPoller(sessionId) {
   if (_waPoller) clearInterval(_waPoller);
   let attempts = 0;
   _waPoller = setInterval(async () => {
-    if (++attempts > 100) {
+    if (++attempts > 200) {
       clearInterval(_waPoller);
       document.getElementById('wa-verify-error').textContent = 'Tiempo agotado. Intenta de nuevo.';
       setTimeout(cancelWAVerification, 2500); return;
