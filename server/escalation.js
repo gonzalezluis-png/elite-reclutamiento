@@ -175,7 +175,7 @@ async function updateEscalation(id, updates) {
 async function cancelEscalation(leadPhone, leadName, sendWAFn) {
   try {
     const pending  = await getPendingEscalations();
-    const matching = pending.filter(e => e.leadPhone === leadPhone);
+    const matching = pending.filter(e => normalizePhone(e.leadPhone) === normalizePhone(leadPhone));
     if (!matching.length) return;
 
     const managers = await getManagers();

@@ -371,6 +371,10 @@ async function runWAPipeline(from, historyMap, sendFn, opts) {
       webinarInviteSent.add(from);
       await fsUpdateLeadFields(leadId, { webinar_intent: false });
       await moveLeadToWebinar(leadId, nombre, correo, WEBINAR_URL);
+      const firstName = nombre.split(' ')[0] || '';
+      const waMsg = `📧 ${firstName ? '¡'+firstName+'! ' : ''}Te acabo de enviar el enlace del webinar a tu correo *${correo}*. Revísalo (también la carpeta de spam). 😊`;
+      await humanDelay(waMsg);
+      await sendFn(from, waMsg).catch(() => {});
     }
   } catch (e) {
     console.error('[Pipeline] Error:', e.message);

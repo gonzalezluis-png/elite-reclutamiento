@@ -4,7 +4,7 @@ const { askClaude, conversationHistory } = require('./ai');
 const { fsLeadExists, fsCreateLeadWA, fsGetLeadByPhone, fsUpdateLeadFields, runWAPipeline, humanDelay } = require('./pipeline');
 const { triggerEscalation, cancelEscalation, handleManagerReply, checkTimeouts, isManagerPhone, logTeamMessage, loadManagers } = require('./escalation');
 const { pixelLead } = require('./pixel');
-const { loadInterviewConfig, getAvailableSlots, bookInterview } = require('./interviews');
+const { loadInterviewConfig, getAvailableSlots, bookInterview, listInterviews, updateInterview } = require('./interviews');
 
 const SERVER_URL  = process.env.SERVER_URL  || 'https://elite-reclutamiento-production.up.railway.app';
 const WEBINAR_URL = process.env.WEBINAR_URL || 'https://crm.grupoelitework.com/webinar.html';
@@ -271,6 +271,38 @@ function registerMetaRoutes(app) {
     fsLogWAMessage(from, 'in', combinedText).catch(() => {});
 
     try {
+      // ── Interviewer CONFIRMAR/REAGENDAR reply ────────────────────────────────
+      const _ivCfg = await loadInterviewConfig().catch(() => null);
+      if (_ivCfg?.interviewer?.phone) {
+        const _ivPhone = _ivCfg.interviewer.phone.replace(/[^0-9]/g, '');
+        if (from.replace(/[^0-9]/g, '') === _ivPhone) {
+          const _msg = combinedText.trim().toUpperCase();
+          if (_msg.includes('CONFIRMAR') || _msg.includes('REAGENDAR')) {
+            const all = await listInterviews().catch(() => []);
+            const pending = all.filter(iv => iv.status === 'scheduled').sort((a, b) => new Date(a.slotIso) - new Date(b.slotIso));
+            if (pending.length) {
+              const iv = pending[0];
+              if (_msg.includes('CONFIRMAR')) {
+                await updateInterview(iv.id, { status: 'confirmed' }).catch(() => {});
+                await sendWhatsApp(from, `✅ Confirmado. Entrevista con *${iv.leadName || iv.leadPhone}* registrada.\n📅 ${iv.slotIso}\n🔗 ${iv.zoomLink}`);
+                console.log(`[Interview] Entrevistador confirmó entrevista ${iv.id}`);
+              } else {
+                await updateInterview(iv.id, { status: 'rescheduled' }).catch(() => {});
+                const candPhone = (iv.leadPhone || '').replace(/[^0-9]/g, '');
+                const reschedMsg = `Hola, el entrevistador necesita reagendar tu cita. Pronto te contactaremos con nuevos horarios disponibles. 🙏`;
+                await humanDelay(reschedMsg);
+                await sendWhatsApp(candPhone, reschedMsg);
+                await sendWhatsApp(from, `🔄 Entrevista con *${iv.leadName || iv.leadPhone}* marcada para reagendar. El candidato fue notificado.`);
+                console.log(`[Interview] Entrevistador reagendó entrevista ${iv.id}`);
+              }
+            } else {
+              await sendWhatsApp(from, `No encontré entrevistas pendientes en el sistema.`);
+            }
+            return;
+          }
+        }
+      }
+
       // Check if message is from a manager responding to an escalation
       if (await isManagerPhone(from)) {
         const managers = await loadManagers().catch(() => []);
