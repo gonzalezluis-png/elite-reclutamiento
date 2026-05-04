@@ -6,7 +6,7 @@ const crypto     = require('crypto');
 const { chromium } = require('playwright');
 const twilio     = require('twilio');
 // nodemailer removed — usando Resend API
-const { askClaude, textToSpeech, loadConfig, loadConfigFromFirestore, saveConfig, DEFAULT_CONFIG, conversationHistory, aiEnabled, loadEntrevistasConfig, saveEntrevistasConfig } = require('./ai');
+const { askClaude, askClaudeResume, textToSpeech, loadConfig, loadConfigFromFirestore, saveConfig, DEFAULT_CONFIG, conversationHistory, aiEnabled, loadEntrevistasConfig, saveEntrevistasConfig } = require('./ai');
 const { registerMetaRoutes } = require('./meta');
 const { fsLeadExists, fsCreateLeadWA, fsGetLeadByPhone, fsUpdateLeadFields, runWAPipeline, humanDelay } = require('./pipeline');
 const { triggerEscalation, handleManagerReply, isManagerPhone, loadManagers, saveManagers, DEFAULT_MANAGERS, getTeamMessages } = require('./escalation');
@@ -661,7 +661,7 @@ app.post('/twilio/whatsapp-incoming', async (req, res) => {
 
   // Check if IA is paused for this lead
   const _twLeadData = await fsGetLeadByPhone(cleanFrom);
-  if (_twLeadData?.ia_paused) {
+  if (_twLeadData?.fields?.ia_paused?.booleanValue === true) {
     console.log(`[WA-IN] IA pausada para ${From} — mensaje no procesado por IA`);
     return res.type('text/xml').send('<Response></Response>');
   }
@@ -839,7 +839,7 @@ app.post('/twilio/sms-incoming', async (req, res) => {
     if (!exists) await fsCreateLeadWA(From);
 
     const _smsLeadData = await fsGetLeadByPhone(From.replace('whatsapp:', ''));
-    if (_smsLeadData?.ia_paused) {
+    if (_smsLeadData?.fields?.ia_paused?.booleanValue === true) {
       console.log(`[SMS-IN] IA pausada para ${From} — mensaje no procesado por IA`);
       return res.type('text/xml').send('<Response></Response>');
     }
@@ -1041,8 +1041,28 @@ app.post('/ai/pause', async (req, res) => {
   if (!phone) return res.status(400).json({ ok: false, error: 'phone requerido' });
   try {
     const doc = await fsGetLeadByPhone(phone);
-    if (doc) await fsUpdateLeadFields(doc.id || doc.name?.split('/').pop(), { ia_paused: paused });
+    if (doc) await fsUpdateLeadFields(doc.name?.split('/').pop(), { ia_paused: paused });
     res.json({ ok: true });
+
+    // On resume: if last history entry is a user message (unanswered), respond now
+    if (!paused) {
+      const convKey = `wa_meta:${phone.replace(/^\+/, '')}`;
+      ;(async () => {
+        try {
+          const rawReply = await askClaudeResume(convKey, 'wa');
+          if (!rawReply) return; // nothing unanswered
+          const reply = rawReply.replace(/\[ESC:[^\]]*\]\n?/g, '').trim();
+          const { sendWhatsApp: _resumeWA } = require('./meta');
+          const { humanDelay, runWAPipeline } = require('./pipeline');
+          console.log(`[AI-Resume] Ana → ${phone}: "${reply}"`);
+          await humanDelay(reply);
+          await _resumeWA(phone.replace(/^\+/, ''), reply);
+          await runWAPipeline(convKey, conversationHistory, _resumeWA, { WEBINAR_URL });
+        } catch(e) {
+          console.error('[AI-Resume] Error:', e.message);
+        }
+      })();
+    }
   } catch(e) {
     res.json({ ok: false, error: e.message });
   }

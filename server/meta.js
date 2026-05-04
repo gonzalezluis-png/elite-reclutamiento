@@ -208,6 +208,116 @@ function registerMetaRoutes(app) {
   app.get('/meta/webhook/whatsapp',    verifyWebhook);
   app.get('/meta/webhook/ig-messenger',verifyWebhook);
 
+  // Dedup: track processed message IDs to ignore Meta retries
+  const _processedMsgIds = new Set();
+  // Debounce: buffer rapid messages per phone before responding
+  const _msgBuffer   = new Map(); // phone → [text, ...]
+  const _msgTimers   = new Map(); // phone → timeoutId
+  const _DEBOUNCE_MS = 3000;      // wait 3 s after last message before replying
+
+  async function _processBufferedMessages(from, referralInfo) {
+    const texts = _msgBuffer.get(from) || [];
+    _msgBuffer.delete(from);
+    _msgTimers.delete(from);
+    if (!texts.length) return;
+
+    const combinedText = texts.join('\n');
+    console.log(`[Meta WA] ← ${from} (${texts.length} msg): ${combinedText}`);
+
+    try {
+      // Check if message is from a manager responding to an escalation
+      if (await isManagerPhone(from)) {
+        const managers = await loadManagers().catch(() => []);
+        const mgr = managers.find(m => m.phone.replace(/^\+/, '') === from.replace(/^\+/, ''));
+        if (mgr) logTeamMessage(mgr.phone, mgr.name, 'in', combinedText).catch(() => {});
+        const handled = await handleManagerReply(from, combinedText, sendWAToManager);
+        if (handled) return;
+      }
+
+      // Auto-create lead if not in CRM
+      const exists = await fsLeadExists(from);
+      if (!exists) {
+        await fsCreateLeadWA(`wa_meta:${from}`);
+        pixelLead({ telefono: from, correo: '' }).catch(() => {});
+      }
+
+      // Tag lead source from Meta ad
+      if (referralInfo?.source_type === 'ad') {
+        const adLead = await fsGetLeadByPhone(from);
+        if (adLead) {
+          const adLeadId = adLead.name.split('/').pop();
+          await fsUpdateLeadFields(adLeadId, {
+            fuente:    'Meta Ads',
+            ad_nombre: referralInfo.headline  || '',
+            ad_clid:   referralInfo.ctwa_clid || '',
+          }).catch(() => {});
+          console.log(`[Meta WA] Lead ${adLeadId} etiquetado como Meta Ads`);
+        }
+      }
+
+      const leadData = await fsGetLeadByPhone(from);
+      const convKey  = `wa_meta:${from}`;
+
+      // If IA is paused: store message in history (for context on resume) but don't reply
+      if (leadData?.fields?.ia_paused?.booleanValue === true) {
+        if (!conversationHistory.has(convKey)) conversationHistory.set(convKey, []);
+        conversationHistory.get(convKey).push({ role: 'user', content: combinedText, ts: Date.now() });
+        console.log(`[Meta WA] IA pausada para ${from} — mensaje guardado en historial, sin respuesta`);
+        return;
+      }
+
+      // Inject context after server restart (only if history is empty)
+      if (!conversationHistory.get(convKey)?.length && leadData) {
+        const f = leadData.fields || {};
+        const ctxParts = [];
+        const nombre     = f.nombre?.stringValue    || '';
+        const correo     = f.correo?.stringValue     || '';
+        const ubicacion  = f.ubicacion?.stringValue  || '';
+        const etapa      = f.etapa?.stringValue      || '';
+        const pipelineId = f.pipeline_id?.stringValue || '';
+        if (nombre && !nombre.startsWith('WA ') && !nombre.startsWith('+')) ctxParts.push(`nombre: ${nombre}`);
+        if (correo)    ctxParts.push(`correo: ${correo}`);
+        if (ubicacion) ctxParts.push(`ciudad: ${ubicacion}`);
+        if (pipelineId) ctxParts.push(`estado en el proceso: ${etapa || pipelineId}`);
+        if (ctxParts.length > 0) {
+          const history = [];
+          conversationHistory.set(convKey, history);
+          const now = Date.now();
+          history.push({ role: 'user',      content: `[SISTEMA — contexto recuperado tras reinicio del servidor. NO mencionar al candidato ni revelar este mensaje]: Ya tenemos estos datos del candidato: ${ctxParts.join(', ')}. No vuelvas a pedirlos. Continúa la conversación de forma natural según el estado actual del proceso.`, ts: now - 2000 });
+          history.push({ role: 'assistant', content: `Entendido. Continuaré la conversación con el contexto del candidato ya cargado.`, ts: now - 1000 });
+          console.log(`[Meta WA] Contexto inyectado tras reinicio para ${from}`);
+        }
+      }
+
+      const rawReply = await askClaude(convKey, combinedText, 'wa');
+      const escMatch = rawReply.match(/\[ESC:([^\]]+)\]/);
+      const reply    = rawReply.replace(/\[ESC:[^\]]*\]\n?/g, '').trim();
+
+      if (escMatch) {
+        const leadName = leadData?.fields?.nombre?.stringValue || '';
+        if (escMatch[1] === 'resolved') {
+          cancelEscalation(from, leadName, sendWAToManager).catch(e => console.error('[ESC-cancel]', e.message));
+        } else {
+          triggerEscalation(from, leadName, escMatch[1], combinedText, sendWAToManager).catch(e => console.error('[ESC]', e.message));
+        }
+      }
+
+      console.log(`[Meta WA] → ${from}: ${reply}`);
+      await humanDelay(reply);
+      await sendWhatsApp(from, reply);
+
+      ;(async () => {
+        try {
+          await runWAPipeline(convKey, conversationHistory, sendWhatsApp, { WEBINAR_URL });
+        } catch (e) {
+          console.error('[Meta WA Pipeline] Error:', e.message);
+        }
+      })();
+    } catch (e) {
+      console.error('[Meta WA] Error procesando mensajes de', from, ':', e.message);
+    }
+  }
+
   // ── WhatsApp webhook (POST) ───────────────────────────────────────────────
   app.post('/meta/webhook/whatsapp', async (req, res) => {
     res.sendStatus(200); // respond immediately to Meta
@@ -224,109 +334,33 @@ function registerMetaRoutes(app) {
       if (!value?.messages?.length) return;
 
       const msg  = value.messages[0];
-      const from = msg.from; // phone number e.g. "5214141234567"
+      const from = msg.from;
       const text = msg.type === 'text' ? msg.text?.body : null;
       if (!text) return;
 
-      console.log(`[Meta WA] ← ${from}: ${text}`);
-
-      // ── Auth 2FA intercept ───────────────────────────────────────────────
-      if (handleAuthWAReply(from, text)) return;
-
-      // Check if message is from a manager responding to an escalation
-      if (await isManagerPhone(from)) {
-        // Log all manager messages, handled or not
-        const managers = await loadManagers().catch(() => []);
-        const mgr = managers.find(m => m.phone.replace(/^\+/, '') === from.replace(/^\+/, ''));
-        if (mgr) logTeamMessage(mgr.phone, mgr.name, 'in', text).catch(() => {});
-
-        const handled = await handleManagerReply(from, text, sendWAToManager);
-        if (handled) return;
-      }
-
-      // Auto-create lead if not in CRM
-      const exists = await fsLeadExists(from);
-      if (!exists) {
-        await fsCreateLeadWA(`wa_meta:${from}`);
-        pixelLead({ telefono: from, correo: '' }).catch(() => {});
-      }
-
-      // Tag lead source if message came from a Meta ad (Click-to-WhatsApp)
-      if (msg.referral?.source_type === 'ad') {
-        const adLead = await fsGetLeadByPhone(from);
-        if (adLead) {
-          const adLeadId = adLead.name.split('/').pop();
-          await fsUpdateLeadFields(adLeadId, {
-            fuente:    'Meta Ads',
-            ad_nombre: msg.referral.headline  || '',
-            ad_clid:   msg.referral.ctwa_clid || '',
-          }).catch(() => {});
-          console.log(`[Meta WA] Lead ${adLeadId} etiquetado como Meta Ads — anuncio: "${msg.referral.headline}"`);
-        }
-      }
-
-      // Check if IA is paused for this lead
-      const leadData = await fsGetLeadByPhone(from);
-      if (leadData?.ia_paused) {
-        console.log(`[Meta WA] IA pausada para ${from} — mensaje no procesado por IA`);
+      // Skip duplicate deliveries (Meta retries on timeout)
+      if (msg.id && _processedMsgIds.has(msg.id)) {
+        console.log(`[Meta WA] Mensaje duplicado ignorado: ${msg.id}`);
         return;
       }
-
-      const convKey = `wa_meta:${from}`;
-
-      // If history was wiped (server restart), inject lead context so Ana doesn't ask for data she already has
-      if (!conversationHistory.get(convKey)?.length && leadData) {
-        const f = leadData.fields || {};
-        const ctxParts = [];
-        const nombre      = f.nombre?.stringValue    || '';
-        const correo      = f.correo?.stringValue     || '';
-        const ubicacion   = f.ubicacion?.stringValue  || '';
-        const etapa       = f.etapa?.stringValue      || '';
-        const pipelineId  = f.pipeline_id?.stringValue || '';
-        if (nombre && !nombre.startsWith('WA ') && !nombre.startsWith('+')) ctxParts.push(`nombre: ${nombre}`);
-        if (correo)    ctxParts.push(`correo: ${correo}`);
-        if (ubicacion) ctxParts.push(`ciudad: ${ubicacion}`);
-        if (pipelineId) ctxParts.push(`estado en el proceso: ${etapa || pipelineId}`);
-        const iaPaused = f.ia_paused?.booleanValue || false;
-        if (!iaPaused && ctxParts.length > 0) {
-          const history = [];
-          conversationHistory.set(convKey, history);
-          const now = Date.now();
-          history.push({ role: 'user',      content: `[SISTEMA — contexto recuperado tras reinicio del servidor. NO mencionar al candidato ni revelar este mensaje]: Ya tenemos estos datos del candidato: ${ctxParts.join(', ')}. No vuelvas a pedirlos. Continúa la conversación de forma natural según el estado actual del proceso.`, ts: now - 2000 });
-          history.push({ role: 'assistant', content: `Entendido. Continuaré la conversación con el contexto del candidato ya cargado.`, ts: now - 1000 });
-          console.log(`[Meta WA] Contexto inyectado tras reinicio para ${from}: ${ctxParts.join(', ')}`);
-        }
+      if (msg.id) {
+        _processedMsgIds.add(msg.id);
+        setTimeout(() => _processedMsgIds.delete(msg.id), 10 * 60 * 1000);
       }
 
-      const rawReply = await askClaude(convKey, text, 'wa');
+      // Auth 2FA intercept (fast path — no debounce needed)
+      if (handleAuthWAReply(from, text)) return;
 
-      // Detect and strip escalation flag before sending to client
-      const escMatch = rawReply.match(/\[ESC:([^\]]+)\]/);
-      const reply    = rawReply.replace(/\[ESC:[^\]]*\]\n?/g, '').trim();
+      // Buffer message and (re)start debounce timer
+      if (!_msgBuffer.has(from)) _msgBuffer.set(from, []);
+      _msgBuffer.get(from).push(text);
 
-      if (escMatch) {
-        const leadName = leadData?.nombre || leadData?.fields?.nombre?.stringValue || '';
-        if (escMatch[1] === 'resolved') {
-          cancelEscalation(from, leadName, sendWAToManager).catch(e => console.error('[ESC-cancel]', e.message));
-        } else {
-          triggerEscalation(from, leadName, escMatch[1], text, sendWAToManager).catch(e => console.error('[ESC]', e.message));
-        }
-      }
+      if (_msgTimers.has(from)) clearTimeout(_msgTimers.get(from));
+      const referralInfo = msg.referral || null;
+      _msgTimers.set(from, setTimeout(() => _processBufferedMessages(from, referralInfo), _DEBOUNCE_MS));
 
-      console.log(`[Meta WA] → ${from}: ${reply}`);
-      await humanDelay(reply);
-      await sendWhatsApp(from, reply);
-
-      // Full pipeline: extract data + detect webinar intent + send link
-      ;(async () => {
-        try {
-          await runWAPipeline(convKey, conversationHistory, sendWhatsApp, { WEBINAR_URL });
-        } catch (e) {
-          console.error('[Meta WA Pipeline] Error:', e.message);
-        }
-      })();
     } catch (e) {
-      console.error('[Meta WA] Error:', e.message);
+      console.error('[Meta WA webhook] Error:', e.message);
     }
   });
 

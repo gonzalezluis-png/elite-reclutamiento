@@ -484,8 +484,32 @@ async function askClaude(phone, userMessage, channel = 'text') {
   const messages = history.slice(-20).map(({ role, content }) => ({ role, content }));
 
   const response = await anthropic.messages.create({
-    model: 'claude-opus-4-5',
+    model: 'claude-opus-4-7',
     max_tokens: channel === 'voice' ? 150 : 512,
+    system: await buildSystemPrompt(channel),
+    messages,
+  });
+
+  const reply = response.content[0].text;
+  history.push({ role: 'assistant', content: reply, ts: Date.now() });
+  return reply;
+}
+
+// Respond from existing history without adding a new user message (used on IA resume)
+async function askClaudeResume(phone, channel = 'wa') {
+  const key     = phone || 'unknown';
+  const history = conversationHistory.get(key) || [];
+  if (!history.length) return null;
+
+  const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+  while (history.length && history[0].ts < cutoff) history.shift();
+
+  const messages = history.slice(-20).map(({ role, content }) => ({ role, content }));
+  if (!messages.length || messages[messages.length - 1].role !== 'user') return null;
+
+  const response = await anthropic.messages.create({
+    model: 'claude-opus-4-7',
+    max_tokens: 512,
     system: await buildSystemPrompt(channel),
     messages,
   });
@@ -515,4 +539,4 @@ async function textToSpeech(text) {
   return Buffer.from(await resp.arrayBuffer());
 }
 
-module.exports = { askClaude, textToSpeech, loadConfig, loadConfigFromFirestore, saveConfig, DEFAULT_CONFIG, conversationHistory, aiEnabled, loadEntrevistasConfig, saveEntrevistasConfig };
+module.exports = { askClaude, askClaudeResume, textToSpeech, loadConfig, loadConfigFromFirestore, saveConfig, DEFAULT_CONFIG, conversationHistory, aiEnabled, loadEntrevistasConfig, saveEntrevistasConfig };
