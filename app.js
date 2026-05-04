@@ -146,10 +146,7 @@ const WEBINAR_PROGRESSIONS = {
   'AS - 3er intento de contacto': null,
 };
 
-const USERS = JSON.parse(localStorage.getItem('er_users') || JSON.stringify([
-  { email:'admin@elitereclutamiento.com', password:'admin123', name:'Admin', role:'Administrador' },
-  { email:'luis@grupoelitework.com', password:'elite2026', name:'Luis González', role:'Administrador' },
-]));
+// Users managed server-side — no local USERS array
 
 // Load some sample data if empty or seed version changed
 const SEED_VERSION = '4';
@@ -205,29 +202,166 @@ if (localStorage.getItem('er_seed_v') !== SEED_VERSION) {
 // ════════════════════════════════════════════
 //  AUTH
 // ════════════════════════════════════════════
-function doLogin() {
+//  AUTH
+// ════════════════════════════════════════════
+let _sessionToken = null;
+let _waPoller     = null;
+
+function getRoleLabel(role) {
+  return { developer:'Desarrollador', agente:'Agente', entrevistador:'Entrevistador' }[role] || role;
+}
+function getAllowedPipelines(role) {
+  if (role === 'developer' || role === 'agente') return PIPELINES.map(p => p.id);
+  if (role === 'entrevistador') return ['entrevistas-generales','maria-lugo','brayan-alexander','caritza-rojas'];
+  return [];
+}
+function applyRolePermissions(role) {
+  const show = (id, v) => { const el = document.getElementById(id); if (el) el.style.display = v ? '' : 'none'; };
+  const is   = (...rs) => rs.includes(role);
+  show('nav-conversations',    is('developer','agente'));
+  show('nav-messaging',        is('developer','agente'));
+  show('nav-external',         is('developer','entrevistador'));
+  show('nav-registro-webinar', true);
+  show('nav-team-chat',        is('developer','agente'));
+  show('nav-ai',               is('developer','agente'));
+  show('nav-ai-entrevistas',   true);
+  show('nav-config',           is('developer'));
+  show('nav-users',            is('developer'));
+}
+function initAppWithUser(user) {
+  currentUser   = { name: user.name, role: user.role };
+  _sessionToken = user.token;
+  document.getElementById('wa-verify-screen').style.display = 'none';
+  document.getElementById('login-page').classList.add('hidden');
+  document.getElementById('app').style.display = 'flex';
+  document.getElementById('user-name').textContent   = user.name;
+  document.getElementById('user-role').textContent   = getRoleLabel(user.role);
+  document.getElementById('user-avatar').textContent = user.name[0];
+  applyRolePermissions(user.role);
+  populatePipelineSelects();
+  renderSidebar();
+  const allowed = getAllowedPipelines(user.role);
+  const saved   = localStorage.getItem('er_active_pipeline');
+  const pipe    = (saved && allowed.includes(saved)) ? saved : (allowed[0] || 'entrevistas-generales');
+  const tab     = localStorage.getItem('er_active_tab');
+  if (tab) setPipeTab(pipe, tab);
+  selectPipeline(pipe);
+  if (typeof postLoginInit === 'function') postLoginInit();
+}
+async function doLogin() {
   const email = document.getElementById('li-email').value.trim();
   const pass  = document.getElementById('li-pass').value;
   const errEl = document.getElementById('login-error');
+  const btn   = document.getElementById('btn-login');
   errEl.textContent = '';
-  const user = USERS.find(u => u.email === email && u.password === pass);
-  if (user) {
-    currentUser = user;
+  if (!email || !pass) { errEl.textContent = 'Ingresa tu correo y contraseña.'; return; }
+  btn.disabled = true; btn.textContent = 'Verificando…';
+  try {
+    const r    = await fetch(`${SERVER_URL}/auth/login`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ email, password: pass }),
+    });
+    const data = await r.json();
+    if (!data.ok) {
+      errEl.textContent = data.error || 'Error al iniciar sesión.';
+      btn.disabled = false; btn.textContent = 'Entrar'; return;
+    }
+    _sessionToken = data.sessionId;
+    btn.disabled = false; btn.textContent = 'Entrar';
     document.getElementById('login-page').classList.add('hidden');
-    document.getElementById('app').style.display = 'flex';
-    document.getElementById('user-name').textContent = user.name;
-    document.getElementById('user-role').textContent = user.role;
-    document.getElementById('user-avatar').textContent = user.name[0];
-    renderSidebar();
-    const _lp = localStorage.getItem('er_active_pipeline') || 'postulados-meta';
-    const _lt = localStorage.getItem('er_active_tab');
-    if (_lt) setPipeTab(_lp, _lt);
-    selectPipeline(_lp);
-    populatePipelineSelects();
-  } else {
-    errEl.textContent = 'Correo o contraseña incorrectos.';
+    const wsEl = document.getElementById('wa-verify-screen');
+    wsEl.style.display = 'flex';
+    document.getElementById('wa-verify-name').textContent = data.name.split(' ')[0];
+    startWAPoller(data.sessionId);
+  } catch(e) {
+    errEl.textContent = 'Error de conexión con el servidor.';
+    btn.disabled = false; btn.textContent = 'Entrar';
   }
 }
+function startWAPoller(sessionId) {
+  if (_waPoller) clearInterval(_waPoller);
+  let attempts = 0;
+  _waPoller = setInterval(async () => {
+    if (++attempts > 100) {
+      clearInterval(_waPoller);
+      document.getElementById('wa-verify-error').textContent = 'Tiempo agotado. Intenta de nuevo.';
+      setTimeout(cancelWAVerification, 2500); return;
+    }
+    try {
+      const r    = await fetch(`${SERVER_URL}/auth/status/${sessionId}`);
+      const data = await r.json();
+      if (data.expired) { clearInterval(_waPoller); document.getElementById('wa-verify-error').textContent = 'Sesión expirada.'; return; }
+      if (data.verified) {
+        clearInterval(_waPoller);
+        sessionStorage.setItem('er_session', JSON.stringify({ token: sessionId, name: data.name, role: data.role }));
+        initAppWithUser({ token: sessionId, name: data.name, role: data.role });
+      }
+    } catch(e) {}
+  }, 3000);
+}
+function cancelWAVerification() {
+  if (_waPoller) clearInterval(_waPoller);
+  document.getElementById('wa-verify-screen').style.display = 'none';
+  document.getElementById('login-page').classList.remove('hidden');
+  document.getElementById('wa-verify-error').textContent = '';
+}
+
+// ── Users management (developer only) ────────────────────────────────────────
+async function openUsersModal() {
+  document.getElementById('users-modal').classList.remove('hidden');
+  await loadUsersList();
+}
+function closeUsersModal() { document.getElementById('users-modal').classList.add('hidden'); }
+async function loadUsersList() {
+  const el = document.getElementById('users-list');
+  el.innerHTML = '<div style="font-size:12px;color:var(--text3)">Cargando…</div>';
+  try {
+    const r    = await fetch(`${SERVER_URL}/auth/users`, { headers:{'x-session-token':_sessionToken} });
+    const data = await r.json();
+    if (!data.ok) { el.innerHTML = `<div style="color:var(--red);font-size:12px">${data.error}</div>`; return; }
+    const RL = { developer:'Desarrollador', agente:'Agente', entrevistador:'Entrevistador' };
+    el.innerHTML = data.users.map(u => `
+      <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--bg);border-radius:8px;margin-bottom:6px;border:1px solid var(--border)">
+        <div style="width:32px;height:32px;border-radius:50%;background:rgba(167,139,250,.2);color:#a78bfa;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0">${u.nombre[0]}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:12px;font-weight:600;color:#fff">${u.nombre}</div>
+          <div style="font-size:11px;color:var(--text3)">${u.correo} · ${u.telefono}</div>
+        </div>
+        <span style="font-size:10px;font-weight:600;padding:2px 8px;border-radius:10px;background:rgba(167,139,250,.15);color:#a78bfa">${RL[u.role]||u.role}</span>
+        <button onclick="deleteUser('${u.id}','${u.nombre}')" style="background:rgba(226,68,92,.1);border:1px solid rgba(226,68,92,.25);color:var(--red);border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer">✕</button>
+      </div>`).join('') || '<div style="font-size:12px;color:var(--text3)">Sin usuarios registrados.</div>';
+  } catch(e) { el.innerHTML = `<div style="color:var(--red);font-size:12px">Error de conexión</div>`; }
+}
+async function createUser() {
+  const nombre   = document.getElementById('nu-nombre').value.trim();
+  const correo   = document.getElementById('nu-correo').value.trim();
+  const telefono = document.getElementById('nu-telefono').value.trim();
+  const password = document.getElementById('nu-password').value;
+  const role     = document.getElementById('nu-role').value;
+  const errEl    = document.getElementById('nu-error');
+  errEl.textContent = '';
+  if (!nombre||!correo||!telefono||!password) { errEl.textContent='Completa todos los campos.'; return; }
+  try {
+    const r    = await fetch(`${SERVER_URL}/auth/users`, {
+      method:'POST', headers:{'Content-Type':'application/json','x-session-token':_sessionToken},
+      body: JSON.stringify({ nombre, correo, telefono, password, role }),
+    });
+    const data = await r.json();
+    if (!data.ok) { errEl.textContent = data.error; return; }
+    ['nu-nombre','nu-correo','nu-telefono','nu-password'].forEach(id => document.getElementById(id).value='');
+    showToast(`✅ Usuario ${nombre} creado`);
+    await loadUsersList();
+  } catch(e) { errEl.textContent='Error de conexión'; }
+}
+async function deleteUser(id, nombre) {
+  if (!confirm(`¿Eliminar a ${nombre}?`)) return;
+  try {
+    const r = await fetch(`${SERVER_URL}/auth/users/${id}`, { method:'DELETE', headers:{'x-session-token':_sessionToken} });
+    const d = await r.json();
+    if (d.ok) { showToast('Usuario eliminado'); await loadUsersList(); }
+  } catch(e) {}
+}
+
 async function resetAllLeads() {
   if (!confirm('¿Seguro que quieres borrar TODOS los leads? Esta acción no se puede deshacer.')) return;
   const toDelete = [...leads];
@@ -241,20 +375,22 @@ async function resetAllLeads() {
 }
 
 function doLogout() {
-  currentUser = null;
+  sessionStorage.removeItem('er_session');
+  _sessionToken = null; currentUser = null;
   document.getElementById('login-page').classList.remove('hidden');
   document.getElementById('app').style.display = 'none';
+  document.getElementById('li-email').value = '';
+  document.getElementById('li-pass').value = '';
 }
-document.getElementById('li-pass').addEventListener('keydown', e => { if(e.key==='Enter') doLogin(); });
-document.getElementById('li-email').addEventListener('keydown', e => { if(e.key==='Enter') doLogin(); });
 
 // ════════════════════════════════════════════
 //  SIDEBAR
 // ════════════════════════════════════════════
 function renderSidebar() {
-  const q = (document.getElementById('pipe-search').value || '').toLowerCase();
-  const isAdmin = currentUser?.role === 'Administrador';
-  const el = document.getElementById('pipe-list');
+  const q       = (document.getElementById('pipe-search').value || '').toLowerCase();
+  const role    = currentUser?.role || 'agente';
+  const allowed = new Set(getAllowedPipelines(role));
+  const el      = document.getElementById('pipe-list');
 
   const GROUPS = [
     {
@@ -284,7 +420,7 @@ function renderSidebar() {
     const collapsed = !!_grpCollapsed[grpKey];
     const pipes = group.ids
       .map(id => PIPELINES.find(p => p.id === id))
-      .filter(p => p && (p.visible || isAdmin) && p.nombre.toLowerCase().includes(q));
+      .filter(p => p && allowed.has(p.id) && p.nombre.toLowerCase().includes(q));
     if (!pipes.length) continue;
 
     const arrow = collapsed ? '▸' : '▾';

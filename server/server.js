@@ -2,6 +2,7 @@
 
 const express    = require('express');
 const cors       = require('cors');
+const crypto     = require('crypto');
 const { chromium } = require('playwright');
 const twilio     = require('twilio');
 // nodemailer removed — usando Resend API
@@ -438,12 +439,229 @@ const FS_PROJECT = 'elite-reclutamiento-crm';
 const FS_KEY     = 'AIzaSyCW2t1oHb7xc2Vi6vJROGRM7E7nu-CbU3s';
 const FS_BASE    = `https://firestore.googleapis.com/v1/projects/${FS_PROJECT}/databases/(default)/documents`;
 
+// ═══════════════════════════════════════════════════════════════════════════════
+//  AUTH SYSTEM
+// ═══════════════════════════════════════════════════════════════════════════════
+const AUTH_FS_BASE = `https://firestore.googleapis.com/v1/projects/elite-reclutamiento-crm/databases/(default)/documents`;
+const AUTH_FS_KEY  = 'AIzaSyCW2t1oHb7xc2Vi6vJROGRM7E7nu-CbU3s';
+
+function hashPass(pass) {
+  return crypto.createHash('sha256').update(String(pass)).digest('hex');
+}
+function normalizePhone(p) { return (p || '').replace(/\D/g, ''); }
+
+function docToUser(doc) {
+  const f = doc.fields || {};
+  return {
+    id:            doc.name.split('/').pop(),
+    nombre:        f.nombre?.stringValue        || '',
+    correo:        f.correo?.stringValue        || '',
+    telefono:      f.telefono?.stringValue      || '',
+    password_hash: f.password_hash?.stringValue || '',
+    role:          f.role?.stringValue          || 'agente',
+    active:        f.active?.booleanValue       !== false,
+    created_at:    f.created_at?.stringValue    || '',
+  };
+}
+
+async function dbGetUsers() {
+  const r = await fetch(`${AUTH_FS_BASE}/er_users?key=${AUTH_FS_KEY}`);
+  const d = await r.json();
+  if (!d.documents) return [];
+  return d.documents.map(docToUser);
+}
+async function dbFindUserByEmail(email) {
+  const all = await dbGetUsers();
+  return all.find(u => u.correo.toLowerCase() === email.toLowerCase() && u.active) || null;
+}
+async function dbCreateUser(u) {
+  const id = crypto.randomBytes(12).toString('hex');
+  await fetch(`${AUTH_FS_BASE}/er_users?documentId=${id}&key=${AUTH_FS_KEY}`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fields: {
+      nombre:        { stringValue: u.nombre },
+      correo:        { stringValue: (u.correo || '').toLowerCase() },
+      telefono:      { stringValue: u.telefono || '' },
+      password_hash: { stringValue: hashPass(u.password) },
+      role:          { stringValue: u.role || 'agente' },
+      active:        { booleanValue: true },
+      created_at:    { stringValue: new Date().toISOString() },
+    }}),
+  });
+  return id;
+}
+async function dbUpdateUser(id, fields) {
+  const fsFields = {};
+  const paths    = [];
+  for (const [k, v] of Object.entries(fields)) {
+    if (k === 'password') {
+      fsFields.password_hash = { stringValue: hashPass(String(v)) };
+      paths.push('password_hash');
+    } else if (typeof v === 'boolean') {
+      fsFields[k] = { booleanValue: v }; paths.push(k);
+    } else {
+      fsFields[k] = { stringValue: String(v) }; paths.push(k);
+    }
+  }
+  if (!paths.length) return;
+  const mask = paths.map(k => `updateMask.fieldPaths=${encodeURIComponent(k)}`).join('&');
+  await fetch(`${AUTH_FS_BASE}/er_users/${id}?${mask}&key=${AUTH_FS_KEY}`, {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fields: fsFields }),
+  });
+}
+async function dbDeleteUser(id) {
+  await fetch(`${AUTH_FS_BASE}/er_users/${id}?key=${AUTH_FS_KEY}`, { method: 'DELETE' });
+}
+
+// ── Seed developer on startup ─────────────────────────────────────────────────
+(async () => {
+  try {
+    const users = await dbGetUsers();
+    if (!users.find(u => u.correo === 'gonzalezluis@grupoelitework.com')) {
+      await dbCreateUser({
+        nombre: 'Luis González', correo: 'gonzalezluis@grupoelitework.com',
+        telefono: '+17863060642', password: 'elite2026', role: 'developer',
+      });
+      console.log('[Auth] Cuenta desarrollador creada ✓');
+    }
+  } catch (e) { console.error('[Auth] Seed error:', e.message); }
+})();
+
+// ── Session store ─────────────────────────────────────────────────────────────
+const AUTH_SESSIONS     = new Map(); // sessionId → { userId, name, role, phone, verified, expires }
+const AUTH_PHONE_PENDING = new Map(); // normalizedPhone → sessionId
+
+setInterval(() => {
+  const now = Date.now();
+  for (const [id, s] of AUTH_SESSIONS) {
+    if (s.expires < now) { AUTH_PHONE_PENDING.delete(s.phone); AUTH_SESSIONS.delete(id); }
+  }
+}, 60_000);
+
+function requireSession(role) {
+  return (req, res, next) => {
+    const token = req.headers['x-session-token'];
+    if (!token) return res.status(401).json({ ok: false, error: 'No autorizado' });
+    const s = AUTH_SESSIONS.get(token);
+    if (!s || !s.verified || s.expires < Date.now()) return res.status(401).json({ ok: false, error: 'Sesión inválida' });
+    if (role && s.role !== role) return res.status(403).json({ ok: false, error: 'Sin permiso' });
+    req.authSession = s;
+    next();
+  };
+}
+
+// ── WA verification handler (called from incoming webhook) ────────────────────
+function handleAuthWAReply(rawPhone, body) {
+  const norm      = normalizePhone(rawPhone);
+  const sessionId = AUTH_PHONE_PENDING.get(norm);
+  if (!sessionId) return false;
+  const s = AUTH_SESSIONS.get(sessionId);
+  if (!s || s.verified) return false;
+  const reply = (body || '').trim().toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  if (reply === 'si' || reply === 'yes' || reply === '1') {
+    s.verified = true;
+    s.expires  = Date.now() + 24 * 60 * 60 * 1000; // extend to 24h
+    AUTH_PHONE_PENDING.delete(norm);
+    console.log(`[Auth] ✓ WA verificado — ${rawPhone} sesión ${sessionId.slice(0,10)}…`);
+    return true;
+  }
+  return false;
+}
+
+// ── POST /auth/login ──────────────────────────────────────────────────────────
+app.post('/auth/login', async (req, res) => {
+  const { email, password } = req.body;
+  if (!email || !password) return res.status(400).json({ ok: false, error: 'Campos requeridos' });
+  try {
+    const user = await dbFindUserByEmail(email);
+    if (!user || user.password_hash !== hashPass(password)) {
+      return res.status(401).json({ ok: false, error: 'Correo o contraseña incorrectos' });
+    }
+    const sessionId = crypto.randomBytes(32).toString('hex');
+    const session   = { userId: user.id, name: user.nombre, role: user.role,
+                        phone: normalizePhone(user.telefono), verified: false,
+                        expires: Date.now() + 5 * 60 * 1000 }; // 5 min to verify
+    AUTH_SESSIONS.set(sessionId, session);
+    if (user.telefono) AUTH_PHONE_PENDING.set(normalizePhone(user.telefono), sessionId);
+
+    // Send WA
+    if (TWILIO_ACCOUNT_SID && TWILIO_AUTH_TOKEN && user.telefono) {
+      try {
+        const c   = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
+        const to  = user.telefono.startsWith('+') ? `whatsapp:${user.telefono}` : `whatsapp:+${user.telefono}`;
+        await c.messages.create({
+          from: TWILIO_WA_FROM, to,
+          body: `🔐 *Grupo Elite Work*\n\nHola ${user.nombre.split(' ')[0]}, alguien inició sesión con tu cuenta (${user.correo}).\n\n¿Eres tú? Responde *SÍ* para autorizar el acceso.\n\nSi no fuiste tú, ignora este mensaje.`,
+        });
+        console.log(`[Auth] WA enviado a ${user.telefono}`);
+      } catch (e) { console.error('[Auth] WA error:', e.message); }
+    }
+    res.json({ ok: true, sessionId, name: user.nombre, role: user.role });
+  } catch (e) {
+    console.error('[Auth] Login error:', e.message);
+    res.status(500).json({ ok: false, error: 'Error del servidor' });
+  }
+});
+
+// ── GET /auth/status/:id ──────────────────────────────────────────────────────
+app.get('/auth/status/:id', (req, res) => {
+  const s = AUTH_SESSIONS.get(req.params.id);
+  if (!s || s.expires < Date.now()) return res.json({ ok: true, verified: false, expired: true });
+  res.json({ ok: true, verified: s.verified, name: s.name, role: s.role });
+});
+
+// ── GET /auth/users ───────────────────────────────────────────────────────────
+app.get('/auth/users', requireSession('developer'), async (req, res) => {
+  try {
+    const users = (await dbGetUsers()).map(u => ({ ...u, password_hash: undefined }));
+    res.json({ ok: true, users });
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+// ── POST /auth/users ──────────────────────────────────────────────────────────
+app.post('/auth/users', requireSession('developer'), async (req, res) => {
+  const { nombre, correo, telefono, password, role } = req.body;
+  if (!nombre || !correo || !telefono || !password || !role) {
+    return res.status(400).json({ ok: false, error: 'Todos los campos son requeridos' });
+  }
+  if (!['developer','agente','entrevistador'].includes(role)) {
+    return res.status(400).json({ ok: false, error: 'Rol inválido' });
+  }
+  try {
+    const exists = await dbFindUserByEmail(correo);
+    if (exists) return res.status(409).json({ ok: false, error: 'Ya existe un usuario con ese correo' });
+    const id = await dbCreateUser({ nombre, correo, telefono, password, role });
+    res.json({ ok: true, id });
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+// ── PUT /auth/users/:id ───────────────────────────────────────────────────────
+app.put('/auth/users/:id', requireSession('developer'), async (req, res) => {
+  const allowed = ['nombre','correo','telefono','password','role','active'];
+  const fields  = Object.fromEntries(Object.entries(req.body).filter(([k]) => allowed.includes(k)));
+  try { await dbUpdateUser(req.params.id, fields); res.json({ ok: true }); }
+  catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+// ── DELETE /auth/users/:id ────────────────────────────────────────────────────
+app.delete('/auth/users/:id', requireSession('developer'), async (req, res) => {
+  try { await dbDeleteUser(req.params.id); res.json({ ok: true }); }
+  catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
 // ── WhatsApp: Incoming webhook ────────────────────────────────────────────────
 app.post('/twilio/whatsapp-incoming', async (req, res) => {
   const { From, Body, MessageSid } = req.body;
   console.log(`[WA-IN] ${From}: ${Body} (${MessageSid})`);
 
   const cleanFrom = From.replace('whatsapp:', '');
+
+  // ── Auth verification — must be FIRST ─────────────────────────────────────
+  if (handleAuthWAReply(cleanFrom, Body)) {
+    return res.type('text/xml').send('<Response></Response>');
+  }
 
   // Twilio send wrapper for escalation (managers receive whatsapp:+phone format)
   const twSendWAToManager = async (phone, text) => {
