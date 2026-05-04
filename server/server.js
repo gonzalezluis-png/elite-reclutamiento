@@ -10,6 +10,7 @@ const { registerMetaRoutes } = require('./meta');
 const { fsLeadExists, fsCreateLeadWA, fsGetLeadByPhone, fsUpdateLeadFields, runWAPipeline, humanDelay } = require('./pipeline');
 const { triggerEscalation, handleManagerReply, isManagerPhone, loadManagers, saveManagers, DEFAULT_MANAGERS, getTeamMessages } = require('./escalation');
 const { loadInterviewConfig, saveInterviewConfig, getAvailableSlots, bookInterview, listInterviews, updateInterview, checkInterviewReminders, DEFAULT_INTERVIEW_CONFIG } = require('./interviews');
+const { registerIvrRoutes } = require('./ivr');
 
 const WEBINAR_URL  = process.env.WEBINAR_URL || 'https://crm.grupoelitework.com/webinar.html';
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
@@ -269,27 +270,10 @@ app.post('/twilio/voice', async (req, res) => {
   const { VoiceResponse } = twilio.twiml;
   const twiml = new VoiceResponse();
   const to     = req.body.To;
-  const callSid = req.body.CallSid;
 
-  // Inbound call → AI assistant (To is one of our numbers or empty)
-  if (aiEnabled.voice && (!to || OUR_NUMBERS.has(to))) {
-    // Start recording immediately for inbound calls
-    if (callSid && TWILIO_ACCOUNT_SID && TWILIO_AUTH_TOKEN) {
-      const tc = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
-      tc.calls(callSid).recordings.create({ recordingChannels: 'dual' })
-        .then(r => console.log(`[Twilio] Grabación iniciada: ${r.sid}`))
-        .catch(e => console.warn('[Twilio] Error grabación:', e.message));
-    }
-    const greeting = 'Hola, te has comunicado con el Departamento de Recursos Humanos de Grupo Élite. ¿En qué te puedo ayudar?';
-    try {
-      const id  = await _genTTS(greeting);
-      const gather = twiml.gather({ input: 'speech', action: '/twilio/voice/respond', speechTimeout: 'auto', language: 'es-MX', speechModel: 'phone_call' });
-      gather.play(`${SERVER_URL}/ai/tts/${id}`);
-    } catch {
-      const gather = twiml.gather({ input: 'speech', action: '/twilio/voice/respond', speechTimeout: 'auto', language: 'es-MX' });
-      gather.say({ language: 'es-MX' }, greeting);
-    }
-    twiml.redirect('/twilio/voice/no-input');
+  // Inbound call → IVR menu (To is one of our numbers or empty)
+  if (!to || OUR_NUMBERS.has(to)) {
+    twiml.redirect('/twilio/voice/ivr/menu');
     res.type('text/xml').send(twiml.toString());
     return;
   }
@@ -1067,6 +1051,17 @@ app.get('/test-email', async (req, res) => {
 
 // ── Meta (WhatsApp Cloud API + Instagram + Messenger) ─────────────────────────
 registerMetaRoutes(app);
+
+// ── IVR phone menu ────────────────────────────────────────────────────────────
+registerIvrRoutes(app, {
+  SERVER_URL,
+  TWILIO_ACCOUNT_SID,
+  TWILIO_AUTH_TOKEN,
+  loadManagers,
+  triggerEscalation,
+  askClaude,
+  _genTTS,
+});
 
 // ── Registro automático ───────────────────────────────────────────────────────
 app.post('/registrar-webinar', async (req, res) => {
