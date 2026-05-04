@@ -314,7 +314,7 @@ async function getInterview(id) {
 // ── Reminder checker (called every minute by server) ─────────────────────────
 // sendWA      = Meta 214 — messages to candidates
 // sendInternal = Twilio 817 — messages to managers/interviewers (internal)
-async function checkInterviewReminders(sendWA, sendInternal) {
+async function checkInterviewReminders(sendWA, sendInternal, sendManager) {
   const cfg         = await loadInterviewConfig();
   const interviews  = await listInterviews();
   const now         = new Date();
@@ -347,11 +347,16 @@ async function checkInterviewReminders(sendWA, sendInternal) {
       const { fecha, hora } = _fmtSlot(slotTime);
 
       if (rem.notifyManager || rem.notifyInterviewer) {
-        // Notify interviewer via Twilio 817 (internal number)
-        if (cfg.interviewer.phone && sendInternal) {
+        // Notify interviewer about no-show
+        if (rem.notifyInterviewer && cfg.interviewer?.phone && sendInternal) {
           const ivPhone    = cfg.interviewer.phone.replace(/^\+/, '');
-          const ivFallback = `📅 Recordatorio: tienes una entrevista con ${iv.leadName || 'un candidato'} el ${fecha} a las ${hora}.\nZoom: ${iv.zoomLink}`;
+          const ivFallback = `⚠️ No-show: *${iv.leadName || 'candidato'}* no confirmó asistencia para la entrevista de las ${hora}.\n📞 ${iv.leadPhone || ''}\n🔗 ${iv.zoomLink}`;
           await sendInternal(ivPhone, ivFallback).catch(() => {});
+        }
+        // Notify manager about no-show
+        if (rem.notifyManager && sendManager) {
+          const mgrMsg = fillTemplate(rem.message, iv, slotTime);
+          await sendManager(mgrMsg).catch(() => {});
         }
       } else {
         // Notify candidate via Meta 214

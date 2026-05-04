@@ -1179,7 +1179,15 @@ const _ivSendInternal = async (to, text) => {
   const { sendWhatsApp: _ivInternalWA } = require('./meta');
   await _ivInternalWA(to.replace(/^\+/, ''), text);
 };
-setInterval(() => checkInterviewReminders(_ivSendWA, _ivSendInternal).catch(e => console.error('[IV-Reminder]', e.message)), 60_000);
+const _ivSendManager = async (text) => {
+  const managers = await loadManagers();
+  const mgr = managers[0];
+  if (mgr?.phone) {
+    const { sendWhatsApp: _ivMgrWA } = require('./meta');
+    await _ivMgrWA(mgr.phone.replace(/^\+/, ''), text).catch(() => {});
+  }
+};
+setInterval(() => checkInterviewReminders(_ivSendWA, _ivSendInternal, _ivSendManager).catch(e => console.error('[IV-Reminder]', e.message)), 60_000);
 
 // ── Legal data deletion — removes lead + all associated data ──────────────────
 app.delete('/leads/:id', async (req, res) => {
