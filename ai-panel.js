@@ -6,6 +6,7 @@ function _hideAllViews() {
   document.getElementById('calendar-view').classList.remove('active');
   document.getElementById('config-view').style.display      = 'none';
   document.getElementById('messaging-view').classList.remove('active');
+  document.getElementById('messaging-view').style.display = 'none';
   document.getElementById('conversations-view').classList.remove('active');
   document.getElementById('conversations-view').style.display = 'none';
   document.getElementById('ai-view').style.display                = 'none';
