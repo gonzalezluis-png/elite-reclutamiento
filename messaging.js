@@ -836,9 +836,10 @@ function _cvBuildPage() {
         <h2>📞 Conversaciones</h2>
         <div class="cv-filters">
           <button class="cv-filter active" data-f="all"      onclick="_cvSetFilter('all')">Todas</button>
-          <button class="cv-filter"        data-f="outbound" onclick="_cvSetFilter('outbound')">Salientes</button>
           <button class="cv-filter"        data-f="inbound"  onclick="_cvSetFilter('inbound')">Entrantes</button>
+          <button class="cv-filter"        data-f="outbound" onclick="_cvSetFilter('outbound')">Salientes</button>
           <button class="cv-filter"        data-f="missed"   onclick="_cvSetFilter('missed')">Perdidas</button>
+          <button class="cv-filter"        data-f="voicemail" onclick="_cvSetFilter('voicemail')">Buzón</button>
         </div>
       </div>
       <div class="cv-search">
@@ -861,9 +862,32 @@ function _cvSetFilter(f) {
 async function _cvLoadCalls() {
   if (activeView !== 'conversations') return;
   try {
-    const res  = await fetch(`${SERVER_URL}/twilio/calls?limit=100`);
-    const data = await res.json();
-    if (data.calls) { _cvAllCalls = data.calls; _cvRenderList(); }
+    const [r1, r2] = await Promise.all([
+      fetch(`${SERVER_URL}/twilio/calls?limit=100`).then(r => r.json()).catch(() => ({ calls: [] })),
+      fetch(`${SERVER_URL}/call-log?limit=200`).then(r => r.json()).catch(() => ({ calls: [] })),
+    ]);
+    const twilCalls = (r1.calls || []).map(c => ({ ...c, _src: 'twilio' }));
+    const fsCalls   = (r2.calls || []).map(c => ({
+      sid:       c.callSid,
+      from:      c.from,
+      to:        c.to,
+      status:    c.status,
+      direction: c.direction,
+      duration:  c.duration,
+      startTime: c.startTime,
+      type:      c.type,
+      label:     c.label,
+      recordingUrl: c.recordingUrl,
+      transcription: c.transcription,
+      _src: 'firestore',
+    }));
+    // Merge: prefer Firestore record for same callSid; dedupe by callSid
+    const byId = {};
+    for (const c of twilCalls) byId[c.sid] = c;
+    for (const c of fsCalls)   if (c.sid) byId[c.sid] = { ...byId[c.sid], ...c }; // FS wins for voicemail fields
+    const merged = Object.values(byId).sort((a, b) => new Date(b.startTime) - new Date(a.startTime));
+    _cvAllCalls = merged;
+    _cvRenderList();
   } catch (e) { console.error('cv load:', e); }
 }
 
@@ -880,9 +904,11 @@ function _cvGroupByContact(calls) {
 
 function _cvFilterCalls(calls) {
   return calls.filter(c => {
-    if (_cvFilter === 'outbound' && !c.direction?.startsWith('outbound')) return false;
-    if (_cvFilter === 'inbound'  && c.direction !== 'inbound') return false;
-    if (_cvFilter === 'missed'   && c.status !== 'no-answer' && c.status !== 'busy' && c.status !== 'failed') return false;
+    const isVM = c.type === 'voicemail' || c.status === 'voicemail';
+    if (_cvFilter === 'voicemail' && !isVM) return false;
+    if (_cvFilter === 'outbound'  && !c.direction?.startsWith('outbound')) return false;
+    if (_cvFilter === 'inbound'   && (c.direction !== 'inbound' || isVM)) return false;
+    if (_cvFilter === 'missed'    && c.status !== 'no-answer' && c.status !== 'busy' && c.status !== 'failed') return false;
     if (_cvSearch) {
       const q = _cvSearch.toLowerCase();
       const lead = leads.find(l => l.telefono && (c.to?.includes(l.telefono.replace(/\D/g,'').slice(-10)) || c.from?.includes(l.telefono.replace(/\D/g,'').slice(-10))));
@@ -911,16 +937,21 @@ function _cvRenderList() {
     const name   = lead?.nombre || num;
     const initials = name.split(' ').map(w => w[0]||'').join('').slice(0,2).toUpperCase();
     const color  = lead ? '#6366f1' : '#00c875';
+    const isVM   = last.type === 'voicemail' || last.status === 'voicemail';
     const dir    = last.direction?.startsWith('outbound') ? '↗' : '↙';
-    const miss   = last.status === 'no-answer' || last.status === 'busy' || last.status === 'failed';
+    const miss   = !isVM && (last.status === 'no-answer' || last.status === 'busy' || last.status === 'failed');
     const durFmt = last.duration > 0 ? `${Math.floor(last.duration/60)}:${String(last.duration%60).padStart(2,'0')}` : '—';
     const timeAgo = _cvTimeAgo(last.startTime);
     const active = _cvContactId === num ? 'active' : '';
+    const avatarBg = isVM ? 'rgba(167,139,250,.3)' : miss ? 'rgba(226,68,92,.3)' : color;
+    const subLabel = isVM ? '<span style="color:#a78bfa">🎙 Buzón de voz</span>'
+                   : miss ? '<span style="color:#e2445c">📵 Perdida</span>'
+                   : dir + ' ' + durFmt;
     return `<div class="cv-item ${active}" onclick="_cvOpenContact('${num}')">
-      <div class="cv-avatar" style="background:${miss?'rgba(226,68,92,.3)':color}">${initials}</div>
+      <div class="cv-avatar" style="background:${avatarBg}">${initials}</div>
       <div class="cv-item-info">
         <div class="cv-item-name">${esc(name)}</div>
-        <div class="cv-item-sub">${miss?'<span style="color:#e2445c">📵 Perdida</span>':dir+' '+durFmt} · ${esc(num)}</div>
+        <div class="cv-item-sub">${subLabel} · ${esc(num)}</div>
       </div>
       <div style="text-align:right;flex-shrink:0">
         <div class="cv-item-time">${timeAgo}</div>
@@ -978,30 +1009,44 @@ function _cvOpenContact(num) {
 }
 
 function _cvCallCard(c, contactNum) {
-  const out  = c.direction?.startsWith('outbound');
-  const miss = c.status === 'no-answer' || c.status === 'busy' || c.status === 'failed';
+  const isVM = c.type === 'voicemail' || c.status === 'voicemail';
+  const out  = !isVM && (c.direction?.startsWith('outbound'));
+  const miss = !isVM && (c.status === 'no-answer' || c.status === 'busy' || c.status === 'failed');
   const durFmt = parseInt(c.duration) > 0
     ? `${Math.floor(c.duration/60)}:${String(c.duration%60).padStart(2,'0')}`
     : '0:00';
-  const iconCls = miss ? 'miss' : out ? 'out' : 'in';
-  const icon    = miss ? '📵' : out ? '↗' : '↙';
-  const dirLbl  = miss ? 'Perdida' : out ? 'Saliente' : 'Entrante';
+  const iconCls = isVM ? 'vm' : miss ? 'miss' : out ? 'out' : 'in';
+  const icon    = isVM ? '🎙' : miss ? '📵' : out ? '↗' : '↙';
+  const dirLbl  = isVM ? 'Buzón de voz' : miss ? 'Perdida' : out ? 'Saliente' : 'Entrante';
   const numDisplay = out ? c.to : c.from;
   const dt = new Date(c.startTime);
   const dtFmt = dt.toLocaleDateString('es-MX', {day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
-  return `<div class="cv-call-card">
-    <div class="cv-call-icon ${iconCls}">${icon}</div>
-    <div class="cv-call-info">
-      <div class="cv-call-dir">${dirLbl}</div>
+  const statusColor = isVM ? '#a78bfa' : miss ? '#e2445c' : out ? '#00c875' : '#60a5fa';
+  const statusBg    = isVM ? 'rgba(167,139,250,.15)' : miss ? 'rgba(226,68,92,.15)' : out ? 'rgba(0,200,117,.15)' : 'rgba(96,165,250,.15)';
+
+  const vmSection = isVM ? `
+    <div style="margin-top:10px;padding:10px 12px;background:rgba(167,139,250,.08);border:1px solid rgba(167,139,250,.2);border-radius:8px;">
+      ${c.recordingUrl ? `<audio controls style="width:100%;height:32px;accent-color:#a78bfa;margin-bottom:${c.transcription?'6px':'0'}">
+        <source src="${esc(c.recordingUrl)}" type="audio/mpeg">
+      </audio>` : '<div style="font-size:11px;color:var(--text2)">Audio no disponible</div>'}
+      ${c.transcription ? `<div style="font-size:11px;color:var(--text2);font-style:italic;">"${esc(c.transcription)}"</div>` : ''}
+    </div>` : '';
+
+  return `<div class="cv-call-card" style="${isVM?'border-color:rgba(167,139,250,.25)':''}">
+    <div class="cv-call-icon ${iconCls}" style="${isVM?'background:rgba(167,139,250,.15);color:#a78bfa':''}">
+      ${icon}
+    </div>
+    <div class="cv-call-info" style="flex:1;min-width:0">
+      <div class="cv-call-dir">${dirLbl}${c.label?` · ${esc(c.label)}`:''}</div>
       <div class="cv-call-num">${esc(numDisplay)}</div>
       <div style="font-size:10px;color:var(--text2);margin-top:3px">${esc(dtFmt)}</div>
+      ${vmSection}
     </div>
     <div class="cv-call-meta">
       <div class="cv-call-dur">${durFmt}</div>
       <div style="font-size:10px;margin-top:2px;padding:2px 7px;border-radius:10px;display:inline-block;
-        background:${miss?'rgba(226,68,92,.15)':out?'rgba(0,200,117,.15)':'rgba(96,165,250,.15)'};
-        color:${miss?'#e2445c':out?'#00c875':'#60a5fa'}">${c.status||'—'}</div>
-      <br><button class="cv-call-btn" style="margin-top:6px" onclick="cpOpen_num('${esc(contactNum)}','')">📞 Volver a llamar</button>
+        background:${statusBg};color:${statusColor}">${isVM?'voicemail':c.status||'—'}</div>
+      <br><button class="cv-call-btn" style="margin-top:6px" onclick="cpOpen_num('${esc(contactNum)}','')">📞 Llamar</button>
     </div>
   </div>`;
 }

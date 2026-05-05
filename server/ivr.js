@@ -384,8 +384,30 @@ function registerIvrRoutes(app, deps) {
     const recUrl        = req.body.RecordingUrl;
     const recDuration   = req.body.RecordingDuration;
     const from          = req.body.From || req.body.Caller || '';
+    const to            = req.body.To   || req.body.Called || '';
+    const callSid       = req.body.CallSid || `vm_${Date.now()}`;
+    const label         = req.query.label || '';
 
     console.log(`[IVR] Voicemail recibido de ${from} — duración: ${recDuration}s — ${recUrl}`);
+
+    // Save to Firestore call_log
+    try {
+      const { fsLogCall } = require('./call-log');
+      await fsLogCall({
+        callSid,
+        from, to,
+        status:       'voicemail',
+        direction:    'inbound',
+        type:         'voicemail',
+        duration:     parseInt(recDuration) || 0,
+        recordingUrl: recUrl ? `${recUrl}.mp3` : '',
+        label,
+        startTime:    new Date().toISOString(),
+        ts:           Date.now(),
+      });
+    } catch (e) {
+      console.error('[IVR] fsLogCall voicemail:', e.message);
+    }
 
     // Notify managers via WhatsApp
     if (recUrl && TWILIO_ACCOUNT_SID && TWILIO_AUTH_TOKEN) {
@@ -408,13 +430,16 @@ function registerIvrRoutes(app, deps) {
     res.type('text/xml').send(twiml.toString());
   });
 
-  // Transcription callback (just logging)
-  app.post('/twilio/voice/ivr/voicemail-transcribe', (req, res) => {
-    const { TranscriptionText, From } = req.body;
-    if (TranscriptionText) {
-      console.log(`[IVR] Transcripción voicemail (${From}): "${TranscriptionText}"`);
-    }
+  // Transcription callback — update Firestore doc with transcription text
+  app.post('/twilio/voice/ivr/voicemail-transcribe', async (req, res) => {
     res.sendStatus(200);
+    const { TranscriptionText, CallSid } = req.body;
+    if (!TranscriptionText || !CallSid) return;
+    console.log(`[IVR] Transcripción voicemail (${CallSid}): "${TranscriptionText}"`);
+    try {
+      const { fsLogCall } = require('./call-log');
+      await fsLogCall({ callSid: CallSid, transcription: TranscriptionText, ts: Date.now() });
+    } catch {}
   });
 
   // ── Ticket ──────────────────────────────────────────────────────────────────

@@ -894,11 +894,39 @@ app.post('/twilio/sms-incoming', async (req, res) => {
   res.type('text/xml').send('<Response></Response>');
 });
 
-// ── Twilio: Call status callback (optional logging) ───────────────────────────
-app.post('/twilio/status', (req, res) => {
-  const { CallSid, CallStatus, To, Duration } = req.body;
-  console.log(`[Twilio] ${CallSid} → ${To} | ${CallStatus} | ${Duration || 0}s`);
+const { fsLogCall, fsGetCallLog } = require('./call-log');
+
+// ── Twilio: Call status callback ──────────────────────────────────────────────
+app.post('/twilio/status', async (req, res) => {
   res.sendStatus(200);
+  const { CallSid, CallStatus, From, To, Direction, Duration, Timestamp } = req.body;
+  console.log(`[Twilio] ${CallSid} → ${To} | ${CallStatus} | ${Duration || 0}s`);
+  const terminal = ['completed','no-answer','busy','failed','canceled'];
+  if (!terminal.includes(CallStatus)) return;
+  const isInbound = Direction === 'inbound';
+  const isMissed  = ['no-answer','busy','failed','canceled'].includes(CallStatus) && isInbound;
+  await fsLogCall({
+    callSid:   CallSid,
+    from:      From,
+    to:        To,
+    status:    CallStatus,
+    direction: Direction,
+    duration:  Duration || 0,
+    type:      isMissed ? 'missed' : isInbound ? 'inbound' : 'outbound',
+    startTime: Timestamp || new Date().toISOString(),
+    ts:        Date.now(),
+  });
+});
+
+// ── GET: Firestore call log ───────────────────────────────────────────────────
+app.get('/call-log', async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 200;
+    const calls = await fsGetCallLog(limit);
+    res.json({ ok: true, calls });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
 });
 
 // ── Call log ──────────────────────────────────────────────────────────────────
