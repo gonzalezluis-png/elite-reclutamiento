@@ -634,7 +634,7 @@ app.delete('/auth/users/:id', requireSession('developer'), async (req, res) => {
 
 // ── WhatsApp: Incoming webhook ────────────────────────────────────────────────
 app.post('/twilio/whatsapp-incoming', async (req, res) => {
-  const { From, Body, MessageSid } = req.body;
+  const { From, To, Body, MessageSid } = req.body;
   console.log(`[WA-IN] ${From}: ${Body} (${MessageSid})`);
 
   const cleanFrom = From.replace('whatsapp:', '');
@@ -662,6 +662,15 @@ app.post('/twilio/whatsapp-incoming', async (req, res) => {
     await fsCreateLeadWA(From);
     const { pixelLead } = require('./pixel');
     pixelLead({ telefono: cleanFrom, correo: '' }).catch(() => {});
+  }
+  // Save which Twilio WA number the candidate wrote to
+  if (To) {
+    const _twInboxLead = await fsGetLeadByPhone(cleanFrom).catch(() => null);
+    if (_twInboxLead) {
+      const _twInboxId  = _twInboxLead.name.split('/').pop();
+      const _twInboxNum = To.replace('whatsapp:', '').replace(/^\+/, '');
+      fsUpdateLeadFields(_twInboxId, { wa_inbox_number: _twInboxNum }).catch(() => {});
+    }
   }
 
   // Check if IA is paused for this lead
