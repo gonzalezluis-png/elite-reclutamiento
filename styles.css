@@ -424,6 +424,7 @@ tr.lead-resuelto td:last-child { pointer-events:auto;opacity:1; }
 .msg-bubble.in.sms   { background:var(--card);color:var(--text);border-bottom-left-radius:3px; }
 .msg-bubble.out.wa   { background:#005c4b;color:#e9feea;border-bottom-right-radius:3px; }
 .msg-bubble.in.wa    { background:#1f2c34;color:#e9feea;border-bottom-left-radius:3px; }
+.msg-bubble.failed   { opacity:.6;outline:1px solid #f87171; }
 .msg-bubble-meta { font-size:10px;color:var(--text2);margin-top:3px;display:flex;align-items:center;gap:5px; }
 .msg-channel-tag { font-size:9px;padding:1px 5px;border-radius:3px;font-weight:600; }
 .msg-channel-tag.sms { background:rgba(0,115,234,.2);color:#60a5fa; }

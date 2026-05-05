@@ -151,21 +151,25 @@ function verifySignature(req, appSecret) {
 
 // ── Meta WA message log (Firestore) ──────────────────────────────────────────
 // Each message stored as a separate document to avoid read-write race conditions
-async function fsLogWAMessage(phone, direction, text) {
+async function fsLogWAMessage(phone, direction, text, extra = {}) {
   try {
-    const clean = phone.replace(/^\+/, '');
+    const clean = phone.replace(/^wa_meta:/, '').replace(/^\+/, '');
     const msgId = `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
     const docUrl = `${FS_BASE}/wa_messages/${clean}/msgs/${msgId}?key=${FS_KEY}`;
+    const fields = {
+      direction: { stringValue: direction },
+      text:      { stringValue: text || '' },
+      ts:        { integerValue: String(Date.now()) },
+    };
+    if (extra.status) fields.status = { stringValue: extra.status };
+    if (extra.msgId)  fields.wamid  = { stringValue: extra.msgId };
     await fetch(docUrl, {
       method:  'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ fields: {
-        direction: { stringValue: direction },
-        text:      { stringValue: text || '' },
-        ts:        { integerValue: String(Date.now()) },
-      }}),
+      body:    JSON.stringify({ fields }),
     });
-  } catch {}
+    return msgId;
+  } catch { return null; }
 }
 
 // Outbound dedup: prevent sending the same text to the same number within 30 s
@@ -181,16 +185,19 @@ function _isDupSend(to, text) {
 
 // ── Send WhatsApp message via Meta Cloud API ──────────────────────────────────
 async function sendWhatsApp(to, text) {
+  // Strip any prefix (wa_meta:, whatsapp:, +)
+  const cleanTo = to.replace(/^wa_meta:/, '').replace(/^whatsapp:/, '').replace(/^\+/, '');
   if (!_waToken || !META_WA_PHONE_ID) {
     console.warn('[Meta WA] Token o Phone ID no configurados');
-    return;
+    return false;
   }
-  if (_isDupSend(to, text)) {
-    console.warn(`[Meta WA] Envío duplicado ignorado → ${to}`);
-    return;
+  if (_isDupSend(cleanTo, text)) {
+    console.warn(`[Meta WA] Envío duplicado ignorado → ${cleanTo}`);
+    return false;
   }
-  fsLogWAMessage(to, 'out', text).catch(() => {});
+  const logId = await fsLogWAMessage(cleanTo, 'out', text);
   const parts = splitMessage(text);
+  let allOk = true;
   for (const part of parts) {
     const r = await fetch(`${GRAPH_URL}/${META_WA_PHONE_ID}/messages`, {
       method: 'POST',
@@ -200,20 +207,36 @@ async function sendWhatsApp(to, text) {
       },
       body: JSON.stringify({
         messaging_product: 'whatsapp',
-        to,
+        to: cleanTo,
         type: 'text',
         text: { body: part },
       }),
     });
     const json = await r.json();
     if (json.error) {
-      console.error(`[Meta WA] Error enviando a ${to}:`, JSON.stringify(json.error));
+      allOk = false;
+      console.error(`[Meta WA] Error enviando a ${cleanTo}:`, JSON.stringify(json.error));
+      // Mark as failed in Firestore so CRM can show it
+      if (logId) {
+        const clean = cleanTo.replace(/^\+/, '');
+        fetch(`${FS_BASE}/wa_messages/${clean}/msgs/${logId}?key=${FS_KEY}&updateMask.fieldPaths=status&updateMask.fieldPaths=error_code`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fields: {
+            status:     { stringValue: 'failed' },
+            error_code: { integerValue: String(json.error.code || 0) },
+          }}),
+        }).catch(() => {});
+      }
       if (json.error.code === 190) {
         console.log('[Meta WA] Token expirado — renovando…');
         await _refreshToken();
+      } else if (json.error.code === 131047) {
+        console.warn(`[Meta WA] Ventana 24h cerrada para ${cleanTo} — se necesita plantilla para recontactar`);
       }
     }
   }
+  return allOk;
 }
 
 // ── Send Instagram DM ─────────────────────────────────────────────────────────
@@ -839,24 +862,32 @@ function registerMetaRoutes(app) {
       const newData = await fetch(`${FS_BASE}/wa_messages/${phone}/msgs?key=${FS_KEY}&pageSize=200`).then(r => r.json()).catch(() => ({}));
       const newMsgs = (newData.documents || []).map(d => {
         const f = d.fields || {};
-        return { ts: Number(f.ts?.integerValue || 0), body: f.text?.stringValue || '', dir: f.direction?.stringValue };
+        return {
+          ts:         Number(f.ts?.integerValue || 0),
+          body:       f.text?.stringValue || '',
+          dir:        f.direction?.stringValue,
+          status:     f.status?.stringValue || '',
+          error_code: Number(f.error_code?.integerValue || 0),
+        };
       });
 
       // Also read legacy array format (old messages before the migration)
       const oldData = await fetch(`${FS_BASE}/wa_messages/${phone}?key=${FS_KEY}`).then(r => r.json()).catch(() => ({}));
       const oldMsgs = (oldData.fields?.messages?.arrayValue?.values || []).map(v => {
         const f = v.mapValue?.fields || {};
-        return { ts: Number(f.ts?.integerValue || 0), body: f.text?.stringValue || '', dir: f.direction?.stringValue };
+        return { ts: Number(f.ts?.integerValue || 0), body: f.text?.stringValue || '', dir: f.direction?.stringValue, status: '', error_code: 0 };
       });
 
       const all = [...oldMsgs, ...newMsgs]
         .filter(m => m.body && m.dir)
         .sort((a, b) => a.ts - b.ts)
         .map(m => ({
-          sid:       `meta_${m.ts}`,
-          body:      m.body,
-          direction: m.dir === 'out' ? 'outbound' : 'inbound',
-          dateSent:  new Date(m.ts).toISOString(),
+          sid:        `meta_${m.ts}`,
+          body:       m.body,
+          direction:  m.dir === 'out' ? 'outbound' : 'inbound',
+          dateSent:   new Date(m.ts).toISOString(),
+          status:     m.status || undefined,
+          error_code: m.error_code || undefined,
         }));
 
       res.json({ ok: true, messages: all });

@@ -297,17 +297,20 @@ function _msgRenderThread() {
   ].sort((a,b) => new Date(a.dateSent||a.date||0) - new Date(b.dateSent||b.date||0));
 
   const threadHtml = msgs.length ? msgs.map(m => {
-    const out  = m.direction === 'outbound';
-    const _d   = m.dateSent || m.date;
-    const time = _d ? fmtDateTime(_d) : '';
-    const ch   = m.ch;
-    const tick = out && ch==='wa' ? (m.status==='read'?'✓✓':'✓') : '';
+    const out    = m.direction === 'outbound';
+    const failed = out && m.status === 'failed';
+    const _d     = m.dateSent || m.date;
+    const time   = _d ? fmtDateTime(_d) : '';
+    const ch     = m.ch;
+    const tick   = failed ? '❌' : (out && ch==='wa' ? (m.status==='read'?'✓✓':'✓') : '');
+    const failNote = failed ? `<div style="font-size:10px;color:#f87171;margin-top:2px;">No entregado — ventana 24h expirada</div>` : '';
     return `<div class="msg-bubble-wrap ${out?'out':'in'}">
-      <div class="msg-bubble ${out?'out':'in'} ${ch}">${esc(m.body||'')}</div>
+      <div class="msg-bubble ${out?'out':'in'} ${ch}${failed?' failed':''}">${esc(m.body||'')}</div>
       <div class="msg-bubble-meta">
         <span class="msg-channel-tag ${ch}">${ch==='wa'?'WhatsApp':'SMS'}</span>
         ${time}${m.autor?' · '+esc(m.autor):''}${tick?' '+tick:''}
       </div>
+      ${failNote}
     </div>`;
   }).join('') : '<div style="text-align:center;color:var(--text2);font-size:12px;padding:20px;">Sin mensajes aún</div>';
 

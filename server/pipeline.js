@@ -379,7 +379,7 @@ async function runWAPipeline(from, historyMap, sendFn, opts) {
       const firstName = nombre.split(' ')[0] || '';
       const waMsg = `📧 ${firstName ? '¡'+firstName+'! ' : ''}Te acabo de enviar el enlace del webinar a tu correo *${correo}*. Revísalo (también la carpeta de spam). 😊`;
       await humanDelay(waMsg);
-      await sendFn(from, waMsg).catch(() => {});
+      await sendFn(rawPhone(from), waMsg).catch(() => {});
     }
   } catch (e) {
     console.error('[Pipeline] Error:', e.message);
