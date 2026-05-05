@@ -307,6 +307,7 @@ function renderCard(l) {
     </div>
     <div class="kc-mid">
       <span class="kc-badge ${sourceBadgeClass}">${esc(l.fuente||'')}</span>
+      ${l.wa_inbox_number ? `<span style="font-size:9px;color:rgba(99,214,141,.7);background:rgba(99,214,141,.08);border:1px solid rgba(99,214,141,.2);border-radius:4px;padding:1px 5px;font-weight:600;">📲 +${esc(l.wa_inbox_number)}</span>` : ''}
       ${tagsHtml}
     </div>
     <div class="kc-bottom">

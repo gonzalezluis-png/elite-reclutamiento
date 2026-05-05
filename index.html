@@ -222,7 +222,10 @@
       <div class="ml-conv-col">
         <div class="lc-actions">
           <button class="lc-call-btn" onclick="cpOpen()">📞 Llamar</button>
-          <div style="flex:1;min-width:0"><div id="lc-contact-num" style="font-size:12px;color:rgba(255,255,255,.4);">—</div></div>
+          <div style="flex:1;min-width:0">
+            <div id="lc-contact-num" style="font-size:12px;color:rgba(255,255,255,.4);">—</div>
+            <div id="lc-inbox-num" style="font-size:10px;color:rgba(99,214,141,.6);margin-top:1px;display:none;">📲 Escribió al: —</div>
+          </div>
           <div style="font-size:10px;color:rgba(255,255,255,.18);background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);border-radius:6px;padding:4px 10px;font-weight:600;letter-spacing:.4px">MENSAJES</div>
         </div>
         <div class="lc-timeline" id="lc-timeline"><div class="lc-loading">Abriendo…</div></div>

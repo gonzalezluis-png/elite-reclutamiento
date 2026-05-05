@@ -484,6 +484,15 @@ function lcOpen() {
   clearInterval(_lcPollInt);
   const phone = lead.telefono || '';
   document.getElementById('lc-contact-num').textContent = phone || '(sin número)';
+  const inboxEl = document.getElementById('lc-inbox-num');
+  if (inboxEl) {
+    if (lead.wa_inbox_number) {
+      inboxEl.textContent = `📲 Escribió al: +${lead.wa_inbox_number}`;
+      inboxEl.style.display = 'block';
+    } else {
+      inboxEl.style.display = 'none';
+    }
+  }
   lcUpdateIAState(lead.ia_paused);
   lcRenderActivity(lead);
   lcRenderTimeline(lead);

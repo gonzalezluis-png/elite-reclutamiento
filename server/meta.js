@@ -339,7 +339,7 @@ function registerMetaRoutes(app) {
   const _msgTimers   = new Map(); // phone → timeoutId
   const _DEBOUNCE_MS = 3000;      // wait 3 s after last message before replying
 
-  async function _processBufferedMessages(from, referralInfo, profileName) {
+  async function _processBufferedMessages(from, referralInfo, profileName, inboxNumber) {
     const texts = _msgBuffer.get(from) || [];
     _msgBuffer.delete(from);
     _msgTimers.delete(from);
@@ -398,15 +398,18 @@ function registerMetaRoutes(app) {
         await fsCreateLeadWA(`wa_meta:${from}`);
         pixelLead({ telefono: from, correo: '' }).catch(() => {});
       }
-      // Save WhatsApp profile name if we have it and lead doesn't have a real name yet
-      if (profileName) {
+      // Save WhatsApp profile name and inbox number to lead
+      if (profileName || inboxNumber) {
         const _pLead = await fsGetLeadByPhone(from).catch(() => null);
         if (_pLead) {
-          const _pId   = _pLead.name.split('/').pop();
+          const _pId     = _pLead.name.split('/').pop();
           const _pNombre = _pLead.fields?.nombre?.stringValue || '';
-          if (!_pNombre || _pNombre.startsWith('WA ') || _pNombre.startsWith('+')) {
-            fsUpdateLeadFields(_pId, { nombre: profileName }).catch(() => {});
+          const updates  = {};
+          if (profileName && (!_pNombre || _pNombre.startsWith('WA ') || _pNombre.startsWith('+'))) {
+            updates.nombre = profileName;
           }
+          if (inboxNumber) updates.wa_inbox_number = inboxNumber;
+          if (Object.keys(updates).length) fsUpdateLeadFields(_pId, updates).catch(() => {});
         }
       }
 
@@ -883,8 +886,9 @@ function registerMetaRoutes(app) {
       // Auth 2FA intercept (fast path — no debounce needed)
       if (await handleAuthWAReply(from, text)) return;
 
-      // Capture WhatsApp profile name if available
-      const _profileName = value?.contacts?.[0]?.profile?.name || null;
+      // Capture WhatsApp profile name and inbox number
+      const _profileName  = value?.contacts?.[0]?.profile?.name || null;
+      const _inboxDisplay = value?.metadata?.display_phone_number || null;
 
       // Buffer message and (re)start debounce timer
       if (!_msgBuffer.has(from)) _msgBuffer.set(from, []);
@@ -892,7 +896,7 @@ function registerMetaRoutes(app) {
 
       if (_msgTimers.has(from)) clearTimeout(_msgTimers.get(from));
       const referralInfo = msg.referral || null;
-      _msgTimers.set(from, setTimeout(() => _processBufferedMessages(from, referralInfo, _profileName), _DEBOUNCE_MS));
+      _msgTimers.set(from, setTimeout(() => _processBufferedMessages(from, referralInfo, _profileName, _inboxDisplay), _DEBOUNCE_MS));
 
     } catch (e) {
       console.error('[Meta WA webhook] Error:', e.message);
