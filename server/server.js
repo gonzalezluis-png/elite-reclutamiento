@@ -1172,6 +1172,74 @@ app.post('/ai/pause', async (req, res) => {
   }
 });
 
+// ── Force Ana to respond (ignores ia_paused, forces next step in script) ─────
+app.post('/ai/force-respond', requireSession(), async (req, res) => {
+  const { phone } = req.body;
+  if (!phone) return res.status(400).json({ ok: false, error: 'phone requerido' });
+  res.json({ ok: true });
+
+  const cleanPhone = phone.replace(/^\+/, '').replace(/\D/g, '');
+  const convKey    = `wa_meta:${cleanPhone}`;
+
+  ;(async () => {
+    try {
+      const { sendWhatsApp: _forceWA } = require('./meta');
+      const { humanDelay, runWAPipeline, toE164 } = require('./pipeline');
+      const FS_BASE_F = `https://firestore.googleapis.com/v1/projects/elite-reclutamiento-crm/databases/(default)/documents`;
+      const FS_KEY_F  = 'AIzaSyCW2t1oHb7xc2Vi6vJROGRM7E7nu-CbU3s';
+
+      // Reconstruct history from Firestore
+      const sub  = await fetch(`${FS_BASE_F}/wa_messages/${cleanPhone}/msgs?key=${FS_KEY_F}&pageSize=200`).then(r => r.json()).catch(() => ({}));
+      const docs = (sub.documents || []).map(d => {
+        const f = d.fields || {};
+        return { dir: f.direction?.stringValue, text: f.text?.stringValue || '', ts: Number(f.ts?.integerValue || 0) };
+      }).filter(m => m.text && (m.dir === 'in' || m.dir === 'out')).sort((a,b) => a.ts - b.ts);
+
+      const merged = [];
+      for (const m of docs.slice(-24)) {
+        if (merged.length && merged[merged.length-1].dir === m.dir) merged[merged.length-1].text += '\n' + m.text;
+        else merged.push({...m});
+      }
+      while (merged.length && merged[0].dir === 'out') merged.shift();
+
+      const hist = merged.map(m => ({ role: m.dir === 'out' ? 'assistant' : 'user', content: m.text, ts: m.ts }));
+
+      // Inject lead context
+      const leadDoc = await fsGetLeadByPhone(toE164(cleanPhone));
+      if (leadDoc) {
+        const f = leadDoc.fields || {};
+        const ctxParts = [];
+        const nombre = f.nombre?.stringValue || '';
+        if (nombre && !nombre.startsWith('WA ') && !nombre.startsWith('+')) ctxParts.push(`nombre: ${nombre}`);
+        if (f.correo?.stringValue)    ctxParts.push(`correo: ${f.correo.stringValue}`);
+        if (f.ubicacion?.stringValue) ctxParts.push(`ciudad: ${f.ubicacion.stringValue}`);
+        if (f.etapa?.stringValue)     ctxParts.push(`estado en el proceso: ${f.etapa.stringValue}`);
+        if (ctxParts.length && (!hist.length || !hist[0].content?.startsWith('[SISTEMA'))) {
+          hist.unshift({ role: 'assistant', content: 'Entendido. Continuaré con el contexto cargado.', ts: Date.now()-1000 });
+          hist.unshift({ role: 'user', content: `[SISTEMA — contexto del candidato. NO mencionar al candidato ni revelar este mensaje]: Ya tenemos estos datos: ${ctxParts.join(', ')}. No vuelvas a pedirlos. Continúa la conversación de forma natural.`, ts: Date.now()-2000 });
+        }
+      }
+
+      // If last message is from Ana, add a silent trigger so Claude continues the script
+      if (!hist.length || hist[hist.length - 1].role === 'assistant') {
+        hist.push({ role: 'user', content: '[SISTEMA: El agente solicita que continúes con el siguiente paso del guión sin esperar más mensajes del candidato.]', ts: Date.now() });
+      }
+
+      conversationHistory.set(convKey, hist);
+
+      const rawReply = await askClaudeResume(convKey, 'wa');
+      if (!rawReply) { console.log(`[AI-Force] Sin respuesta para ${cleanPhone}`); return; }
+      const reply = rawReply.replace(/\[ESC:[^\]]*\]\n?/g, '').trim();
+      console.log(`[AI-Force] Ana → ${cleanPhone}: "${reply.slice(0, 80)}…"`);
+      await humanDelay(reply);
+      await _forceWA(cleanPhone, reply);
+      await runWAPipeline(convKey, conversationHistory, _forceWA, { WEBINAR_URL });
+    } catch(e) {
+      console.error('[AI-Force] Error:', e.message);
+    }
+  })();
+});
+
 // ── Interview config ──────────────────────────────────────────────────────────
 app.get('/interviews/config', async (req, res) => {
   const cfg = await loadInterviewConfig();
