@@ -377,11 +377,16 @@ function registerMetaRoutes(app) {
       if (_wasEmptyOnRestart) {
         try {
           const _waSubcol = await fetch(`${FS_BASE}/wa_messages/${from}/msgs?key=${FS_KEY}&pageSize=200`).then(r => r.json()).catch(() => ({}));
-          const _allStored = (_waSubcol.documents || [])
-            .map(d => {
-              const mf = d.fields || {};
-              return { dir: mf.direction?.stringValue, text: mf.text?.stringValue || '', ts: Number(mf.ts?.integerValue || 0) };
-            })
+          const _waLegacy = await fetch(`${FS_BASE}/wa_messages/${from}?key=${FS_KEY}`).then(r => r.json()).catch(() => ({}));
+          const _legacyMsgs = (_waLegacy.fields?.messages?.arrayValue?.values || []).map(v => {
+            const mf = v.mapValue?.fields || {};
+            return { dir: mf.direction?.stringValue, text: mf.text?.stringValue || '', ts: Number(mf.ts?.integerValue || 0) };
+          });
+          const _newMsgs = (_waSubcol.documents || []).map(d => {
+            const mf = d.fields || {};
+            return { dir: mf.direction?.stringValue, text: mf.text?.stringValue || '', ts: Number(mf.ts?.integerValue || 0) };
+          });
+          const _allStored = [..._legacyMsgs, ..._newMsgs]
             .sort((a, b) => a.ts - b.ts)
             .filter(m => m.text && (m.dir === 'in' || m.dir === 'out'));
 
@@ -707,18 +712,31 @@ function registerMetaRoutes(app) {
     const phone = (req.query.phone || '').replace(/^\+/, '').replace(/\D/g, '');
     if (!phone) return res.status(400).json({ ok: false });
     try {
-      const data = await fetch(`${FS_BASE}/wa_messages/${phone}/msgs?key=${FS_KEY}&pageSize=200&orderBy=ts`).then(r => r.json());
-      const docs = data.documents || [];
-      const msgs = docs.map(d => {
+      // Read subcollection (new format — one doc per message, sorted by ID which is timestamp-based)
+      const newData = await fetch(`${FS_BASE}/wa_messages/${phone}/msgs?key=${FS_KEY}&pageSize=200`).then(r => r.json()).catch(() => ({}));
+      const newMsgs = (newData.documents || []).map(d => {
         const f = d.fields || {};
-        return {
-          sid:       `meta_${f.ts?.integerValue || Date.now()}`,
-          body:      f.text?.stringValue || '',
-          direction: f.direction?.stringValue === 'out' ? 'outbound' : 'inbound',
-          dateSent:  new Date(Number(f.ts?.integerValue || 0)).toISOString(),
-        };
-      }).sort((a, b) => new Date(a.dateSent) - new Date(b.dateSent));
-      res.json({ ok: true, messages: msgs });
+        return { ts: Number(f.ts?.integerValue || 0), body: f.text?.stringValue || '', dir: f.direction?.stringValue };
+      });
+
+      // Also read legacy array format (old messages before the migration)
+      const oldData = await fetch(`${FS_BASE}/wa_messages/${phone}?key=${FS_KEY}`).then(r => r.json()).catch(() => ({}));
+      const oldMsgs = (oldData.fields?.messages?.arrayValue?.values || []).map(v => {
+        const f = v.mapValue?.fields || {};
+        return { ts: Number(f.ts?.integerValue || 0), body: f.text?.stringValue || '', dir: f.direction?.stringValue };
+      });
+
+      const all = [...oldMsgs, ...newMsgs]
+        .filter(m => m.body && m.dir)
+        .sort((a, b) => a.ts - b.ts)
+        .map(m => ({
+          sid:       `meta_${m.ts}`,
+          body:      m.body,
+          direction: m.dir === 'out' ? 'outbound' : 'inbound',
+          dateSent:  new Date(m.ts).toISOString(),
+        }));
+
+      res.json({ ok: true, messages: all });
     } catch(e) {
       res.json({ ok: true, messages: [] });
     }
