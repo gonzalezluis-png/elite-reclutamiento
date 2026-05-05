@@ -219,7 +219,12 @@ async function sendWhatsApp(to, text) {
     if (json.error) {
       allOk = false;
       console.error(`[Meta WA] Error enviando a ${cleanTo}:`, JSON.stringify(json.error));
-      // Mark as failed in Firestore so CRM can show it
+      if (json.error.code === 190) {
+        console.log('[Meta WA] Token expirado — renovando…');
+        await _refreshToken();
+      } else if (json.error.code === 131047) {
+        console.warn(`[Meta WA] Ventana 24h cerrada para ${cleanTo} — se necesita plantilla para recontactar`);
+      }
       if (logId) {
         const clean = cleanTo.replace(/^\+/, '');
         fetch(`${FS_BASE}/wa_messages/${clean}/msgs/${logId}?key=${FS_KEY}&updateMask.fieldPaths=status&updateMask.fieldPaths=error_code`, {
@@ -240,12 +245,6 @@ async function sendWhatsApp(to, text) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ fields: { wamid: { stringValue: wamid }, status: { stringValue: 'sent' } } }),
       }).catch(() => {});
-      if (json.error.code === 190) {
-        console.log('[Meta WA] Token expirado — renovando…');
-        await _refreshToken();
-      } else if (json.error.code === 131047) {
-        console.warn(`[Meta WA] Ventana 24h cerrada para ${cleanTo} — se necesita plantilla para recontactar`);
-      }
     }
   }
   return allOk;
