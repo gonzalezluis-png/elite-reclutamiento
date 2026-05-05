@@ -303,7 +303,7 @@ function _msgRenderThread() {
     const _d     = m.dateSent || m.date;
     const time   = _d ? fmtDateTime(_d) : '';
     const ch     = m.ch;
-    const tick   = failed ? '❌' : (out && ch==='wa' ? (m.status==='read'?'✓✓':'✓') : '');
+    const tick   = failed ? '❌' : (out && ch==='wa' ? (m.status==='read' ? '<span style="color:#4fc3f7">✓✓</span>' : m.status==='delivered' ? '<span style="color:rgba(255,255,255,.5)">✓✓</span>' : '<span style="color:rgba(255,255,255,.35)">✓</span>') : '');
     const failNote = failed ? `<div style="font-size:10px;color:#f87171;margin-top:2px;">No entregado — ventana 24h expirada</div>` : '';
     return `<div class="msg-bubble-wrap ${out?'out':'in'}">
       <div class="msg-bubble ${out?'out':'in'} ${ch}${failed?' failed':''}">${esc(m.body||'')}</div>

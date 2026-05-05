@@ -149,6 +149,9 @@ function verifySignature(req, appSecret) {
   } catch { return false; }
 }
 
+// In-memory index: wamid → {phone, logId} for status updates (lost on restart, acceptable since statuses arrive within minutes)
+const _wamidIndex = new Map();
+
 // ── Meta WA message log (Firestore) ──────────────────────────────────────────
 // Each message stored as a separate document to avoid read-write race conditions
 async function fsLogWAMessage(phone, direction, text, extra = {}) {
@@ -228,6 +231,15 @@ async function sendWhatsApp(to, text) {
           }}),
         }).catch(() => {});
       }
+    } else if (json.messages?.[0]?.id && logId) {
+      // Save wamid → logId mapping for status updates (delivered/read)
+      const wamid = json.messages[0].id;
+      _wamidIndex.set(wamid, { phone: cleanTo, logId });
+      fetch(`${FS_BASE}/wa_messages/${cleanTo}/msgs/${logId}?key=${FS_KEY}&updateMask.fieldPaths=wamid&updateMask.fieldPaths=status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fields: { wamid: { stringValue: wamid }, status: { stringValue: 'sent' } } }),
+      }).catch(() => {});
       if (json.error.code === 190) {
         console.log('[Meta WA] Token expirado — renovando…');
         await _refreshToken();
@@ -784,6 +796,26 @@ function registerMetaRoutes(app) {
       const entry   = req.body.entry?.[0];
       const changes = entry?.changes?.[0];
       const value   = changes?.value;
+
+      // ── Status updates (delivered / read) ────────────────────────────────
+      if (value?.statuses?.length) {
+        for (const st of value.statuses) {
+          const { id: wamid, status, recipient_id } = st;
+          if (!wamid || (status !== 'delivered' && status !== 'read')) continue;
+          const entry = _wamidIndex.get(wamid);
+          if (entry) {
+            const { phone, logId } = entry;
+            fetch(`${FS_BASE}/wa_messages/${phone}/msgs/${logId}?key=${FS_KEY}&updateMask.fieldPaths=status`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ fields: { status: { stringValue: status } } }),
+            }).catch(() => {});
+            console.log(`[Meta WA] Status ${status} → ${phone} (${wamid})`);
+          }
+        }
+        if (!value.messages?.length) return;
+      }
+
       if (!value?.messages?.length) return;
 
       const msg  = value.messages[0];

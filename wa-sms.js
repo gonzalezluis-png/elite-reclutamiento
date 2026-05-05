@@ -77,7 +77,7 @@ function waRenderThread(messages) {
   thread.innerHTML = sorted.map(m => {
     const out  = m.direction === 'outbound';
     const time = m.date ? fmtDateTime(m.date) : '';
-    const tick = out ? (m.status === 'read' ? '✓✓' : '✓') : '';
+    const tick = out ? (m.status === 'read' ? '<span style="color:#4fc3f7">✓✓</span>' : m.status === 'delivered' ? '<span style="color:rgba(255,255,255,.5)">✓✓</span>' : '<span style="color:rgba(255,255,255,.35)">✓</span>') : '';
     return `<div class="${out?'sms-out-wrap':'sms-in-wrap'}">
       <div class="sms-bubble ${out?'wa-out':'wa-in'}">${esc(m.body)}</div>
       <div class="sms-meta">${time}${m.autor?' · '+esc(m.autor):''} ${tick}</div>
