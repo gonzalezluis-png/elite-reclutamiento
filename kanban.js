@@ -276,17 +276,27 @@ function renderCard(l) {
        </div>`
     : '';
 
+  const now24h = Date.now() - 24 * 60 * 60 * 1000;
+  const isActive = l.last_msg_ts && Number(l.last_msg_ts) > now24h;
+  const unreadAlert = l.unread_msg
+    ? `<div class="kcard-unread-alert">
+        <span class="kcard-unread-dot"></span>
+        Mensaje sin responder
+        <button class="kcard-llamada-dismiss" title="Marcar como leído" onclick="event.stopPropagation();dismissUnread('${l.id}')">✕</button>
+       </div>`
+    : '';
+
   const prog = calcProgreso(l);
   const progColor = prog >= 100 ? '#fbbf24' : prog >= 70 ? '#00c875' : prog >= 40 ? '#4f7fff' : '#8890a4';
 
   return `
-  <div class="kcard${l.quiere_entrevista ? ' kcard--alert' : ''}${l.sin_manager ? ' kcard--sinmgr' : ''}" draggable="true" id="kcard-${l.id}"
+  <div class="kcard${l.quiere_entrevista ? ' kcard--alert' : ''}${l.sin_manager ? ' kcard--sinmgr' : ''}${l.unread_msg ? ' kcard--unread' : ''}" draggable="true" id="kcard-${l.id}"
        ondragstart="handleDragStart(event,'${l.id}')"
        ondragend="this.classList.remove('dragging')"
        onclick="openLead('${l.id}')">
-    ${sinMgrAlert}${llamadaAlert}
+    ${sinMgrAlert}${llamadaAlert}${unreadAlert}
     <div class="kc-top">
-      <div class="kc-name">${esc(l.nombre)}</div>
+      <div class="kc-name">${esc(l.nombre)}${isActive ? '<span class="kc-active-dot" title="Conversación activa en últimas 24h"></span>' : ''}</div>
       <div style="display:flex;flex-direction:column;align-items:flex-end;gap:1px;flex-shrink:0;">
         <span style="font-size:8px;font-weight:700;letter-spacing:.8px;color:var(--text2);text-transform:uppercase;line-height:1;">AVANCE</span>
         <span style="font-size:20px;font-weight:900;color:${progColor};line-height:1;">${prog}%</span>

@@ -80,6 +80,22 @@ async function dismissSinManager(leadId) {
   } catch(e) {}
 }
 
+async function dismissUnread(leadId) {
+  const lead = leads.find(l => l.id === leadId);
+  if (!lead) return;
+  lead.unread_msg = false;
+  renderKanban();
+  renderSidebar();
+  try {
+    const fields = { unread_msg: { booleanValue: false } };
+    await fetch(`${FS_BASE}/leads/${leadId}?key=${FS_KEY}&updateMask.fieldPaths=unread_msg`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fields }),
+    });
+  } catch(e) {}
+}
+
 async function fsSaveLead(lead) {
   try {
     const doc = toFsDoc(lead);

@@ -399,6 +399,10 @@ app.post('/twilio/whatsapp', async (req, res) => {
     }
     const message = await client.messages.create(params);
     console.log(`[WA] → ${to} | ${message.sid} | template:${contentSid||'none'} | leadId:${leadId||'?'}`);
+    // Clear unread flag — team member replied manually
+    if (leadId) {
+      fsUpdateLeadFields(leadId, { unread_msg: false, last_msg_ts: Date.now() }).catch(() => {});
+    }
     res.json({ ok: true, sid: message.sid });
   } catch (e) {
     console.error('[WA] Error:', e.message);

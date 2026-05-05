@@ -403,6 +403,12 @@ function registerMetaRoutes(app) {
       const leadData = await fsGetLeadByPhone(from);
       const convKey  = `wa_meta:${from}`;
 
+      // Mark lead as having an unread message (candidate waiting for reply)
+      const _leadId = leadData?.name?.split('/').pop();
+      if (_leadId) {
+        fsUpdateLeadFields(_leadId, { unread_msg: true, last_msg_ts: Date.now() }).catch(() => {});
+      }
+
       // If IA is paused: store message in history (for context on resume) but don't reply
       if (leadData?.fields?.ia_paused?.booleanValue === true) {
         if (!conversationHistory.has(convKey)) conversationHistory.set(convKey, []);
@@ -606,6 +612,11 @@ function registerMetaRoutes(app) {
       console.log(`[Meta WA] → ${from}: ${reply}`);
       await humanDelay(reply);
       await sendWhatsApp(from, reply);
+
+      // Clear unread flag now that Ana has responded
+      if (_leadId) {
+        fsUpdateLeadFields(_leadId, { unread_msg: false, last_msg_ts: Date.now() }).catch(() => {});
+      }
 
       if (agendar) {
         (async () => {
