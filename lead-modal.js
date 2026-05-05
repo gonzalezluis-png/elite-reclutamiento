@@ -396,8 +396,7 @@ function lcToggleCita(hdr) {
 function lcToggleMeta(hdr) {
   const body  = document.getElementById('ml-meta-body');
   const arrow = document.getElementById('ml-meta-arrow');
-  const open  = body.style.display === 'none';
-  body.style.display = open ? '' : 'none';
+  const open  = body.classList.toggle('open');
   if (arrow) arrow.textContent = open ? '▾' : '▸';
 }
 
