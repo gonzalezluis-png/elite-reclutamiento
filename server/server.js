@@ -1245,9 +1245,13 @@ app.delete('/leads/:id', async (req, res) => {
         })
     );
 
-    // 5. Delete wa_messages record (Meta WA message history)
+    // 5. Delete wa_messages subcollection (Meta WA message history)
     if (phone) {
       const bare = phone.replace(/[^0-9]/g, '');
+      const _waDocs = await fetch(`${FS_BASE}/wa_messages/${bare}/msgs?key=${FS_KEY}&pageSize=200`).then(r => r.json()).catch(() => ({}));
+      await Promise.all((_waDocs.documents || []).map(d =>
+        fetch(`${d.name}?key=${FS_KEY}`, { method: 'DELETE' }).catch(() => {})
+      ));
       await fetch(`${FS_BASE}/wa_messages/${bare}?key=${FS_KEY}`, { method: 'DELETE' }).catch(() => {});
     }
 

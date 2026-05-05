@@ -100,29 +100,20 @@ function verifySignature(req, appSecret) {
 }
 
 // ── Meta WA message log (Firestore) ──────────────────────────────────────────
+// Each message stored as a separate document to avoid read-write race conditions
 async function fsLogWAMessage(phone, direction, text) {
   try {
     const clean = phone.replace(/^\+/, '');
-    const doc   = `${FS_BASE}/wa_messages/${clean}?key=${FS_KEY}`;
-    // Read existing
-    const existing = await fetch(doc).then(r => r.json()).catch(() => ({}));
-    const msgs = (existing.fields?.messages?.arrayValue?.values || []).map(v => {
-      const f = v.mapValue?.fields || {};
-      return { direction: f.direction?.stringValue, text: f.text?.stringValue, ts: Number(f.ts?.integerValue || 0) };
-    });
-    msgs.push({ direction, text, ts: Date.now() });
-    // Keep last 200 messages
-    const trimmed = msgs.slice(-200);
-    await fetch(doc, {
-      method: 'PATCH',
+    const msgId = `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    const docUrl = `${FS_BASE}/wa_messages/${clean}/msgs/${msgId}?key=${FS_KEY}`;
+    await fetch(docUrl, {
+      method:  'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ fields: { messages: { arrayValue: { values: trimmed.map(m => ({
-        mapValue: { fields: {
-          direction: { stringValue: m.direction },
-          text:      { stringValue: m.text || '' },
-          ts:        { integerValue: String(m.ts) },
-        }}
-      })) } } } }),
+      body:    JSON.stringify({ fields: {
+        direction: { stringValue: direction },
+        text:      { stringValue: text || '' },
+        ts:        { integerValue: String(Date.now()) },
+      }}),
     });
   } catch {}
 }
@@ -385,12 +376,13 @@ function registerMetaRoutes(app) {
       // This prevents Ana from restarting the conversation after a Railway redeploy
       if (_wasEmptyOnRestart) {
         try {
-          const _waDoc = await fetch(`${FS_BASE}/wa_messages/${from}?key=${FS_KEY}`).then(r => r.json()).catch(() => ({}));
-          const _allStored = ((_waDoc.fields?.messages?.arrayValue?.values) || [])
-            .map(v => {
-              const mf = v.mapValue?.fields || {};
+          const _waSubcol = await fetch(`${FS_BASE}/wa_messages/${from}/msgs?key=${FS_KEY}&pageSize=200`).then(r => r.json()).catch(() => ({}));
+          const _allStored = (_waSubcol.documents || [])
+            .map(d => {
+              const mf = d.fields || {};
               return { dir: mf.direction?.stringValue, text: mf.text?.stringValue || '', ts: Number(mf.ts?.integerValue || 0) };
             })
+            .sort((a, b) => a.ts - b.ts)
             .filter(m => m.text && (m.dir === 'in' || m.dir === 'out'));
 
           // Exclude the current incoming message (already logged at the top of this handler)
@@ -710,16 +702,17 @@ function registerMetaRoutes(app) {
     const phone = (req.query.phone || '').replace(/^\+/, '').replace(/\D/g, '');
     if (!phone) return res.status(400).json({ ok: false });
     try {
-      const doc  = await fetch(`${FS_BASE}/wa_messages/${phone}?key=${FS_KEY}`).then(r => r.json());
-      const msgs = (doc.fields?.messages?.arrayValue?.values || []).map(v => {
-        const f = v.mapValue?.fields || {};
+      const data = await fetch(`${FS_BASE}/wa_messages/${phone}/msgs?key=${FS_KEY}&pageSize=200&orderBy=ts`).then(r => r.json());
+      const docs = data.documents || [];
+      const msgs = docs.map(d => {
+        const f = d.fields || {};
         return {
           sid:       `meta_${f.ts?.integerValue || Date.now()}`,
           body:      f.text?.stringValue || '',
           direction: f.direction?.stringValue === 'out' ? 'outbound' : 'inbound',
           dateSent:  new Date(Number(f.ts?.integerValue || 0)).toISOString(),
         };
-      });
+      }).sort((a, b) => new Date(a.dateSent) - new Date(b.dateSent));
       res.json({ ok: true, messages: msgs });
     } catch(e) {
       res.json({ ok: true, messages: [] });
