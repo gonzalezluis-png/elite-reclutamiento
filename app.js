@@ -493,6 +493,8 @@ function selectPipeline(id) {
   document.getElementById('search-input').style.display = '';
   localStorage.setItem('er_active_pipeline', id);
   localStorage.setItem('er_active_tab', getPipeTab(id));
+  const _fab = document.getElementById('phone-fab');
+  if (_fab) _fab.style.display = 'flex';
   renderSidebar();
   renderKanban();
   if (typeof _updateLeadsTodayBar === 'function') _updateLeadsTodayBar();

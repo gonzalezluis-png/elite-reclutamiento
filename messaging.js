@@ -165,6 +165,7 @@ function showMessaging() {
   document.getElementById('board-title').textContent = 'Mensajería';
   document.getElementById('messaging-view').classList.add('active');
   document.getElementById('messaging-view').style.display = 'flex';
+  document.getElementById('phone-fab').style.display = 'none';
   renderSidebar();
   _msgBuildPage();
   clearInterval(_msgPollInt);
