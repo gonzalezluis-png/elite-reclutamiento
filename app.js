@@ -225,6 +225,7 @@ function applyRolePermissions(role) {
   show('nav-team-chat',        is('developer','agente'));
   show('nav-ai',               is('developer','agente'));
   show('nav-ai-entrevistas',   true);
+  show('nav-monitor',          is('developer','agente'));
   show('nav-config',           is('developer'));
   show('nav-users',            is('developer'));
 }
@@ -494,6 +495,7 @@ function selectPipeline(id) {
   localStorage.setItem('er_active_tab', getPipeTab(id));
   renderSidebar();
   renderKanban();
+  if (typeof _updateLeadsTodayBar === 'function') _updateLeadsTodayBar();
 }
 
 function selectWebinarTab(tabId) {
@@ -521,6 +523,7 @@ function selectPipelineTab(pipeId, tabId) {
   localStorage.setItem('er_active_tab', tabId);
   renderSidebar();
   renderKanban();
+  if (typeof _updateLeadsTodayBar === 'function') _updateLeadsTodayBar();
 }
 
 function selectCalendario() {

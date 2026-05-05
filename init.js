@@ -34,6 +34,7 @@ function postLoginInit() {
         autoMoverVistos();
         renderSidebar();
         renderKanban();
+        if (typeof _updateLeadsTodayBar === 'function') _updateLeadsTodayBar();
         showToast(`☁️ ${fsLeads.length} leads cargados`);
       } else {
         await fsSaveAll();
@@ -63,6 +64,8 @@ function postLoginInit() {
         autoMoverVistos();
         renderSidebar();
         renderKanban();
+        if (typeof _updateLeadsTodayBar === 'function') _updateLeadsTodayBar();
+        if (activeView === 'monitor' && typeof renderMonitor === 'function') renderMonitor();
         // Notificar por cada lead nuevo
         newLeads.forEach(l => _notifyNewLead(l));
       }
