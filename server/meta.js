@@ -5,6 +5,30 @@ const { fsLeadExists, fsCreateLeadWA, fsGetLeadByPhone, fsUpdateLeadFields, runW
 const { triggerEscalation, cancelEscalation, handleManagerReply, checkTimeouts, isManagerPhone, logTeamMessage, loadManagers } = require('./escalation');
 const { pixelLead } = require('./pixel');
 const { loadInterviewConfig, getAvailableSlots, bookInterview, listInterviews, updateInterview } = require('./interviews');
+const { loadIvrConfig } = require('./ivr');
+
+// ── Business hours check (reuses IVR config) ──────────────────────────────────
+async function isWABusinessHours() {
+  try {
+    const cfg = await loadIvrConfig();
+    const tz  = cfg.timezone || 'America/Chicago';
+    const DAYS = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'];
+    const now  = new Date();
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: tz, hour: 'numeric', minute: 'numeric', weekday: 'long', hour12: false,
+    }).formatToParts(now);
+    const dayName = parts.find(p => p.type === 'weekday')?.value?.toLowerCase();
+    const hour    = parseInt(parts.find(p => p.type === 'hour')?.value || '0');
+    const minute  = parseInt(parts.find(p => p.type === 'minute')?.value || '0');
+    const current = hour * 60 + minute;
+    const dayKey  = DAYS.find(d => dayName?.startsWith(d.slice(0, 3)));
+    const dayConf = dayKey ? cfg.businessHours?.[dayKey] : null;
+    if (!dayConf?.enabled) return false;
+    const [oh, om] = (dayConf.open  || '09:00').split(':').map(Number);
+    const [ch, cm] = (dayConf.close || '18:00').split(':').map(Number);
+    return current >= oh * 60 + om && current < ch * 60 + cm;
+  } catch { return true; } // fail open — always respond if config unavailable
+}
 
 const SERVER_URL  = process.env.SERVER_URL  || 'https://elite-reclutamiento-production.up.railway.app';
 const WEBINAR_URL = process.env.WEBINAR_URL || 'https://crm.grupoelitework.com/webinar.html';
@@ -335,6 +359,22 @@ function registerMetaRoutes(app) {
         if (!conversationHistory.has(convKey)) conversationHistory.set(convKey, []);
         conversationHistory.get(convKey).push({ role: 'user', content: combinedText, ts: Date.now() });
         console.log(`[Meta WA] IA pausada para ${from} — mensaje guardado en historial, sin respuesta`);
+        return;
+      }
+
+      // ── Horario de atención ───────────────────────────────────────────────────
+      // Solo aplica al PRIMER mensaje de un candidato nuevo (historial vacío)
+      const _histNow     = conversationHistory.get(convKey) || [];
+      const _isFirstMsg  = _histNow.filter(m => m.role === 'user').length === 0;
+      const _inHours     = await isWABusinessHours();
+      if (_isFirstMsg && !_inHours) {
+        // Save message to history so when we reopen we have context
+        if (!conversationHistory.has(convKey)) conversationHistory.set(convKey, []);
+        conversationHistory.get(convKey).push({ role: 'user', content: combinedText, ts: Date.now() });
+        const closedMsg = `¡Hola! 👋 Gracias por escribirnos. En este momento nuestras oficinas están cerradas, pero en cuanto abramos te respondemos. ¡Hasta pronto!`;
+        console.log(`[Meta WA] Fuera de horario — primer mensaje de ${from}, enviando mensaje de cierre`);
+        await humanDelay(closedMsg);
+        await sendWhatsApp(from, closedMsg);
         return;
       }
 
