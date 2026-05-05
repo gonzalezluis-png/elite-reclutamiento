@@ -613,24 +613,34 @@ async function lcSend() {
       lead.sms.push({ body, direction: 'outbound', dateSent: new Date().toISOString(), sid: 'local_' + Date.now() });
     } else {
       const key = document.getElementById('lc-tpl-select').value;
-      let payload;
+      const isMetaLead = (lead.metaWa?.length > 0) || lead.pipeline_id === 'postulados-whatsapp-meta';
       if (key) {
+        // Templates via Twilio
         const tpl  = WA_TEMPLATES[key];
         const vars = {};
         document.querySelectorAll('#lc-tpl-vars input').forEach(inp => { vars[inp.dataset.var] = inp.value.trim(); });
-        payload = { to: phone, contentSid: tpl.sid, contentVariables: vars, leadId: lead.id };
-      } else {
+        const payload = { to: phone, contentSid: tpl.sid, contentVariables: vars, leadId: lead.id };
+        const res = await fetch(`${SERVER_URL}/twilio/whatsapp`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+        if (!res.ok) { const d = await res.json().catch(()=>({})); throw new Error(d.error || `Error WhatsApp (${res.status})`); }
+        if (!lead.whatsapp) lead.whatsapp = [];
+        lead.whatsapp.push({ body: `[Plantilla: ${key}]`, direction:'outbound', dateSent: new Date().toISOString(), sid: 'local_'+Date.now() });
+      } else if (isMetaLead) {
+        // Free text to Meta lead → use Meta Cloud API (same number candidate knows)
         const body = document.getElementById('lc-textarea').value.trim();
         if (!body) { btn.disabled = false; return; }
-        payload = { to: phone, body, leadId: lead.id };
+        const res = await fetch(`${SERVER_URL}/meta/wa-send`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ to: phone, body, leadId: lead.id }) });
+        if (!res.ok) { const d = await res.json().catch(()=>({})); throw new Error(d.error || `Error WhatsApp (${res.status})`); }
+        if (!lead.metaWa) lead.metaWa = [];
+        lead.metaWa.push({ body, direction:'outbound', dateSent: new Date().toISOString(), autor: currentUser?.name||'Agente', sid:`meta_${Date.now()}`, ch:'wa' });
+      } else {
+        // Free text to Twilio lead
+        const body = document.getElementById('lc-textarea').value.trim();
+        if (!body) { btn.disabled = false; return; }
+        const res = await fetch(`${SERVER_URL}/twilio/whatsapp`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ to: phone, body, leadId: lead.id }) });
+        if (!res.ok) { const d = await res.json().catch(()=>({})); throw new Error(d.error || `Error WhatsApp (${res.status})`); }
+        if (!lead.whatsapp) lead.whatsapp = [];
+        lead.whatsapp.push({ body, direction:'outbound', dateSent: new Date().toISOString(), sid:'local_'+Date.now() });
       }
-      const res = await fetch(`${SERVER_URL}/twilio/whatsapp`, {
-        method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload),
-      });
-      if (!res.ok) { const d = await res.json().catch(()=>({})); throw new Error(d.error || `Error WhatsApp (${res.status})`); }
-      if (!lead.whatsapp) lead.whatsapp = [];
-      const body = key ? `[Plantilla: ${key}]` : document.getElementById('lc-textarea').value.trim();
-      lead.whatsapp.push({ body, direction: 'outbound', dateSent: new Date().toISOString(), sid: 'local_' + Date.now() });
     }
     document.getElementById('lc-textarea').value = '';
     document.getElementById('lc-tpl-select').value = '';

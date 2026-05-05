@@ -978,6 +978,23 @@ function registerMetaRoutes(app) {
     }
   });
 
+  // ── Manual send via Meta Cloud API (for CRM manual replies on Meta WA leads) ──
+  app.post('/meta/wa-send', async (req, res) => {
+    const { to, body, leadId } = req.body;
+    if (!to || !body) return res.status(400).json({ ok: false, error: 'to y body requeridos' });
+    if (!_waToken || !META_WA_PHONE_ID) return res.status(503).json({ ok: false, error: 'Meta WA no configurado' });
+    try {
+      const cleanTo = to.replace(/^\+/, '').replace(/\D/g, '');
+      const ok = await sendWhatsApp(cleanTo, body);
+      if (leadId) {
+        fsUpdateLeadFields(leadId, { unread_msg: false, last_msg_ts: Date.now() }).catch(() => {});
+      }
+      res.json({ ok: true, via: 'meta', to: cleanTo });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
   console.log('[Meta] Rutas registradas: /meta/webhook (GET), /meta/webhook/whatsapp, /meta/webhook/ig-messenger, /meta/data-deletion');
 }
 

@@ -145,8 +145,11 @@ async function waSend() {
   try {
     let payload, displayBody;
 
+    // Route through Meta if this is a Meta WA lead (same number the candidate knows)
+    const isMetaLead = (lead.metaWa?.length > 0) || lead.pipeline_id === 'postulados-whatsapp-meta';
+
     if (tplKey && WA_TEMPLATES[tplKey]) {
-      // Template send
+      // Templates always go through Twilio (Meta templates require different setup)
       const tpl  = WA_TEMPLATES[tplKey];
       const vars = {};
       tpl.vars.forEach((v,i) => {
@@ -155,24 +158,31 @@ async function waSend() {
       });
       payload = { to: phone, contentSid: tpl.sid, contentVariables: vars, leadId: lead.id };
       displayBody = `[Plantilla: ${tplKey.replace(/_/g,' ')}] ${Object.values(vars).join(' · ')}`;
+      const res  = await fetch(`${SERVER_URL}/twilio/whatsapp`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error || 'Error al enviar');
+      if (!lead.whatsapp) lead.whatsapp = [];
+      lead.whatsapp.push({ direction:'outbound', body: displayBody, date: new Date().toISOString(), autor: currentUser?.name||'Agente', sid: data.sid, status:'sent' });
     } else {
-      // Free text send
+      // Free text — use Meta if this is a Meta lead, Twilio otherwise
       const body = inp.value.trim();
       if (!body) { btn.disabled=false; btn.style.opacity='1'; return; }
-      payload = { to: phone, body, leadId: lead.id };
       displayBody = body;
+      if (isMetaLead) {
+        const res  = await fetch(`${SERVER_URL}/meta/wa-send`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ to: phone, body, leadId: lead.id }) });
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error || 'Error al enviar');
+        if (!lead.metaWa) lead.metaWa = [];
+        lead.metaWa.push({ direction:'outbound', body, dateSent: new Date().toISOString(), autor: currentUser?.name||'Agente', sid: `meta_${Date.now()}`, ch:'wa' });
+      } else {
+        const res  = await fetch(`${SERVER_URL}/twilio/whatsapp`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ to: phone, body, leadId: lead.id }) });
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error || 'Error al enviar');
+        if (!lead.whatsapp) lead.whatsapp = [];
+        lead.whatsapp.push({ direction:'outbound', body, date: new Date().toISOString(), autor: currentUser?.name||'Agente', sid: data.sid, status:'sent' });
+      }
     }
 
-    const res  = await fetch(`${SERVER_URL}/twilio/whatsapp`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-    const data = await res.json();
-    if (!data.ok) throw new Error(data.error || 'Error al enviar');
-
-    if (!lead.whatsapp) lead.whatsapp = [];
-    lead.whatsapp.push({ direction:'outbound', body: displayBody, date: new Date().toISOString(), autor: currentUser?.name||'Agente', sid: data.sid, status:'sent' });
     addHistorial(lead.id, `WhatsApp enviado: "${displayBody.slice(0,60)}${displayBody.length>60?'…':''}"`, '📱');
     saveLeads();
     // Reset
