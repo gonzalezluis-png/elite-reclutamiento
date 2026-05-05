@@ -107,7 +107,11 @@ async function fsCreateLeadWA(from) {
 // ── AI: extract lead data from conversation ───────────────────────────────────
 async function extractAndUpdateLead(from, history) {
   try {
-    const messages = history.slice(-14).map(({ role, content }) => ({ role, content }));
+    // Filter out [SISTEMA] injected context messages — they're not real candidate messages
+    const messages = history
+      .filter(m => !m.content?.startsWith('[SISTEMA'))
+      .slice(-14)
+      .map(({ role, content }) => ({ role, content }));
     if (messages.length < 2) return;
 
     const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -188,11 +192,12 @@ Solo incluye campos mencionados explícitamente. Si no hay info clara, pon null.
     const hayIntent        = intentExistente || intentNuevo;
     const nombreValido     = nombreFinal && !nombreFinal.startsWith('WA ') && !nombreFinal.startsWith('+');
 
-    if (hayIntent && correoFinal && nombreValido && pipelineId !== 'en-webinar') {
-      console.log(`[AI-Extract] Intención + correo detectados — registrando en webinar: ${leadId}`);
+    const displayName = nombreValido ? nombreFinal : 'Candidato';
+    if (hayIntent && correoFinal && pipelineId !== 'en-webinar') {
+      console.log(`[AI-Extract] Intención + correo detectados — registrando en webinar: ${leadId} (nombre: ${displayName})`);
       await fsUpdateLeadFields(leadId, { webinar_intent: false });
       const WEBINAR_URL = process.env.WEBINAR_URL || 'https://crm.grupoelitework.com/webinar.html';
-      await moveLeadToWebinar(leadId, nombreFinal, correoFinal, WEBINAR_URL);
+      await moveLeadToWebinar(leadId, displayName, correoFinal, WEBINAR_URL);
     } else if (intentNuevo && !correoFinal) {
       // Tiene intención pero aún no tiene correo — guardar flag para cuando llegue
       if (!intentExistente) {
