@@ -499,14 +499,17 @@ function registerMetaRoutes(app) {
             }
           }
 
-          // Remove leading 'out' messages so history starts with a user message
-          while (_merged.length && _merged[0].dir === 'out') _merged.shift();
-
           if (_merged.length) {
             if (!conversationHistory.has(convKey)) conversationHistory.set(convKey, []);
             const _hist = conversationHistory.get(convKey);
             for (const m of _merged) {
-              _hist.push({ role: m.dir === 'out' ? 'assistant' : 'user', content: m.text, ts: m.ts });
+              const _role = m.dir === 'out' ? 'assistant' : 'user';
+              // Merge into last entry if same role (avoids consecutive same-role that breaks Claude API)
+              if (_hist.length && _hist[_hist.length - 1].role === _role) {
+                _hist[_hist.length - 1].content += '\n' + m.text;
+              } else {
+                _hist.push({ role: _role, content: m.text, ts: m.ts });
+              }
             }
             console.log(`[Meta WA] Historial reconstruido desde Firestore para ${from}: ${_merged.length} msgs`);
           }
@@ -606,6 +609,27 @@ function registerMetaRoutes(app) {
           console.log(`[Meta WA] IA pausada durante la espera de ${from} — sin respuesta`);
           return;
         }
+        // Re-read Firestore messages so Ana sees anything sent manually during the wait
+        try {
+          const _waitSubcol = await fetch(`${FS_BASE}/wa_messages/${from}/msgs?key=${FS_KEY}&pageSize=200`).then(r => r.json()).catch(() => ({}));
+          const _waitMsgs = (_waitSubcol.documents || []).map(d => {
+            const mf = d.fields || {};
+            return { dir: mf.direction?.stringValue, text: mf.text?.stringValue || '', ts: Number(mf.ts?.integerValue || 0) };
+          }).filter(m => m.text && (m.dir === 'in' || m.dir === 'out')).sort((a, b) => a.ts - b.ts);
+          const _waitHist = conversationHistory.get(convKey) || [];
+          const _lastKnownTs = _waitHist.length ? Math.max(..._waitHist.map(m => m.ts || 0)) : 0;
+          for (const m of _waitMsgs) {
+            if (m.ts > _lastKnownTs) {
+              const _role = m.dir === 'out' ? 'assistant' : 'user';
+              if (_waitHist.length && _waitHist[_waitHist.length - 1].role === _role) {
+                _waitHist[_waitHist.length - 1].content += '\n' + m.text;
+              } else {
+                _waitHist.push({ role: _role, content: m.text, ts: m.ts });
+              }
+            }
+          }
+          conversationHistory.set(convKey, _waitHist);
+        } catch (_we) {}
       }
 
       const rawReply = await askClaude(convKey, combinedText, 'wa');

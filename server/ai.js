@@ -498,7 +498,16 @@ async function askClaude(phone, userMessage, channel = 'text') {
   while (history.length && history[0].ts < cutoff) history.shift();
 
   history.push({ role: 'user', content: userMessage, ts: Date.now() });
-  const messages = history.slice(-20).map(({ role, content }) => ({ role, content }));
+  // Merge consecutive same-role entries (can happen after history reconstruction)
+  const _raw = history.slice(-20);
+  const messages = [];
+  for (const { role, content } of _raw) {
+    if (messages.length && messages[messages.length - 1].role === role) {
+      messages[messages.length - 1].content += '\n' + content;
+    } else {
+      messages.push({ role, content });
+    }
+  }
 
   const response = await anthropic.messages.create({
     model: 'claude-opus-4-7',
@@ -521,7 +530,15 @@ async function askClaudeResume(phone, channel = 'wa') {
   const cutoff = Date.now() - 24 * 60 * 60 * 1000;
   while (history.length && history[0].ts < cutoff) history.shift();
 
-  const messages = history.slice(-20).map(({ role, content }) => ({ role, content }));
+  const _rawR = history.slice(-20);
+  const messages = [];
+  for (const { role, content } of _rawR) {
+    if (messages.length && messages[messages.length - 1].role === role) {
+      messages[messages.length - 1].content += '\n' + content;
+    } else {
+      messages.push({ role, content });
+    }
+  }
   if (!messages.length || messages[messages.length - 1].role !== 'user') return null;
 
   const response = await anthropic.messages.create({
