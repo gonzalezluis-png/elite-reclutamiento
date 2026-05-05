@@ -381,6 +381,7 @@ function registerMetaRoutes(app) {
 
       // Auto-create lead if not in CRM
       const exists = await fsLeadExists(from);
+      const _isFirstEverContact = !exists;
       if (!exists) {
         await fsCreateLeadWA(`wa_meta:${from}`);
         pixelLead({ telefono: from, correo: '' }).catch(() => {});
@@ -592,6 +593,18 @@ function registerMetaRoutes(app) {
             return;
           }
           // '?' → fall through so Ana asks for clarification
+        }
+      }
+
+      // First-ever contact: wait 3 minutes before Ana responds (looks human, not instant bot)
+      if (_isFirstEverContact) {
+        console.log(`[Meta WA] Primer contacto de ${from} — Ana esperará 3 min antes de responder`);
+        await new Promise(resolve => setTimeout(resolve, 3 * 60 * 1000));
+        // Re-check ia_paused in case team took over during the wait
+        const _freshLead = await fsGetLeadByPhone(from).catch(() => null);
+        if (_freshLead?.fields?.ia_paused?.booleanValue === true) {
+          console.log(`[Meta WA] IA pausada durante la espera de ${from} — sin respuesta`);
+          return;
         }
       }
 
