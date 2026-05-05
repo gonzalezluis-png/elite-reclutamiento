@@ -629,9 +629,10 @@ async function lcSend() {
         const body = document.getElementById('lc-textarea').value.trim();
         if (!body) { btn.disabled = false; return; }
         const res = await fetch(`${SERVER_URL}/meta/wa-send`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ to: phone, body, leadId: lead.id }) });
-        if (!res.ok) { const d = await res.json().catch(()=>({})); throw new Error(d.error || `Error WhatsApp (${res.status})`); }
+        const metaData = await res.json().catch(()=>({}));
+        if (!res.ok) throw new Error(metaData.error || `Error WhatsApp (${res.status})`);
         if (!lead.metaWa) lead.metaWa = [];
-        lead.metaWa.push({ body, direction:'outbound', dateSent: new Date().toISOString(), autor: currentUser?.name||'Agente', sid:`meta_${Date.now()}`, ch:'wa' });
+        lead.metaWa.push({ body, direction:'outbound', dateSent: new Date(metaData.ts||Date.now()).toISOString(), autor: currentUser?.name||'Agente', sid:`meta_${metaData.ts||Date.now()}`, ch:'wa' });
       } else {
         // Free text to Twilio lead
         const body = document.getElementById('lc-textarea').value.trim();
@@ -760,8 +761,12 @@ function lcRenderTimeline(lead) {
   for (const m of (lead.sms || [])) {
     items.push({ type:'sms', out: m.direction?.startsWith('outbound'), body: m.body, date: new Date(m.dateSent || m.dateCreated || m.date || 0) });
   }
-  // WhatsApp
+  // WhatsApp (Twilio)
   for (const m of (lead.whatsapp || [])) {
+    items.push({ type:'wa', out: m.direction?.startsWith('outbound'), body: m.body, date: new Date(m.dateSent || m.dateCreated || m.date || 0) });
+  }
+  // WhatsApp (Meta)
+  for (const m of (lead.metaWa || [])) {
     items.push({ type:'wa', out: m.direction?.startsWith('outbound'), body: m.body, date: new Date(m.dateSent || m.dateCreated || m.date || 0) });
   }
   // Calls from Twilio

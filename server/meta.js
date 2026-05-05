@@ -985,11 +985,12 @@ function registerMetaRoutes(app) {
     if (!_waToken || !META_WA_PHONE_ID) return res.status(503).json({ ok: false, error: 'Meta WA no configurado' });
     try {
       const cleanTo = to.replace(/^\+/, '').replace(/\D/g, '');
+      const ts = Date.now();
       const ok = await sendWhatsApp(cleanTo, body);
       if (leadId) {
-        fsUpdateLeadFields(leadId, { unread_msg: false, last_msg_ts: Date.now() }).catch(() => {});
+        fsUpdateLeadFields(leadId, { unread_msg: false, last_msg_ts: ts }).catch(() => {});
       }
-      res.json({ ok: true, via: 'meta', to: cleanTo });
+      res.json({ ok: true, via: 'meta', to: cleanTo, ts });
     } catch (e) {
       res.status(500).json({ ok: false, error: e.message });
     }

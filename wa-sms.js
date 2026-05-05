@@ -173,7 +173,7 @@ async function waSend() {
         const data = await res.json();
         if (!data.ok) throw new Error(data.error || 'Error al enviar');
         if (!lead.metaWa) lead.metaWa = [];
-        lead.metaWa.push({ direction:'outbound', body, dateSent: new Date().toISOString(), autor: currentUser?.name||'Agente', sid: `meta_${Date.now()}`, ch:'wa' });
+        lead.metaWa.push({ direction:'outbound', body, dateSent: new Date(data.ts||Date.now()).toISOString(), autor: currentUser?.name||'Agente', sid: `meta_${data.ts||Date.now()}`, ch:'wa' });
       } else {
         const res  = await fetch(`${SERVER_URL}/twilio/whatsapp`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ to: phone, body, leadId: lead.id }) });
         const data = await res.json();
