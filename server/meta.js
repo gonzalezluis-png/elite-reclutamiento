@@ -568,11 +568,16 @@ function registerMetaRoutes(app) {
   }
 
   // ── WhatsApp webhook (POST) ───────────────────────────────────────────────
+  const _webhookLog = [];
   app.post('/meta/webhook/whatsapp', async (req, res) => {
     res.sendStatus(200); // respond immediately to Meta
 
+    // Log every incoming event for diagnostic (including status updates, etc.)
+    _webhookLog.unshift({ ts: new Date().toISOString(), sigOk: verifySignature(req, META_APP_SECRET_WA), body: JSON.stringify(req.body).slice(0, 500) });
+    if (_webhookLog.length > 20) _webhookLog.pop();
+
     if (!verifySignature(req, META_APP_SECRET_WA)) {
-      console.warn('[Meta WA] Firma inválida');
+      console.warn('[Meta WA] Firma inválida — evento rechazado (ver /meta/webhook/diagnostic)');
       return;
     }
 
@@ -719,16 +724,7 @@ function registerMetaRoutes(app) {
     }
   });
 
-  // ── Webhook diagnostic — last 20 raw events from Meta ───────────────────────
-  const _webhookLog = [];
-  const _origWAPost = app._router?.stack?.find?.(l => l.route?.path === '/meta/webhook/whatsapp');
-  app.use((req, _res, next) => {
-    if (req.path === '/meta/webhook/whatsapp' && req.method === 'POST') {
-      _webhookLog.unshift({ ts: new Date().toISOString(), body: JSON.stringify(req.body).slice(0, 400) });
-      if (_webhookLog.length > 20) _webhookLog.pop();
-    }
-    next();
-  });
+  // ── Webhook diagnostic ───────────────────────────────────────────────────────
   app.get('/meta/webhook/diagnostic', (req, res) => {
     res.json({
       ok:            true,
