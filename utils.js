@@ -284,6 +284,24 @@ function initResizableCols(tableKey) {
 }
 
 function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+// Deduplicate messages by body+direction within a 30-second window.
+// Handles stale localStorage data where the same message may be in both
+// lead.whatsapp and lead.metaWa after the array-separation migration.
+function dedupMsgs(msgs) {
+  const seen = [];
+  return msgs.filter(m => {
+    const ts  = new Date(m.dateSent || m.date || 0).getTime();
+    const dup = seen.find(s =>
+      s.dir  === m.direction &&
+      s.body === (m.body || '') &&
+      Math.abs(s.ts - ts) < 30000
+    );
+    if (dup) return false;
+    seen.push({ dir: m.direction, body: m.body || '', ts });
+    return true;
+  });
+}
 function fmtDate(d) {
   if (!d) return '';
   const dt = new Date(d);

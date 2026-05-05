@@ -73,7 +73,7 @@ function waRenderThread(messages) {
     thread.innerHTML = '<div style="text-align:center;color:rgba(255,255,255,.25);font-size:12px;margin-top:40px">Sin mensajes aún</div>';
     return;
   }
-  const sorted = [...messages].sort((a,b) => new Date(a.date||a.dateSent||0)-new Date(b.date||b.dateSent||0));
+  const sorted = dedupMsgs([...messages].sort((a,b) => new Date(a.date||a.dateSent||0)-new Date(b.date||b.dateSent||0)));
   thread.innerHTML = sorted.map(m => {
     const out  = m.direction === 'outbound';
     const time = m.date ? fmtDateTime(m.date) : '';

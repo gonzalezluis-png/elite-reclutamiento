@@ -290,12 +290,11 @@ function _msgRenderThread() {
   const color  = colors[(lead.nombre||'').charCodeAt(0) % colors.length];
   const initials = (lead.nombre||'?').split(' ').map(w=>w[0]||'').join('').slice(0,2).toUpperCase();
 
-  // Build combined timeline — Twilio WA + Meta WA are separate arrays so no cross-source duplicates
-  const msgs = [
+  const msgs = dedupMsgs([
     ...(lead.sms||[]).map(m => ({...m, ch:'sms'})),
     ...(lead.whatsapp||[]).map(m => ({...m, ch:'wa'})),
     ...(lead.metaWa||[]),
-  ].sort((a,b) => new Date(a.dateSent||a.date||0) - new Date(b.dateSent||b.date||0));
+  ].sort((a,b) => new Date(a.dateSent||a.date||0) - new Date(b.dateSent||b.date||0)));
 
   const threadHtml = msgs.length ? msgs.map(m => {
     const out    = m.direction === 'outbound';
@@ -757,17 +756,13 @@ function lcRenderTimeline(lead) {
   const el = document.getElementById('lc-timeline');
   if (!el) return;
   const items = [];
-  // SMS
-  for (const m of (lead.sms || [])) {
-    items.push({ type:'sms', out: m.direction?.startsWith('outbound'), body: m.body, date: new Date(m.dateSent || m.dateCreated || m.date || 0) });
-  }
-  // WhatsApp (Twilio)
-  for (const m of (lead.whatsapp || [])) {
-    items.push({ type:'wa', out: m.direction?.startsWith('outbound'), body: m.body, date: new Date(m.dateSent || m.dateCreated || m.date || 0) });
-  }
-  // WhatsApp (Meta)
-  for (const m of (lead.metaWa || [])) {
-    items.push({ type:'wa', out: m.direction?.startsWith('outbound'), body: m.body, date: new Date(m.dateSent || m.dateCreated || m.date || 0) });
+  const _allMsgs = dedupMsgs([
+    ...(lead.sms||[]).map(m => ({...m, _type:'sms'})),
+    ...(lead.whatsapp||[]).map(m => ({...m, _type:'wa'})),
+    ...(lead.metaWa||[]).map(m => ({...m, _type:'wa'})),
+  ].sort((a,b) => new Date(a.dateSent||a.dateCreated||a.date||0) - new Date(b.dateSent||b.dateCreated||b.date||0)));
+  for (const m of _allMsgs) {
+    items.push({ type: m._type, out: m.direction?.startsWith('outbound'), body: m.body, date: new Date(m.dateSent || m.dateCreated || m.date || 0) });
   }
   // Calls from Twilio
   for (const c of (lead.calls || [])) {
