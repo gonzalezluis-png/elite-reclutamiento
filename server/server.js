@@ -1351,7 +1351,9 @@ app.delete('/leads/:id', requireSession(), async (req, res) => {
       await fetch(`${FS_BASE}/wa_messages/${bare}?key=${FS_KEY}`, { method: 'DELETE' }).catch(() => {});
     }
 
-    console.log(`[Data Deletion] Lead ${leadId} eliminado. Historial: [${deleted.history.join(', ')}]. Escalaciones: [${deleted.escalations.join(', ')}]`);
+    const ip = req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'desconocida';
+    const who = req.authSession?.name || req.authSession?.userId || 'desconocido';
+    console.log(`[Data Deletion] Lead ${leadId} eliminado por ${who} (IP: ${ip}). Historial: [${deleted.history.join(', ')}]. Escalaciones: [${deleted.escalations.join(', ')}]`);
     res.json({ ok: true, deleted });
   } catch (e) {
     console.error('[Data Deletion] Error:', e.message);
