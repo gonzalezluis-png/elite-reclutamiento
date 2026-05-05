@@ -14,7 +14,7 @@ const conversationHistory = new Map();
 
 // Channel toggles
 const aiEnabled = {
-  sms:   process.env.AI_SMS   !== 'false',
+  sms:   false, // disabled — campaigns pending approval
   wa:    process.env.AI_WA    !== 'false',
   voice: process.env.AI_VOICE !== 'false',
 };

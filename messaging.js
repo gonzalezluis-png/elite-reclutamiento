@@ -484,7 +484,7 @@ async function _msgPollActive() {
 }
 
 // ── Lead Conversation Tab ─────────────────────────────────────────────────────
-let _lcChannel  = 'sms';   // 'sms' | 'wa'
+let _lcChannel  = 'wa';   // 'sms' | 'wa'  (SMS disabled)
 let _lcPollInt  = null;
 let _lcLoading  = false;
 

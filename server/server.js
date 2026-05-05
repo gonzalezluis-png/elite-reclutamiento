@@ -332,6 +332,7 @@ app.post('/twilio/voice/no-input', (req, res) => {
 
 // ── SMS: Send outbound SMS ────────────────────────────────────────────────────
 app.post('/twilio/sms', async (req, res) => {
+  return res.status(403).json({ ok: false, error: 'SMS desactivado temporalmente — campañas pendientes de aprobación' });
   const { to, body, leadId } = req.body;
   if (!to || !body) return res.status(400).json({ ok: false, error: 'to y body son requeridos' });
   if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN) return res.status(500).json({ ok: false, error: 'Twilio no configurado' });
