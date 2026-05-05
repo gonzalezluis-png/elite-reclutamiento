@@ -314,6 +314,11 @@ function _msgRenderThread() {
     </div>`;
   }).join('') : '<div style="text-align:center;color:var(--text2);font-size:12px;padding:20px;">Sin mensajes aún</div>';
 
+  const _iaPaused = !!lead.ia_paused;
+  const _iaColor  = _iaPaused ? '#22c55e' : '#a855f7';
+  const _iaLabel  = _iaPaused ? '⏸ IA pausada — modo manual' : '🤖 IA activa — Ana está respondiendo';
+  const _iaPill   = _iaPaused ? 'MANUAL' : 'ACTIVA';
+
   main.innerHTML = `
     <div class="msg-thread-hdr">
       <div class="msg-conv-avatar" style="background:${color};width:36px;height:36px;font-size:13px;font-weight:700;">${initials}</div>
@@ -321,8 +326,10 @@ function _msgRenderThread() {
         <div class="msg-thread-hdr-name">${esc(lead.nombre||'Sin nombre')}</div>
         <div class="msg-thread-hdr-sub">${esc(phone)} ${lead.ubicacion?'· '+esc(lead.ubicacion):''}</div>
       </div>
+      <button onclick="_msgToggleIA('${lead.id}')" style="background:${_iaPaused?'rgba(34,197,94,.15)':'rgba(168,85,247,.15)'};border:1px solid ${_iaPaused?'rgba(34,197,94,.3)':'rgba(168,85,247,.3)'};border-radius:7px;color:${_iaColor};font-size:11px;font-family:var(--font);padding:5px 11px;cursor:pointer;font-weight:700;">${_iaPill}</button>
       <button onclick="openLead('${lead.id}')" style="background:rgba(255,255,255,.07);border:1px solid var(--border);border-radius:7px;color:var(--text);font-size:11.5px;font-family:var(--font);padding:5px 11px;cursor:pointer;">Ver Lead ↗</button>
     </div>
+    <div style="padding:6px 14px;font-size:11px;color:${_iaColor};background:${_iaPaused?'rgba(34,197,94,.06)':'rgba(168,85,247,.06)'};border-bottom:1px solid var(--border);">${_iaLabel}</div>
     <div class="msg-thread-body" id="msg-thread-body">${threadHtml}</div>
     <div class="msg-compose">
       <div class="msg-compose-top">
@@ -367,6 +374,24 @@ function _msgRenderThread() {
 
 function _msgSetChannel(ch) {
   _msgChannel = ch;
+  _msgRenderThread();
+}
+
+async function _msgToggleIA(leadId) {
+  const lead = leads.find(l => l.id === leadId);
+  if (!lead) return;
+  const pausando = !lead.ia_paused;
+  if (pausando && !confirm(`¿Pausar la IA para ${lead.nombre || 'este lead'}?\n\nAna dejará de responder y podrás escribir manualmente.`)) return;
+  lead.ia_paused = pausando;
+  saveLeads(lead.id);
+  showToast(pausando ? '⏸ IA pausada' : '🤖 IA reactivada');
+  try {
+    await fetch(`${SERVER_URL}/ai/pause`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone: lead.telefono, paused: lead.ia_paused }),
+    });
+  } catch {}
   _msgRenderThread();
 }
 
