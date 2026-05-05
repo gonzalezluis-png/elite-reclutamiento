@@ -416,16 +416,43 @@ function _mlRenderMetadata(lead) {
   const createdAt = _fmtDate(lead.created_at || lead.createdAt);
   const updatedAt = _fmtDate(lead.updated_at || lead.updatedAt);
 
+  const bool = v => v === true ? '✅ Sí' : v === false ? '❌ No' : null;
+  const sec  = label => `<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:rgba(255,255,255,.3);padding:10px 0 4px;margin-top:4px">${label}</div>`;
+  const fmtSec = v => v ? parseInt(v) + ' seg' : null;
+  const fmtPct = v => v != null ? Math.round(v) + '%' : null;
+
+  const webinarMin = lead.webinar_tiempo_visto
+    ? (() => { const s = parseInt(lead.webinar_tiempo_visto); return `${Math.floor(s/60)}m ${s%60}s`; })()
+    : null;
+
   el.innerHTML = [
-    row('📣', 'Fuente',      lead.fuente),
-    row('📋', 'Campaña',     lead.ad_nombre || lead.campaign_name),
-    row('🎯', 'Anuncio ID',  lead.ad_clid,   true),
-    row('🔑', 'Pipeline',    lead.pipeline_id, true),
-    row('🆔', 'Lead ID',     lead.id,          true),
-    row('📅', 'Creado',      createdAt),
-    row('🔄', 'Actualizado', updatedAt),
-    row('📱', 'Canal WA',    lead.wa_phone_id),
-    row('📍', 'Ubicación',   lead.ubicacion),
+    sec('Origen'),
+    row('📣', 'Fuente',       lead.fuente),
+    row('📋', 'Anuncio',      lead.ad_nombre || lead.campaign_name),
+    row('🎯', 'Click ID',     lead.ad_clid,        true),
+    row('📅', 'Creado',       createdAt),
+    row('🔄', 'Actualizado',  updatedAt),
+
+    sec('Sistema'),
+    row('🆔', 'Lead ID',      lead.id,             true),
+    row('🔑', 'Pipeline ID',  lead.pipeline_id,    true),
+    row('🤖', 'IA pausada',   bool(lead.ia_paused)),
+    row('💬', 'Estado entrevista', lead.interview_state),
+    row('📅', 'Quiere cita',  bool(lead.quiere_entrevista)),
+
+    sec('Webinar'),
+    row('👁️', 'Visto',         bool(lead.vio_webinar || lead.webinar_completado)),
+    row('📊', 'Progreso',      fmtPct(lead.webinar_visto_pct)),
+    row('⏱️', 'Tiempo visto',  webinarMin),
+    row('⏸️', 'Pausas',        lead.webinar_pausas != null ? String(lead.webinar_pausas) : null),
+    row('📧', 'Email enviado', bool(lead.webinar_email_enviado)),
+    row('💡', 'Intent',        lead.webinar_intent),
+    row('🕐', 'Última sesión', lead.webinar_ultima_sesion ? _fmtDate(lead.webinar_ultima_sesion) : null),
+
+    sec('Cualificación'),
+    row('🔞', 'Mayor de edad',  bool(lead.mayor_edad)),
+    row('💼', 'Tiene experiencia', bool(lead.tiene_experiencia)),
+    row('📄', 'Tiene papeles',  bool(lead.tiene_papeles)),
   ].filter(Boolean).join('') || '<div style="color:var(--text2);padding:4px 0">Sin metadatos registrados</div>';
 }
 
