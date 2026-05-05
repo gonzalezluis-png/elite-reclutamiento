@@ -227,6 +227,12 @@ function setWebinarAccion(leadId, accion) {
     lead.etapa = 'NA - No Asistente';
     lead.inscrito_webinar = true;
     addHistorial(leadId, 'Marcado como NO ASISTENTE al Webinar', '✗');
+  } else if (accion === 'no-interesado') {
+    lead.etapa = 'No Interesado';
+    addHistorial(leadId, 'Marcado como NO INTERESADO', '👎');
+  } else if (accion === 'no-califica') {
+    lead.etapa = 'No Califica';
+    addHistorial(leadId, 'Marcado como NO CALIFICA', '🚫');
   } else {
     lead.etapa = 'Inscrito en Webinar';
     lead.inscrito_webinar = false;
