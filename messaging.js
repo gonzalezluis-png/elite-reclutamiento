@@ -290,11 +290,21 @@ function _msgRenderThread() {
   const color  = colors[(lead.nombre||'').charCodeAt(0) % colors.length];
   const initials = (lead.nombre||'?').split(' ').map(w=>w[0]||'').join('').slice(0,2).toUpperCase();
 
-  // Build combined timeline
-  const msgs = [
+  // Build combined timeline — deduplicate by (direction + body + ~5s window)
+  const _rawMsgs = [
     ...(lead.sms||[]).map(m => ({...m, ch:'sms'})),
     ...(lead.whatsapp||[]).map(m => ({...m, ch:'wa'})),
   ].sort((a,b) => new Date(a.dateSent||a.date||0) - new Date(b.dateSent||b.date||0));
+  const msgs = [];
+  for (const m of _rawMsgs) {
+    const ts = new Date(m.dateSent||m.date||0).getTime();
+    const dup = msgs.find(x =>
+      x.direction === m.direction &&
+      (x.body||'').trim() === (m.body||'').trim() &&
+      Math.abs(new Date(x.dateSent||x.date||0).getTime() - ts) < 5000
+    );
+    if (!dup) msgs.push(m);
+  }
 
   const threadHtml = msgs.length ? msgs.map(m => {
     const out    = m.direction === 'outbound';

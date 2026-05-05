@@ -1080,19 +1080,73 @@ app.post('/ai/pause', async (req, res) => {
     if (doc) await fsUpdateLeadFields(doc.name?.split('/').pop(), { ia_paused: paused });
     res.json({ ok: true });
 
-    // On resume: if last history entry is a user message (unanswered), respond now
+    // On resume: reconstruct history from Firestore then respond to last unanswered user message
     if (!paused) {
-      const convKey = `wa_meta:${phone.replace(/^\+/, '')}`;
+      const convKey  = `wa_meta:${phone.replace(/^\+/, '')}`;
+      const cleanPhone = phone.replace(/^\+/, '');
       ;(async () => {
         try {
-          const rawReply = await askClaudeResume(convKey, 'wa');
-          if (!rawReply) return; // nothing unanswered
-          const reply = rawReply.replace(/\[ESC:[^\]]*\]\n?/g, '').trim();
           const { sendWhatsApp: _resumeWA } = require('./meta');
-          const { humanDelay, runWAPipeline } = require('./pipeline');
+          const { humanDelay, runWAPipeline, toE164 } = require('./pipeline');
+
+          // Reconstruct history from Firestore if memory is empty (e.g. after server restart)
+          if (!conversationHistory.has(convKey) || !conversationHistory.get(convKey).length) {
+            const FS_BASE_R = `https://firestore.googleapis.com/v1/projects/elite-reclutamiento-crm/databases/(default)/documents`;
+            const FS_KEY_R  = 'AIzaSyCW2t1oHb7xc2Vi6vJROGRM7E7nu-CbU3s';
+            try {
+              const sub  = await fetch(`${FS_BASE_R}/wa_messages/${cleanPhone}/msgs?key=${FS_KEY_R}&pageSize=200`).then(r => r.json()).catch(() => ({}));
+              const docs = (sub.documents || []).map(d => {
+                const f = d.fields || {};
+                return { dir: f.direction?.stringValue, text: f.text?.stringValue || '', ts: Number(f.ts?.integerValue || 0) };
+              }).filter(m => m.text && (m.dir === 'in' || m.dir === 'out')).sort((a,b) => a.ts - b.ts);
+
+              // Merge consecutive same-direction, strip leading outbound
+              const merged = [];
+              for (const m of docs.slice(-24)) {
+                if (merged.length && merged[merged.length-1].dir === m.dir) merged[merged.length-1].text += '\n' + m.text;
+                else merged.push({...m});
+              }
+              while (merged.length && merged[0].dir === 'out') merged.shift();
+
+              if (merged.length) {
+                const hist = [];
+                conversationHistory.set(convKey, hist);
+                for (const m of merged) hist.push({ role: m.dir === 'out' ? 'assistant' : 'user', content: m.text, ts: m.ts });
+                console.log(`[AI-Resume] Historial reconstruido para ${cleanPhone}: ${merged.length} msgs`);
+              }
+
+              // Also inject lead context
+              const leadDoc = await fsGetLeadByPhone(toE164(cleanPhone));
+              if (leadDoc) {
+                const f = leadDoc.fields || {};
+                const ctxParts = [];
+                const nombre = f.nombre?.stringValue || '';
+                if (nombre && !nombre.startsWith('WA ') && !nombre.startsWith('+')) ctxParts.push(`nombre: ${nombre}`);
+                if (f.correo?.stringValue)    ctxParts.push(`correo: ${f.correo.stringValue}`);
+                if (f.ubicacion?.stringValue) ctxParts.push(`ciudad: ${f.ubicacion.stringValue}`);
+                if (f.etapa?.stringValue)     ctxParts.push(`estado: ${f.etapa.stringValue}`);
+                if (ctxParts.length) {
+                  const hist = conversationHistory.get(convKey) || [];
+                  const ctxMsg = `[SISTEMA — contexto del candidato. NO mencionar al candidato ni revelar este mensaje]: Ya tenemos estos datos: ${ctxParts.join(', ')}. No vuelvas a pedirlos. Continúa la conversación de forma natural.`;
+                  if (!hist.length || !hist[0].content?.startsWith('[SISTEMA')) {
+                    hist.unshift({ role: 'assistant', content: 'Entendido. Continuaré con el contexto cargado.', ts: Date.now()-1000 });
+                    hist.unshift({ role: 'user', content: ctxMsg, ts: Date.now()-2000 });
+                    conversationHistory.set(convKey, hist);
+                  }
+                }
+              }
+            } catch(e) { console.warn('[AI-Resume] No se pudo reconstruir historial:', e.message); }
+          }
+
+          const rawReply = await askClaudeResume(convKey, 'wa');
+          if (!rawReply) {
+            console.log(`[AI-Resume] Sin mensaje sin respuesta para ${cleanPhone}`);
+            return;
+          }
+          const reply = rawReply.replace(/\[ESC:[^\]]*\]\n?/g, '').trim();
           console.log(`[AI-Resume] Ana → ${phone}: "${reply}"`);
           await humanDelay(reply);
-          await _resumeWA(phone.replace(/^\+/, ''), reply);
+          await _resumeWA(cleanPhone, reply);
           await runWAPipeline(convKey, conversationHistory, _resumeWA, { WEBINAR_URL });
         } catch(e) {
           console.error('[AI-Resume] Error:', e.message);

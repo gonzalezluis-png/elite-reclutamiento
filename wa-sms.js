@@ -52,10 +52,19 @@ function _waUpdateIABtn(paused) {
 async function waToggleIA() {
   const lead = leads.find(l => l.id === _waLeadId);
   if (!lead) return;
-  lead.ia_paused = !lead.ia_paused;
+  const pausando = !lead.ia_paused;
+  if (pausando && !confirm(`¿Pausar la IA para ${lead.nombre || 'este lead'}?\n\nAna dejará de responder y podrás escribir manualmente.`)) return;
+  lead.ia_paused = pausando;
   _waUpdateIABtn(lead.ia_paused);
   saveLeads(lead.id);
-  showToast(lead.ia_paused ? '⏸ IA pausada — responderás tú manualmente' : '🤖 IA reactivada');
+  showToast(lead.ia_paused ? '⏸ IA pausada — responderás tú manualmente' : '🤖 IA reactivada — Ana responderá ahora');
+  try {
+    await fetch(`${SERVER_URL}/ai/pause`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone: lead.telefono, paused: lead.ia_paused }),
+    });
+  } catch {}
 }
 
 function waRenderThread(messages) {
@@ -64,7 +73,19 @@ function waRenderThread(messages) {
     thread.innerHTML = '<div style="text-align:center;color:rgba(255,255,255,.25);font-size:12px;margin-top:40px">Sin mensajes aún</div>';
     return;
   }
-  thread.innerHTML = messages.map(m => {
+  // Deduplicate: same direction + body + within 5s
+  const _sorted = [...messages].sort((a,b) => new Date(a.date||a.dateSent||0)-new Date(b.date||b.dateSent||0));
+  const deduped = [];
+  for (const m of _sorted) {
+    const ts = new Date(m.date||m.dateSent||0).getTime();
+    const dup = deduped.find(x =>
+      x.direction === m.direction &&
+      (x.body||'').trim() === (m.body||'').trim() &&
+      Math.abs(new Date(x.date||x.dateSent||0).getTime() - ts) < 5000
+    );
+    if (!dup) deduped.push(m);
+  }
+  thread.innerHTML = deduped.map(m => {
     const out  = m.direction === 'outbound';
     const time = m.date ? fmtDateTime(m.date) : '';
     const tick = out ? (m.status === 'read' ? '✓✓' : '✓') : '';
