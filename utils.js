@@ -322,4 +322,37 @@ function showToast(msg, undoable = false) {
   }, 4000);
 }
 
-// ════════════════════════════════════════════
+// ── Notificaciones de nuevo lead ─────────────────────────────────────────────
+function _playLeadSound() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    [[520, 0, 0.15], [780, 0.18, 0.15]].forEach(([freq, start, dur]) => {
+      const osc  = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0, ctx.currentTime + start);
+      gain.gain.linearRampToValueAtTime(0.4, ctx.currentTime + start + 0.02);
+      gain.gain.linearRampToValueAtTime(0, ctx.currentTime + start + dur);
+      osc.start(ctx.currentTime + start);
+      osc.stop(ctx.currentTime + start + dur + 0.05);
+    });
+  } catch(e) {}
+}
+
+function _notifyNewLead(lead) {
+  _playLeadSound();
+  if ('Notification' in window && Notification.permission === 'granted') {
+    const nombre = lead.nombre && !lead.nombre.startsWith('WA ') && !lead.nombre.startsWith('+')
+      ? lead.nombre : 'Nuevo candidato';
+    const n = new Notification('📥 Nuevo lead — Elite CRM', {
+      body:  `${nombre} · ${lead.fuente || 'WhatsApp'}`,
+      icon:  '/favicon.ico',
+      tag:   'new-lead-' + lead.id,
+    });
+    n.onclick = () => { window.focus(); openLead(lead.id); n.close(); };
+    setTimeout(() => n.close(), 8000);
+  }
+  showToast(`📥 Nuevo lead: ${lead.nombre || lead.telefono || 'desconocido'}`);
+}

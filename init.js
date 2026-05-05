@@ -43,17 +43,28 @@ function postLoginInit() {
     }
   })();
 
-  // Sync automático
+  // Pedir permiso de notificaciones al iniciar
+  if ('Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission();
+  }
+
+  // Sync automático + detección de leads nuevos
+  let _knownLeadIds = new Set(leads.map(l => l.id));
   setInterval(async () => {
     if (Date.now() - _lastSaveTs < 10000) return;
     try {
       const fsLeads = await fsLoadLeads();
       if (fsLeads.length > 0) {
+        // Detectar leads nuevos
+        const newLeads = fsLeads.filter(l => !_knownLeadIds.has(l.id));
         leads = fsLeads;
+        _knownLeadIds = new Set(leads.map(l => l.id));
         localStorage.setItem('er_leads', JSON.stringify(leads));
         autoMoverVistos();
         renderSidebar();
         renderKanban();
+        // Notificar por cada lead nuevo
+        newLeads.forEach(l => _notifyNewLead(l));
       }
     } catch(e) {}
   }, 15 * 1000);
