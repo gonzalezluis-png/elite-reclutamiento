@@ -290,21 +290,12 @@ function _msgRenderThread() {
   const color  = colors[(lead.nombre||'').charCodeAt(0) % colors.length];
   const initials = (lead.nombre||'?').split(' ').map(w=>w[0]||'').join('').slice(0,2).toUpperCase();
 
-  // Build combined timeline — deduplicate by (direction + body + ~5s window)
-  const _rawMsgs = [
+  // Build combined timeline — Twilio WA + Meta WA are separate arrays so no cross-source duplicates
+  const msgs = [
     ...(lead.sms||[]).map(m => ({...m, ch:'sms'})),
     ...(lead.whatsapp||[]).map(m => ({...m, ch:'wa'})),
+    ...(lead.metaWa||[]),
   ].sort((a,b) => new Date(a.dateSent||a.date||0) - new Date(b.dateSent||b.date||0));
-  const msgs = [];
-  for (const m of _rawMsgs) {
-    const ts = new Date(m.dateSent||m.date||0).getTime();
-    const dup = msgs.find(x =>
-      x.direction === m.direction &&
-      (x.body||'').trim() === (m.body||'').trim() &&
-      Math.abs(new Date(x.dateSent||x.date||0).getTime() - ts) < 5000
-    );
-    if (!dup) msgs.push(m);
-  }
 
   const threadHtml = msgs.length ? msgs.map(m => {
     const out    = m.direction === 'outbound';
@@ -697,14 +688,15 @@ async function lcFetchMessages(lead) {
         else if (!ex.dateSent && m.dateSent) { Object.assign(ex, m); updated = true; }
       }
     }
-    // Meta WA messages (stored in Firestore by server)
+    // Meta WA messages — stored in separate array to avoid mixing with Twilio
     const d3 = await r3.json();
     if (d3.messages) {
-      if (!lead.whatsapp) lead.whatsapp = [];
+      if (!lead.metaWa) lead.metaWa = [];
       for (const m of d3.messages) {
         if (since && m.dateSent && new Date(m.dateSent).getTime() < since) continue;
-        const ex = lead.whatsapp.find(s => s.sid === m.sid);
-        if (!ex) { lead.whatsapp.push(m); updated = true; }
+        const ex = lead.metaWa.find(s => s.sid === m.sid);
+        if (!ex) { lead.metaWa.push({...m, ch:'wa'}); updated = true; }
+        else if (m.status && ex.status !== m.status) { ex.status = m.status; ex.error_code = m.error_code; updated = true; }
       }
     }
     if (updated) { saveLeads(); lcRenderTimeline(lead); }

@@ -23,7 +23,7 @@ function waOpen() {
     document.getElementById('sms-panel').style.display  !== 'none' ? 340 : 0,
   ];
   panel.style.right = (24 + others.reduce((a,b) => a+b, 0)) + 'px';
-  waRenderThread(lead.whatsapp);
+  waRenderThread([...(lead.whatsapp||[]), ...(lead.metaWa||[])]);
   _waUpdateIABtn(lead.ia_paused);
   clearInterval(_waPollInt);
   _waPollInt = setInterval(() => waPoll(raw), 8000);
@@ -73,19 +73,8 @@ function waRenderThread(messages) {
     thread.innerHTML = '<div style="text-align:center;color:rgba(255,255,255,.25);font-size:12px;margin-top:40px">Sin mensajes aún</div>';
     return;
   }
-  // Deduplicate: same direction + body + within 5s
-  const _sorted = [...messages].sort((a,b) => new Date(a.date||a.dateSent||0)-new Date(b.date||b.dateSent||0));
-  const deduped = [];
-  for (const m of _sorted) {
-    const ts = new Date(m.date||m.dateSent||0).getTime();
-    const dup = deduped.find(x =>
-      x.direction === m.direction &&
-      (x.body||'').trim() === (m.body||'').trim() &&
-      Math.abs(new Date(x.date||x.dateSent||0).getTime() - ts) < 5000
-    );
-    if (!dup) deduped.push(m);
-  }
-  thread.innerHTML = deduped.map(m => {
+  const sorted = [...messages].sort((a,b) => new Date(a.date||a.dateSent||0)-new Date(b.date||b.dateSent||0));
+  thread.innerHTML = sorted.map(m => {
     const out  = m.direction === 'outbound';
     const time = m.date ? fmtDateTime(m.date) : '';
     const tick = out ? (m.status === 'read' ? '✓✓' : '✓') : '';
@@ -191,7 +180,7 @@ async function waSend() {
     sel.value = '';
     document.getElementById('wa-tpl-vars').style.display = 'none';
     document.getElementById('wa-tpl-vars').innerHTML = '';
-    waRenderThread(lead.whatsapp);
+    waRenderThread([...(lead.whatsapp||[]), ...(lead.metaWa||[])]);
   } catch (e) {
     showToast('Error: ' + e.message);
   } finally {
@@ -217,7 +206,7 @@ async function waPoll(phone) {
         updated = true;
       }
     }
-    if (updated) { saveLeads(); waRenderThread(lead.whatsapp); }
+    if (updated) { saveLeads(); waRenderThread([...(lead.whatsapp||[]), ...(lead.metaWa||[])]); }
   } catch {}
 }
 
