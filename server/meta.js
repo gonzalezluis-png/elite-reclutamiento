@@ -339,7 +339,7 @@ function registerMetaRoutes(app) {
   const _msgTimers   = new Map(); // phone → timeoutId
   const _DEBOUNCE_MS = 3000;      // wait 3 s after last message before replying
 
-  async function _processBufferedMessages(from, referralInfo) {
+  async function _processBufferedMessages(from, referralInfo, profileName) {
     const texts = _msgBuffer.get(from) || [];
     _msgBuffer.delete(from);
     _msgTimers.delete(from);
@@ -397,6 +397,17 @@ function registerMetaRoutes(app) {
       if (!exists) {
         await fsCreateLeadWA(`wa_meta:${from}`);
         pixelLead({ telefono: from, correo: '' }).catch(() => {});
+      }
+      // Save WhatsApp profile name if we have it and lead doesn't have a real name yet
+      if (profileName) {
+        const _pLead = await fsGetLeadByPhone(from).catch(() => null);
+        if (_pLead) {
+          const _pId   = _pLead.name.split('/').pop();
+          const _pNombre = _pLead.fields?.nombre?.stringValue || '';
+          if (!_pNombre || _pNombre.startsWith('WA ') || _pNombre.startsWith('+')) {
+            fsUpdateLeadFields(_pId, { nombre: profileName }).catch(() => {});
+          }
+        }
       }
 
       // Tag lead source from Meta ad
@@ -872,13 +883,16 @@ function registerMetaRoutes(app) {
       // Auth 2FA intercept (fast path — no debounce needed)
       if (await handleAuthWAReply(from, text)) return;
 
+      // Capture WhatsApp profile name if available
+      const _profileName = value?.contacts?.[0]?.profile?.name || null;
+
       // Buffer message and (re)start debounce timer
       if (!_msgBuffer.has(from)) _msgBuffer.set(from, []);
       _msgBuffer.get(from).push(text);
 
       if (_msgTimers.has(from)) clearTimeout(_msgTimers.get(from));
       const referralInfo = msg.referral || null;
-      _msgTimers.set(from, setTimeout(() => _processBufferedMessages(from, referralInfo), _DEBOUNCE_MS));
+      _msgTimers.set(from, setTimeout(() => _processBufferedMessages(from, referralInfo, _profileName), _DEBOUNCE_MS));
 
     } catch (e) {
       console.error('[Meta WA webhook] Error:', e.message);
