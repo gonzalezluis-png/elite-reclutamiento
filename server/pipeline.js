@@ -119,38 +119,36 @@ async function extractAndUpdateLead(from, history) {
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 300,
       system: `Eres un extractor de datos. Analiza la conversación y extrae información del candidato.
-Responde SOLO con JSON válido, sin texto adicional:
-{
-  "nombre": "nombre completo o null",
-  "correo": "email o null",
-  "ubicacion": "ciudad, estado o null",
-  "disponibilidad": "tiempo completo / parcial / descripción o null",
-  "tiene_experiencia": true/false/null,
-  "tiene_papeles": true/false/null,
-  "mayor_edad": true/false/null,
-  "webinar_intent": true/false/null,
-  "vio_webinar": true/false/null
-}
-- tiene_experiencia: true si el candidato mencionó experiencia laboral o trabajo previo. false si dijo que no. null si no se mencionó.
-- tiene_papeles: true si confirmó documentos legales para trabajar (SSN, permiso, ciudadanía). false si dijo que no. null si no se sabe.
-- mayor_edad: true si es mayor de 18 años. false si es menor. null si no se sabe.
-- webinar_intent: true si el candidato mostró interés en ver el webinar/video/presentación, o dio su correo para recibir el link. false si lo rechazó. null si no aplica aún.
-- vio_webinar: true si el candidato confirmó que ya vio el webinar/video/presentación (ej: "ya lo vi", "lo acabo de ver", responde preguntas sobre el contenido, o el asistente pregunta su opinión sobre lo que vio). false si dijo que no lo vio. null si no se sabe.
-Solo incluye campos mencionados explícitamente. Si no hay info clara, pon null.`,
-      messages,
+Responde ÚNICAMENTE con el objeto JSON, sin texto antes ni después, sin markdown, sin explicaciones.
+Campos a extraer:
+- nombre: nombre completo del candidato o null
+- correo: email o null
+- ubicacion: ciudad y estado/país o null
+- disponibilidad: "tiempo completo" / "parcial" / descripción o null
+- tiene_experiencia: true si mencionó experiencia laboral. false si dijo que no. null si no se sabe.
+- tiene_papeles: true si confirmó documentos legales (SSN, permiso, ciudadanía). false si dijo que no. null si no se sabe.
+- mayor_edad: true si es mayor de 18. false si es menor. null si no se sabe.
+- webinar_intent: true si mostró interés en ver el webinar o dio correo para el link. false si lo rechazó. null si no aplica.
+- vio_webinar: true si confirmó que ya vio el webinar. false si dijo que no. null si no se sabe.
+Si no hay información clara para un campo, pon null. SOLO JSON, nada más.`,
+      messages: [
+        ...messages,
+        { role: 'assistant', content: '{' },
+      ],
     });
 
     let extracted;
     try {
       if (!extraction.content?.[0]?.text) return;
-      let raw = extraction.content[0].text.trim()
+      // The prefill starts with '{', so the model's reply is the rest — prepend it back
+      let raw = ('{' + extraction.content[0].text).trim()
         .replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
       const match = raw.match(/\{[\s\S]*\}/);
       if (match) raw = match[0];
       extracted = JSON.parse(raw);
       console.log(`[AI-Extract] Extraído para ${from}:`, extracted);
     } catch (e) {
-      console.error(`[AI-Extract] JSON parse error:`, extraction.content[0].text.slice(0, 200));
+      console.error(`[AI-Extract] JSON parse error:`, extraction.content[0]?.text?.slice(0, 200));
       return;
     }
 

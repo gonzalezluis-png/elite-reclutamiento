@@ -1288,7 +1288,7 @@ const _ivSendManager = async (text) => {
 setInterval(() => checkInterviewReminders(_ivSendWA, _ivSendInternal, _ivSendManager).catch(e => console.error('[IV-Reminder]', e.message)), 60_000);
 
 // ── Legal data deletion — removes lead + all associated data ──────────────────
-app.delete('/leads/:id', async (req, res) => {
+app.delete('/leads/:id', requireSession(), async (req, res) => {
   const leadId = req.params.id;
   const FS_PROJECT = 'elite-reclutamiento-crm';
   const FS_KEY     = 'AIzaSyCW2t1oHb7xc2Vi6vJROGRM7E7nu-CbU3s';

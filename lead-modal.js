@@ -213,7 +213,7 @@ async function deleteLeadFull() {
   showToast('Eliminando datos…');
 
   try {
-    const r = await fetch(`${SERVER_URL}/leads/${leadId}`, { method: 'DELETE' });
+    const r = await fetch(`${SERVER_URL}/leads/${leadId}`, { method: 'DELETE', headers: { 'x-session-token': _sessionToken || '' } });
     const d = await r.json();
     if (d.ok) {
       const histCount = d.deleted?.history?.length || 0;
