@@ -506,7 +506,7 @@ let pauseCount = 0, watchedSecs = 0, maxPct = 0;
 let lastSave = 0, playing = false, completed = false;
 let sessionStart = new Date().toISOString();
 
-function easedPct(r) { return (1 - Math.pow(1 - r / 100, 5)) * 100; }
+function easedPct(r) { return r; }
 function updateBar(p) { document.getElementById('custom-fill').style.width = easedPct(p).toFixed(1) + '%'; }
 
 async function saveProgress(final = false) {
