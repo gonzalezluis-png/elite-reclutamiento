@@ -572,16 +572,50 @@ function registerMetaRoutes(app) {
     }
   }
 
+  // ── Persistent webhook event log ────────────────────────────────────────────
+  async function _fsLogWebhookEvent(type, phone, preview, raw) {
+    try {
+      const id  = `${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+      await fetch(`${FS_BASE}/webhook_log/${id}?key=${FS_KEY}`, {
+        method:  'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ fields: {
+          ts:      { stringValue: new Date().toISOString() },
+          type:    { stringValue: type },
+          phone:   { stringValue: phone || '' },
+          preview: { stringValue: (preview || '').slice(0, 200) },
+          raw:     { stringValue: (raw || '').slice(0, 800) },
+        }}),
+      });
+    } catch {}
+  }
+
   // ── WhatsApp webhook (POST) ───────────────────────────────────────────────
   const _webhookLog = [];
   app.post('/meta/webhook/whatsapp', async (req, res) => {
     res.sendStatus(200); // respond immediately to Meta
 
-    // Log every incoming event for diagnostic (including status updates, etc.)
-    _webhookLog.unshift({ ts: new Date().toISOString(), sigOk: verifySignature(req, META_APP_SECRET_WA), body: JSON.stringify(req.body).slice(0, 500) });
+    const _sigOk = verifySignature(req, META_APP_SECRET_WA);
+    const _rawBody = JSON.stringify(req.body);
+
+    // Log every incoming event for in-memory diagnostic
+    _webhookLog.unshift({ ts: new Date().toISOString(), sigOk: _sigOk, body: _rawBody.slice(0, 500) });
     if (_webhookLog.length > 20) _webhookLog.pop();
 
-    if (!verifySignature(req, META_APP_SECRET_WA)) {
+    // Parse event type and phone for persistent log
+    const _entry  = req.body.entry?.[0];
+    const _value  = _entry?.changes?.[0]?.value;
+    const _msg    = _value?.messages?.[0];
+    const _status = _value?.statuses?.[0];
+    if (_msg) {
+      _fsLogWebhookEvent('message', _msg.from, `[${_msg.type}] ${_msg.text?.body || ''}`, _rawBody).catch(() => {});
+    } else if (_status) {
+      _fsLogWebhookEvent('status', _status.recipient_id, `status:${_status.status} err:${_status.errors?.[0]?.code || ''}`, _rawBody).catch(() => {});
+    } else if (_value) {
+      _fsLogWebhookEvent('other', '', _rawBody.slice(0, 100), _rawBody).catch(() => {});
+    }
+
+    if (!_sigOk) {
       console.warn('[Meta WA] Firma inválida — evento rechazado (ver /meta/webhook/diagnostic)');
       return;
     }
@@ -742,15 +776,43 @@ function registerMetaRoutes(app) {
     }
   });
 
-  // ── Webhook diagnostic ───────────────────────────────────────────────────────
+  // ── Webhook diagnostic (in-memory last 20) ──────────────────────────────────
   app.get('/meta/webhook/diagnostic', (req, res) => {
     res.json({
-      ok:            true,
-      serverTime:    new Date().toISOString(),
-      waToken:       _waToken ? `...${_waToken.slice(-6)}` : 'NO TOKEN',
-      waPhoneId:     META_WA_PHONE_ID || 'NOT SET',
-      lastEvents:    _webhookLog,
+      ok:         true,
+      serverTime: new Date().toISOString(),
+      waToken:    _waToken ? `...${_waToken.slice(-6)}` : 'NO TOKEN',
+      waPhoneId:  META_WA_PHONE_ID || 'NOT SET',
+      lastEvents: _webhookLog,
     });
+  });
+
+  // ── Webhook event log (persistent, Firestore) ────────────────────────────────
+  app.get('/meta/webhook/log', async (req, res) => {
+    try {
+      const limit = Math.min(Number(req.query.limit) || 100, 500);
+      const data  = await fetch(`${FS_BASE}/webhook_log?key=${FS_KEY}&pageSize=${limit}`).then(r => r.json());
+      const events = (data.documents || []).map(d => {
+        const f = d.fields || {};
+        return {
+          ts:      f.ts?.stringValue,
+          type:    f.type?.stringValue,
+          phone:   f.phone?.stringValue,
+          preview: f.preview?.stringValue,
+        };
+      }).sort((a, b) => (b.ts || '').localeCompare(a.ts || ''));
+      const messages = events.filter(e => e.type === 'message');
+      const statuses = events.filter(e => e.type === 'status');
+      res.json({
+        ok:             true,
+        total:          events.length,
+        totalMessages:  messages.length,
+        totalStatuses:  statuses.length,
+        events,
+      });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
   });
 
   // ── Data deletion callback (requerido por Meta) ───────────────────────────
