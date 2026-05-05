@@ -23,7 +23,9 @@ const app  = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(cors({ origin: '*' }));
-app.use(express.json());
+app.use(express.json({
+  verify: (req, _res, buf) => { req.rawBody = buf; },
+}));
 app.use(express.urlencoded({ extended: false }));
 
 // ── Twilio config (set these env vars in Render) ──────────────────────────────

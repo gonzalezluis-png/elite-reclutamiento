@@ -89,11 +89,14 @@ setInterval(_checkTokenExpiry, 24 * 60 * 60 * 1000);
 function verifySignature(req, appSecret) {
   const sig = req.headers['x-hub-signature-256'];
   if (!sig || !appSecret) return true; // skip in dev if secret not set
+  const payload = req.rawBody || Buffer.from(JSON.stringify(req.body));
   const expected = 'sha256=' + crypto
     .createHmac('sha256', appSecret)
-    .update(JSON.stringify(req.body))
+    .update(payload)
     .digest('hex');
-  return crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected));
+  try {
+    return crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected));
+  } catch { return false; }
 }
 
 // ── Meta WA message log (Firestore) ──────────────────────────────────────────
@@ -721,6 +724,26 @@ function registerMetaRoutes(app) {
     } catch(e) {
       res.json({ ok: true, messages: [] });
     }
+  });
+
+  // ── Webhook diagnostic — last 20 raw events from Meta ───────────────────────
+  const _webhookLog = [];
+  const _origWAPost = app._router?.stack?.find?.(l => l.route?.path === '/meta/webhook/whatsapp');
+  app.use((req, _res, next) => {
+    if (req.path === '/meta/webhook/whatsapp' && req.method === 'POST') {
+      _webhookLog.unshift({ ts: new Date().toISOString(), body: JSON.stringify(req.body).slice(0, 400) });
+      if (_webhookLog.length > 20) _webhookLog.pop();
+    }
+    next();
+  });
+  app.get('/meta/webhook/diagnostic', (req, res) => {
+    res.json({
+      ok:            true,
+      serverTime:    new Date().toISOString(),
+      waToken:       _waToken ? `...${_waToken.slice(-6)}` : 'NO TOKEN',
+      waPhoneId:     META_WA_PHONE_ID || 'NOT SET',
+      lastEvents:    _webhookLog,
+    });
   });
 
   // ── Data deletion callback (requerido por Meta) ───────────────────────────
