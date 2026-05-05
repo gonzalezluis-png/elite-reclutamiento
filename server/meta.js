@@ -56,8 +56,9 @@ async function isWABusinessHours() {
   } catch { return true; }
 }
 
-const SERVER_URL  = process.env.SERVER_URL  || 'https://elite-reclutamiento-production.up.railway.app';
-const WEBINAR_URL = process.env.WEBINAR_URL || 'https://crm.grupoelitework.com/webinar.html';
+const SERVER_URL   = process.env.SERVER_URL  || 'https://elite-reclutamiento-production.up.railway.app';
+const WEBINAR_URL  = process.env.WEBINAR_URL || 'https://crm.grupoelitework.com/webinar.html';
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
 
 // ── Env vars (set in Railway) ─────────────────────────────────────────────────
 const META_VERIFY_TOKEN      = process.env.META_VERIFY_TOKEN      || 'grupoelite2026';
@@ -176,6 +177,44 @@ async function fsLogWAMessage(phone, direction, text, extra = {}) {
 }
 
 // Outbound dedup: prevent sending the same text to the same number within 30 s
+// ── Whisper transcription ─────────────────────────────────────────────────────
+async function _transcribeAudio(mediaId) {
+  if (!OPENAI_API_KEY || !_waToken) return null;
+  try {
+    // 1. Get download URL from Meta
+    const metaRes = await fetch(`https://graph.facebook.com/v19.0/${mediaId}`, {
+      headers: { Authorization: `Bearer ${_waToken}` },
+    });
+    const metaJson = await metaRes.json();
+    if (!metaJson.url) return null;
+
+    // 2. Download the audio file
+    const audioRes = await fetch(metaJson.url, {
+      headers: { Authorization: `Bearer ${_waToken}` },
+    });
+    if (!audioRes.ok) return null;
+    const audioBuffer = Buffer.from(await audioRes.arrayBuffer());
+
+    // 3. Send to Whisper
+    const { FormData, Blob } = await import('node:buffer').catch(() => require('buffer'));
+    const form = new (require('form-data'))();
+    form.append('file', audioBuffer, { filename: 'audio.ogg', contentType: metaJson.mime_type || 'audio/ogg' });
+    form.append('model', 'whisper-1');
+    form.append('language', 'es');
+
+    const whisperRes = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${OPENAI_API_KEY}`, ...form.getHeaders() },
+      body: form,
+    });
+    const whisperJson = await whisperRes.json();
+    return whisperJson.text || null;
+  } catch(e) {
+    console.error('[Whisper] Error transcribiendo audio:', e.message);
+    return null;
+  }
+}
+
 const _sentDedup = new Map(); // `${to}:${text}` → timestamp
 function _isDupSend(to, text) {
   const key = `${to}:${text}`;
@@ -850,9 +889,17 @@ function registerMetaRoutes(app) {
           text = msg.document?.caption || `[El candidato envió un documento: ${msg.document?.filename || 'archivo'}]`;
           break;
         case 'audio':
-        case 'voice':
-          text = '[El candidato envió un mensaje de voz]';
+        case 'voice': {
+          const mediaId = msg.audio?.id || msg.voice?.id;
+          if (mediaId) {
+            const transcript = await _transcribeAudio(mediaId);
+            text = transcript ? `🎤 ${transcript}` : '[El candidato envió un mensaje de voz]';
+            if (transcript) console.log(`[Whisper] Transcripción de ${msg.from}: "${transcript}"`);
+          } else {
+            text = '[El candidato envió un mensaje de voz]';
+          }
           break;
+        }
         case 'interactive':
           // Button reply or list reply
           text = msg.interactive?.button_reply?.title
