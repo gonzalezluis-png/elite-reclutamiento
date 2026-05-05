@@ -79,6 +79,9 @@ function openLead(id, tabName) {
   // entrevista section
   ivInitSection(lead);
 
+  // metadatos
+  _mlRenderMetadata(lead);
+
   document.getElementById('lead-modal').classList.remove('hidden');
   _mlSetMode(false);
   lcOpen();
@@ -388,6 +391,43 @@ function lcToggleCita(hdr) {
   const arrow = document.getElementById('ml-cita-arrow');
   const open  = body.classList.toggle('open');
   if (arrow) arrow.textContent = open ? '▾' : '▸';
+}
+
+function lcToggleMeta(hdr) {
+  const body  = document.getElementById('ml-meta-body');
+  const arrow = document.getElementById('ml-meta-arrow');
+  const open  = body.style.display === 'none';
+  body.style.display = open ? '' : 'none';
+  if (arrow) arrow.textContent = open ? '▾' : '▸';
+}
+
+function _mlRenderMetadata(lead) {
+  const el = document.getElementById('ml-meta-content');
+  if (!el) return;
+
+  const row = (icon, label, value, mono) => value
+    ? `<div style="display:flex;gap:8px;align-items:flex-start;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.05);">
+        <span style="width:16px;flex-shrink:0;opacity:.5">${icon}</span>
+        <span style="color:var(--text2);flex-shrink:0;min-width:80px">${label}</span>
+        <span style="color:var(--text);word-break:break-all;${mono?'font-family:monospace;font-size:10px;':''}">${esc(String(value))}</span>
+       </div>`
+    : '';
+
+  const _fmtDate = v => v ? new Date(v).toLocaleString('es-MX', { dateStyle:'medium', timeStyle:'short' }) : '';
+  const createdAt = _fmtDate(lead.created_at || lead.createdAt);
+  const updatedAt = _fmtDate(lead.updated_at || lead.updatedAt);
+
+  el.innerHTML = [
+    row('📣', 'Fuente',      lead.fuente),
+    row('📋', 'Campaña',     lead.ad_nombre || lead.campaign_name),
+    row('🎯', 'Anuncio ID',  lead.ad_clid,   true),
+    row('🔑', 'Pipeline',    lead.pipeline_id, true),
+    row('🆔', 'Lead ID',     lead.id,          true),
+    row('📅', 'Creado',      createdAt),
+    row('🔄', 'Actualizado', updatedAt),
+    row('📱', 'Canal WA',    lead.wa_phone_id),
+    row('📍', 'Ubicación',   lead.ubicacion),
+  ].filter(Boolean).join('') || '<div style="color:var(--text2);padding:4px 0">Sin metadatos registrados</div>';
 }
 
 // ════════════════════════════════════════════
