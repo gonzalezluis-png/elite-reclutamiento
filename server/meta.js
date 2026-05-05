@@ -5,13 +5,39 @@ const { fsLeadExists, fsCreateLeadWA, fsGetLeadByPhone, fsUpdateLeadFields, runW
 const { triggerEscalation, cancelEscalation, handleManagerReply, checkTimeouts, isManagerPhone, logTeamMessage, loadManagers } = require('./escalation');
 const { pixelLead } = require('./pixel');
 const { loadInterviewConfig, getAvailableSlots, bookInterview, listInterviews, updateInterview } = require('./interviews');
-const { loadIvrConfig } = require('./ivr');
+// ── WhatsApp business hours config ───────────────────────────────────────────
+const WA_DEFAULT_HOURS = {
+  timezone: 'America/Chicago',
+  monday:    { enabled: true,  open: '09:00', close: '19:00' },
+  tuesday:   { enabled: true,  open: '09:00', close: '19:00' },
+  wednesday: { enabled: true,  open: '09:00', close: '19:00' },
+  thursday:  { enabled: true,  open: '09:00', close: '19:00' },
+  friday:    { enabled: true,  open: '09:00', close: '19:00' },
+  saturday:  { enabled: true,  open: '09:00', close: '18:00' },
+  sunday:    { enabled: false, open: '09:00', close: '18:00' },
+};
 
-// ── Business hours check (reuses IVR config) ──────────────────────────────────
+async function loadWAHours() {
+  try {
+    const r = await fetch(`${FS_BASE}/config/wa_hours?key=${FS_KEY}`);
+    if (!r.ok) return WA_DEFAULT_HOURS;
+    const d = await r.json();
+    return d.fields?.data?.stringValue ? JSON.parse(d.fields.data.stringValue) : WA_DEFAULT_HOURS;
+  } catch { return WA_DEFAULT_HOURS; }
+}
+
+async function saveWAHours(cfg) {
+  await fetch(`${FS_BASE}/config/wa_hours?key=${FS_KEY}&updateMask.fieldPaths=data`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fields: { data: { stringValue: JSON.stringify(cfg) } } }),
+  });
+}
+
 async function isWABusinessHours() {
   try {
-    const cfg = await loadIvrConfig();
-    const tz  = cfg.timezone || 'America/Chicago';
+    const cfg  = await loadWAHours();
+    const tz   = cfg.timezone || 'America/Chicago';
     const DAYS = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'];
     const now  = new Date();
     const parts = new Intl.DateTimeFormat('en-US', {
@@ -22,12 +48,12 @@ async function isWABusinessHours() {
     const minute  = parseInt(parts.find(p => p.type === 'minute')?.value || '0');
     const current = hour * 60 + minute;
     const dayKey  = DAYS.find(d => dayName?.startsWith(d.slice(0, 3)));
-    const dayConf = dayKey ? cfg.businessHours?.[dayKey] : null;
+    const dayConf = dayKey ? cfg[dayKey] : null;
     if (!dayConf?.enabled) return false;
     const [oh, om] = (dayConf.open  || '09:00').split(':').map(Number);
-    const [ch, cm] = (dayConf.close || '18:00').split(':').map(Number);
+    const [ch, cm] = (dayConf.close || '19:00').split(':').map(Number);
     return current >= oh * 60 + om && current < ch * 60 + cm;
-  } catch { return true; } // fail open — always respond if config unavailable
+  } catch { return true; }
 }
 
 const SERVER_URL  = process.env.SERVER_URL  || 'https://elite-reclutamiento-production.up.railway.app';
@@ -868,6 +894,23 @@ function registerMetaRoutes(app) {
 
   app.get('/meta/data-deletion/status', (req, res) => {
     res.json({ status: 'deleted', code: req.query.code });
+  });
+
+  // ── WhatsApp hours API ──────────────────────────────────────────────────────
+  app.get('/wa/hours', async (req, res) => {
+    const cfg = await loadWAHours();
+    res.json({ ok: true, hours: cfg });
+  });
+
+  app.post('/wa/hours', async (req, res) => {
+    try {
+      const current = await loadWAHours();
+      const merged  = { ...current, ...req.body };
+      await saveWAHours(merged);
+      res.json({ ok: true });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
   });
 
   console.log('[Meta] Rutas registradas: /meta/webhook (GET), /meta/webhook/whatsapp, /meta/webhook/ig-messenger, /meta/data-deletion');
