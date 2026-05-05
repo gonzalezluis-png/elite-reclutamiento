@@ -3,6 +3,7 @@
 function _hideAllViews() {
   document.getElementById('kanban-wrap').style.display       = 'none';
   document.getElementById('table-view-wrap').classList.remove('active');
+  document.getElementById('table-view-wrap').style.display = 'none';
   document.getElementById('calendar-view').classList.remove('active');
   document.getElementById('config-view').style.display      = 'none';
   document.getElementById('messaging-view').classList.remove('active');

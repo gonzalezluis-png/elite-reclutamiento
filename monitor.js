@@ -9,15 +9,14 @@ function showMonitor() {
   activeView = 'monitor';
   document.getElementById('board-title').textContent = 'Monitor de Leads';
   const el = document.getElementById('monitor-view');
-  el.style.display = 'flex';
-  el.style.flexDirection = 'column';
+  el.style.display = 'block';
   renderSidebar();
   renderMonitor();
 }
 
 function renderMonitor() {
   const el = document.getElementById('monitor-view');
-  if (!el || el.style.display === 'none') return;
+  if (!el) return;
 
   const now   = Date.now();
   const today = new Date(); today.setHours(0,0,0,0);
