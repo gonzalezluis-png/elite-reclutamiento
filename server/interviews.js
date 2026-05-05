@@ -152,11 +152,11 @@ async function getAvailableSlots(cfg, fromDate) {
     const endH   = override ? override.endHour   : (sched.endHour   ?? 18);
     // Collect all available hours for the day
     const allHours = [];
+    const dateStr = toDateStr(date);
     for (let h = startH; h < endH; h++) {
-      const slotTime = new Date(date);
-      slotTime.setHours(h, 0, 0, 0);
+      const slotTime = makeETDate(dateStr, h);
       if (slotTime < earliest) continue;
-      const slotKey = toDateStr(date) + 'T' + String(h).padStart(2,'0') + ':00';
+      const slotKey = dateStr + 'T' + String(h).padStart(2,'0') + ':00';
       if (booked.has(slotKey)) continue;
       allHours.push(h);
     }
@@ -176,9 +176,9 @@ async function getAvailableSlots(cfg, fromDate) {
       }
     }
     return picked.map(h => {
-      const slotTime = new Date(date);
-      slotTime.setHours(h, 0, 0, 0);
-      return { date: toDateStr(date), hour: h, iso: slotTime.toISOString(), label: formatSlotLabel(slotTime) };
+      const dateStr  = toDateStr(date);
+      const slotTime = makeETDate(dateStr, h);
+      return { date: dateStr, hour: h, iso: slotTime.toISOString(), label: formatSlotLabel(slotTime) };
     });
   }
 
@@ -215,24 +215,107 @@ async function getBookedSlots() {
       const iso = f.slotIso?.stringValue;
       if (iso && f.status?.stringValue !== 'cancelled') {
         const d = new Date(iso);
-        set.add(toDateStr(d) + 'T' + String(d.getHours()).padStart(2,'0') + ':00');
+        const etHour = parseInt(new Intl.DateTimeFormat('en-US', {
+          timeZone: TEAM_TZ, hour: 'numeric', hour12: false,
+        }).format(d));
+        set.add(toDateStr(d) + 'T' + String(etHour).padStart(2,'0') + ':00');
       }
     }
     return set;
   } catch { return new Set(); }
 }
 
-function toDateStr(d) {
-  return d.toISOString().slice(0, 10);
+const TEAM_TZ = 'America/New_York'; // equipo en Florida (Eastern Time)
+
+// Convierte una hora en ET (hh:00) en un Date UTC correcto
+function makeETDate(dateStr, hour) {
+  // Crea un Date provisional en UTC y ajusta para que la hora local en ET sea la correcta
+  const provisional = new Date(`${dateStr}T${String(hour).padStart(2,'0')}:00:00Z`);
+  const etHour = parseInt(new Intl.DateTimeFormat('en-US', {
+    timeZone: TEAM_TZ, hour: 'numeric', hour12: false,
+  }).format(provisional));
+  const diff = hour - etHour;
+  return new Date(provisional.getTime() - diff * 3_600_000);
 }
 
-function formatSlotLabel(d) {
-  const days = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
-  const months = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
-  const h = d.getHours();
-  const ampm = h >= 12 ? 'PM' : 'AM';
-  const h12  = h % 12 || 12;
-  return `${days[d.getDay()]} ${d.getDate()} ${months[d.getMonth()]} · ${h12}:00 ${ampm}`;
+// Fecha YYYY-MM-DD en ET
+function toDateStr(d) {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: TEAM_TZ }).format(d);
+}
+
+function formatSlotLabel(d, candidateTZ) {
+  const fmtET = new Intl.DateTimeFormat('es-MX', {
+    timeZone: TEAM_TZ,
+    weekday: 'long', day: 'numeric', month: 'short',
+    hour: 'numeric', minute: '2-digit', hour12: true,
+  }).format(d);
+  // Capitalizar primera letra
+  const label = fmtET.charAt(0).toUpperCase() + fmtET.slice(1) + ' ET';
+  if (candidateTZ && candidateTZ !== TEAM_TZ) {
+    const localTime = new Intl.DateTimeFormat('es-MX', {
+      timeZone: candidateTZ, hour: 'numeric', minute: '2-digit', hour12: true,
+    }).format(d);
+    return `${label} (${localTime} tu hora)`;
+  }
+  return label;
+}
+
+// Mapeo estado → IANA timezone (principales estados de candidatos)
+const STATE_TZ_MAP = {
+  // Eastern
+  'florida': 'America/New_York', 'fl': 'America/New_York',
+  'nueva york': 'America/New_York', 'new york': 'America/New_York', 'ny': 'America/New_York',
+  'nueva jersey': 'America/New_York', 'new jersey': 'America/New_York', 'nj': 'America/New_York',
+  'georgia': 'America/New_York', 'ga': 'America/New_York',
+  'carolina del norte': 'America/New_York', 'north carolina': 'America/New_York', 'nc': 'America/New_York',
+  'carolina del sur': 'America/New_York', 'south carolina': 'America/New_York', 'sc': 'America/New_York',
+  'virginia': 'America/New_York', 'va': 'America/New_York',
+  'pennsylvania': 'America/New_York', 'pa': 'America/New_York',
+  'ohio': 'America/New_York', 'oh': 'America/New_York',
+  'michigan': 'America/New_York', 'mi': 'America/New_York',
+  'massachusetts': 'America/New_York', 'ma': 'America/New_York',
+  // Central
+  'texas': 'America/Chicago', 'tx': 'America/Chicago',
+  'illinois': 'America/Chicago', 'il': 'America/Chicago',
+  'tennessee': 'America/Chicago', 'tn': 'America/Chicago',
+  'alabama': 'America/Chicago', 'al': 'America/Chicago',
+  'mississippi': 'America/Chicago', 'ms': 'America/Chicago',
+  'louisiana': 'America/Chicago', 'la': 'America/Chicago',
+  'arkansas': 'America/Chicago', 'ar': 'America/Chicago',
+  'oklahoma': 'America/Chicago', 'ok': 'America/Chicago',
+  'kansas': 'America/Chicago', 'ks': 'America/Chicago',
+  'minnesota': 'America/Chicago', 'mn': 'America/Chicago',
+  'wisconsin': 'America/Chicago', 'wi': 'America/Chicago',
+  'iowa': 'America/Chicago', 'ia': 'America/Chicago',
+  'missouri': 'America/Chicago', 'mo': 'America/Chicago',
+  'nebraska': 'America/Chicago', 'ne': 'America/Chicago',
+  'dakota del norte': 'America/Chicago', 'north dakota': 'America/Chicago', 'nd': 'America/Chicago',
+  'dakota del sur': 'America/Chicago', 'south dakota': 'America/Chicago', 'sd': 'America/Chicago',
+  // Mountain
+  'colorado': 'America/Denver', 'co': 'America/Denver',
+  'utah': 'America/Denver', 'ut': 'America/Denver',
+  'wyoming': 'America/Denver', 'wy': 'America/Denver',
+  'montana': 'America/Denver', 'mt': 'America/Denver',
+  'idaho': 'America/Denver', 'id': 'America/Denver',
+  'nuevo mexico': 'America/Denver', 'new mexico': 'America/Denver', 'nm': 'America/Denver',
+  // Pacific
+  'california': 'America/Los_Angeles', 'ca': 'America/Los_Angeles',
+  'oregon': 'America/Los_Angeles', 'or': 'America/Los_Angeles',
+  'washington': 'America/Los_Angeles', 'wa': 'America/Los_Angeles',
+  'nevada': 'America/Los_Angeles', 'nv': 'America/Los_Angeles',
+  // Arizona (sin DST)
+  'arizona': 'America/Phoenix', 'az': 'America/Phoenix',
+};
+
+function getCandidateTZ(location) {
+  if (!location) return null;
+  const loc = location.toLowerCase().trim();
+  // El Paso es Mountain aunque Texas es Central
+  if (loc.includes('el paso')) return 'America/Denver';
+  for (const [key, tz] of Object.entries(STATE_TZ_MAP)) {
+    if (loc.includes(key)) return tz;
+  }
+  return null;
 }
 
 // ── Book interview ────────────────────────────────────────────────────────────
@@ -269,14 +352,21 @@ async function bookInterview({ leadPhone, leadName, slotIso, convKey }) {
 }
 
 function _fmtSlot(d) {
-  const days   = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
-  const months = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
-  const h   = d.getHours();
+  const parts = new Intl.DateTimeFormat('es-MX', {
+    timeZone: TEAM_TZ,
+    weekday: 'long', day: 'numeric', month: 'long',
+    hour: 'numeric', hour12: true,
+  }).formatToParts(d);
+  const get = t => parts.find(p => p.type === t)?.value || '';
+  const weekday = get('weekday'); const day = get('day'); const month = get('month');
+  const hour = get('hour'); const dayperiod = get('dayPeriod')?.toUpperCase() || '';
+  const h   = parseInt(new Intl.DateTimeFormat('en-US', { timeZone: TEAM_TZ, hour: 'numeric', hour12: false }).format(d));
   const h12 = h % 12 || 12;
   const ampm = h >= 12 ? 'PM' : 'AM';
+  const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
   return {
-    fecha: `${days[d.getDay()]} ${d.getDate()} de ${months[d.getMonth()]}`,
-    hora:  `${h12}:00 ${ampm}`,
+    fecha: `${cap(weekday)} ${day} de ${month}`,
+    hora:  `${h12}:00 ${ampm} ET`,
   };
 }
 
@@ -424,4 +514,7 @@ module.exports = {
   checkInterviewReminders,
   fillTemplate,
   DEFAULT_INTERVIEW_CONFIG,
+  getCandidateTZ,
+  formatSlotLabel,
+  TEAM_TZ,
 };

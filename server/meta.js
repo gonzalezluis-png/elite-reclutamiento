@@ -4,7 +4,7 @@ const { askClaude, conversationHistory } = require('./ai');
 const { fsLeadExists, fsCreateLeadWA, fsGetLeadByPhone, fsUpdateLeadFields, runWAPipeline, humanDelay } = require('./pipeline');
 const { triggerEscalation, cancelEscalation, handleManagerReply, checkTimeouts, isManagerPhone, logTeamMessage, loadManagers } = require('./escalation');
 const { pixelLead } = require('./pixel');
-const { loadInterviewConfig, getAvailableSlots, bookInterview, listInterviews, updateInterview } = require('./interviews');
+const { loadInterviewConfig, getAvailableSlots, bookInterview, listInterviews, updateInterview, getCandidateTZ, formatSlotLabel, TEAM_TZ } = require('./interviews');
 // ── WhatsApp business hours config ───────────────────────────────────────────
 const WA_DEFAULT_HOURS = {
   timezone: 'America/Chicago',
@@ -592,8 +592,8 @@ function registerMetaRoutes(app) {
             const nombre = leadData?.fields?.nombre?.stringValue || '';
             const _realName = !nombre || nombre.startsWith('WA ') || nombre.startsWith('+') ? '' : nombre;
             const first  = _realName.split(' ')[0] || '';
-            const DIAS_FULL = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
-            const fmtH = h => h === 0 ? '12am' : h === 12 ? '12pm' : h < 12 ? `${h}am` : `${h-12}pm`;
+            const ubicacion = leadData?.fields?.ubicacion?.stringValue || '';
+            const candidateTZ = getCandidateTZ(ubicacion);
 
             if (!slots.length) {
               const noSlotMsg = `${first ? '¡'+first+'! ' : ''}En este momento no hay horarios disponibles. Un encargado se pondrá en contacto contigo muy pronto para agendar. 🙏`;
@@ -602,12 +602,35 @@ function registerMetaRoutes(app) {
               return;
             }
 
-            const dayDates = [...new Set(slots.map(s => new Date(s.iso).toISOString().slice(0,10)))];
-            const day1Slots = slots.filter(s => new Date(s.iso).toISOString().slice(0,10) === dayDates[0]);
-            const d1   = new Date(day1Slots[0].iso);
-            const t1   = day1Slots.map(s => fmtH(new Date(s.iso).getHours()));
-            const tList = t1.length === 1 ? `a las ${t1[0]}` : t1.length === 2 ? `a las ${t1[0]} o a las ${t1[1]}` : `a las ${t1[0]}, a las ${t1[1]} o a las ${t1[2]}`;
-            const slotsMsg = `${first ? '¡'+first+'! ' : ''}😊 Para tu entrevista, el ${DIAS_FULL[d1.getDay()]} tengo disponible ${tList}. ¿Alguna te funciona?`;
+            // Agrupar slots por día (en ET)
+            const dayDates = [...new Set(slots.map(s =>
+              new Intl.DateTimeFormat('en-CA', { timeZone: TEAM_TZ }).format(new Date(s.iso))
+            ))];
+            const day1Slots = slots.filter(s =>
+              new Intl.DateTimeFormat('en-CA', { timeZone: TEAM_TZ }).format(new Date(s.iso)) === dayDates[0]
+            );
+            const d1 = new Date(day1Slots[0].iso);
+            const dayName = new Intl.DateTimeFormat('es-MX', { timeZone: TEAM_TZ, weekday: 'long' }).format(d1);
+
+            // Formato de horas en ET (+ hora local del candidato si es distinta)
+            const fmtSlotTime = (isoStr) => {
+              const d = new Date(isoStr);
+              const etH = parseInt(new Intl.DateTimeFormat('en-US', { timeZone: TEAM_TZ, hour: 'numeric', hour12: false }).format(d));
+              const h12 = etH % 12 || 12;
+              const ampm = etH >= 12 ? 'PM' : 'AM';
+              let label = `${h12}:00 ${ampm} ET`;
+              if (candidateTZ && candidateTZ !== TEAM_TZ) {
+                const locH = parseInt(new Intl.DateTimeFormat('en-US', { timeZone: candidateTZ, hour: 'numeric', hour12: false }).format(d));
+                const lh12 = locH % 12 || 12;
+                const lampm = locH >= 12 ? 'PM' : 'AM';
+                label += ` (${lh12}:00 ${lampm} tu hora)`;
+              }
+              return label;
+            };
+
+            const t1 = day1Slots.map(s => fmtSlotTime(s.iso));
+            const tList = t1.length === 1 ? `a las ${t1[0]}` : t1.length === 2 ? `a las ${t1[0]} o a las ${t1[1]}` : `a las ${t1[0]}, ${t1[1]} o ${t1[2]}`;
+            const slotsMsg = `${first ? '¡'+first+'! ' : ''}😊 Para tu entrevista, el ${dayName} tengo disponible ${tList}. ¿Alguna te funciona?`;
 
             await humanDelay(slotsMsg);
             await sendWhatsApp(from, slotsMsg);
