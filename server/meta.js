@@ -675,10 +675,10 @@ function registerMetaRoutes(app) {
         }
       }
 
-      // First-ever contact: wait 3 minutes before Ana responds (looks human, not instant bot)
+      // First-ever contact: short delay before Ana responds (looks human, survives server restarts)
       if (_isFirstEverContact) {
-        console.log(`[Meta WA] Primer contacto de ${from} — Ana esperará 3 min antes de responder`);
-        await new Promise(resolve => setTimeout(resolve, 3 * 60 * 1000));
+        console.log(`[Meta WA] Primer contacto de ${from} — Ana esperará 30s antes de responder`);
+        await new Promise(resolve => setTimeout(resolve, 30 * 1000));
         // Re-check ia_paused in case team took over during the wait
         const _freshLead = await fsGetLeadByPhone(from).catch(() => null);
         if (_freshLead?.fields?.ia_paused?.booleanValue === true) {
