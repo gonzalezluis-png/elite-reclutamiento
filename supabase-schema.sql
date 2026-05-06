@@ -44,6 +44,12 @@ create table if not exists leads (
   vio_webinar               boolean,
   disponibilidad            text,
   contacto                  text,
+  link_webinar              text,
+  webinar_pausas            integer,
+  webinar_completado        boolean default false,
+  webinar_ultima_sesion     timestamptz,
+  webinar_ultimo_evento     text,
+  quiere_entrevista_fecha   timestamptz,
   created_at                timestamptz default now(),
   updated_at                timestamptz default now()
 );
