@@ -1119,20 +1119,17 @@ function registerMetaRoutes(app) {
       const uid      = `meta_make_${leadgenId || Date.now()}`;
 
       const lead = {
-        id:           uid,
-        nombre:       nombre || `Lead Meta ${uid.slice(-6)}`,
+        id:          uid,
+        nombre:      nombre || `Lead Meta ${uid.slice(-6)}`,
         correo,
         telefono,
         ubicacion,
-        fuente:       'Meta / Facebook',
-        pipeline_id:  'postulados-meta',
-        etapa:        'New Lead',
-        estado:       'abierto',
-        ad_nombre:    body.ad_name       || '',
-        ad_clid:      body.ad_id         || '',
-        meta_form_id: body.form_id       || '',
-        created_at:   now,
-        updated_at:   now,
+        fuente:      'Meta / Facebook',
+        pipeline_id: 'postulados-meta',
+        etapa:       'New Lead',
+        estado:      'abierto',
+        created_at:  now,
+        updated_at:  now,
       };
 
       await db.sbSaveLead(lead);
