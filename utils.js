@@ -260,16 +260,18 @@ function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;'
 // Handles stale localStorage data where the same message may be in both
 // lead.whatsapp and lead.metaWa after the array-separation migration.
 function dedupMsgs(msgs) {
+  const normDir = d => (d === 'out' ? 'outbound' : d === 'in' ? 'inbound' : d || '');
   const seen = [];
   return msgs.filter(m => {
     const ts  = new Date(m.dateSent || m.date || 0).getTime();
+    const dir = normDir(m.direction);
     const dup = seen.find(s =>
-      s.dir  === m.direction &&
+      s.dir  === dir &&
       s.body === (m.body || '') &&
-      Math.abs(s.ts - ts) < 30000
+      Math.abs(s.ts - ts) < 60000
     );
     if (dup) return false;
-    seen.push({ dir: m.direction, body: m.body || '', ts });
+    seen.push({ dir, body: m.body || '', ts });
     return true;
   });
 }
