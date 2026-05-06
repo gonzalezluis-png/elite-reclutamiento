@@ -1045,6 +1045,7 @@ app.patch('/leads/:id', requireSession(), async (req, res) => {
     await db.sbUpdateLead(id, fields);
     res.json({ ok: true });
   } catch (e) {
+    console.error('[PATCH /leads] ERROR:', e.message, '| id:', req.params.id);
     res.status(500).json({ ok: false, error: e.message });
   }
 });
