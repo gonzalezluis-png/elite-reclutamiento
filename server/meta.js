@@ -59,10 +59,11 @@ const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
 // ── Env vars (set in Railway) ─────────────────────────────────────────────────
 const META_VERIFY_TOKEN      = process.env.META_VERIFY_TOKEN      || 'grupoelite2026';
 
-// App 1 — GrupoElite Bot (Instagram + Messenger)
+// App 1 — GrupoElite Bot (Instagram + Messenger + Lead Ads)
 const META_APP_SECRET_IG     = process.env.META_APP_SECRET_IG     || '6f59669c43e93f238457c5b8e5680bd0';
 const META_PAGE_ACCESS_TOKEN = process.env.META_PAGE_ACCESS_TOKEN || '';
 const META_IG_ACCESS_TOKEN   = process.env.META_IG_ACCESS_TOKEN   || '';
+const META_PAGE_ID           = process.env.META_PAGE_ID           || '';
 
 // App 2 — WhatsApp
 const META_APP_SECRET_WA = process.env.META_APP_SECRET_WA || '80dc2555ece1fd87afb133222ff2b5eb';
@@ -915,8 +916,13 @@ function registerMetaRoutes(app) {
   // ── All WA contacts ───────────────────────────────────────────────────────
   app.get('/meta/wa-contacts', async (req, res) => {
     try {
-      const contacts = await db.sbGetAllWAContacts();
-      res.json({ ok: true, contacts });
+      const [contacts, managers] = await Promise.all([
+        db.sbGetAllWAContacts(),
+        loadManagers().catch(() => []),
+      ]);
+      const managerPhones = new Set(managers.map(m => m.phone.replace(/[^0-9]/g, '')));
+      const filtered = contacts.filter(c => !managerPhones.has((c.phone || '').replace(/[^0-9]/g, '')));
+      res.json({ ok: true, contacts: filtered });
     } catch(e) {
       res.json({ ok: true, contacts: [] });
     }
@@ -1029,7 +1035,92 @@ function registerMetaRoutes(app) {
     }
   });
 
-  console.log('[Meta] Rutas registradas: /meta/webhook (GET), /meta/webhook/whatsapp, /meta/webhook/ig-messenger, /meta/data-deletion');
+  // ── Meta Lead Ads webhook ─────────────────────────────────────────────────
+  app.get('/meta/webhook/leadgen', verifyWebhook);
+
+  app.post('/meta/webhook/leadgen', async (req, res) => {
+    res.sendStatus(200); // respond immediately to Meta
+
+    if (!verifySignature(req, META_APP_SECRET_IG)) {
+      console.warn('[LeadGen] Firma inválida — evento rechazado');
+      return;
+    }
+
+    try {
+      const entries = req.body.entry || [];
+      for (const entry of entries) {
+        for (const change of (entry.changes || [])) {
+          if (change.field !== 'leadgen') continue;
+          const { leadgen_id, form_id, ad_id, ad_name, page_id } = change.value || {};
+          if (!leadgen_id) continue;
+
+          console.log(`[LeadGen] Nuevo lead: ${leadgen_id} form:${form_id} ad:"${ad_name}"`);
+
+          // Fetch lead details from Graph API
+          const token = META_PAGE_ACCESS_TOKEN;
+          if (!token) { console.warn('[LeadGen] PAGE_ACCESS_TOKEN no configurado'); continue; }
+
+          const r    = await fetch(`${GRAPH_URL}/${leadgen_id}?fields=field_data,created_time&access_token=${token}`);
+          const data = await r.json();
+          if (data.error) { console.error('[LeadGen] Error API:', JSON.stringify(data.error)); continue; }
+
+          // Map field_data array to key→value
+          const fields = {};
+          for (const f of (data.field_data || [])) {
+            fields[f.name] = (f.values || [])[0] || '';
+          }
+
+          // Normalize to our lead schema
+          const nombre   = fields['full_name']    || fields['name']         || '';
+          const correo   = fields['email']         || fields['correo']       || '';
+          const telefono = fields['phone_number']  || fields['telefono']     || fields['phone'] || '';
+          const ubicacion= fields['city']          || fields['ubicacion']    || fields['state'] || '';
+
+          const now = new Date().toISOString();
+          const uid = `meta_leadgen_${leadgen_id}`;
+
+          const lead = {
+            id:          uid,
+            nombre:      nombre   || `Lead Meta ${leadgen_id.slice(-6)}`,
+            correo:      correo,
+            telefono:    telefono,
+            ubicacion:   ubicacion,
+            fuente:      'Meta / Facebook',
+            pipeline_id: 'postulados-meta',
+            etapa:       'New Lead',
+            estado:      'abierto',
+            ad_nombre:   ad_name  || '',
+            ad_clid:     ad_id    || '',
+            meta_form_id: form_id || '',
+            created_at:  now,
+            updated_at:  now,
+          };
+
+          await db.sbSaveLead(lead);
+          console.log(`[LeadGen] Lead guardado: ${nombre} (${correo}) (${telefono})`);
+          _logWebhookEvent('leadgen', telefono || correo, `${nombre} — ${ad_name || 'sin anuncio'}`, JSON.stringify(change.value)).catch(() => {});
+        }
+      }
+    } catch (e) {
+      console.error('[LeadGen] Error procesando webhook:', e.message);
+    }
+  });
+
+  // ── LeadGen diagnostic ────────────────────────────────────────────────────
+  app.get('/meta/leadgen/test', async (req, res) => {
+    const { leadgen_id } = req.query;
+    if (!leadgen_id) return res.json({ ok: false, error: 'Falta ?leadgen_id=' });
+    if (!META_PAGE_ACCESS_TOKEN) return res.json({ ok: false, error: 'PAGE_ACCESS_TOKEN no configurado' });
+    try {
+      const r    = await fetch(`${GRAPH_URL}/${leadgen_id}?fields=field_data,created_time&access_token=${META_PAGE_ACCESS_TOKEN}`);
+      const data = await r.json();
+      res.json({ ok: !data.error, data });
+    } catch (e) {
+      res.json({ ok: false, error: e.message });
+    }
+  });
+
+  console.log('[Meta] Rutas registradas: /meta/webhook (GET), /meta/webhook/whatsapp, /meta/webhook/ig-messenger, /meta/webhook/leadgen, /meta/data-deletion');
 }
 
 module.exports = { registerMetaRoutes, sendWhatsApp, sendInstagram, sendMessenger };
