@@ -765,7 +765,9 @@ async function lcFetchMessages(lead) {
         else if (m.status && ex.status !== m.status) { ex.status = m.status; ex.error_code = m.error_code; updated = true; }
       }
     }
-    if (updated) { saveLeads(); lcRenderTimeline(lead); }
+    // Always re-render after fetch so messages appear even on first open
+    if (updated) saveLeads();
+    lcRenderTimeline(lead);
   } catch {}
 }
 

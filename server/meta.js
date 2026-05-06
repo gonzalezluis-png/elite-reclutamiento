@@ -1046,8 +1046,10 @@ function registerMetaRoutes(app) {
           error_code: m.error_code || undefined,
         }));
 
+      console.log(`[wa-inbox] ${phone} → ${newMsgs.length} subcol + ${oldMsgs.length} legacy = ${all.length} msgs`);
       res.json({ ok: true, messages: all });
     } catch(e) {
+      console.error(`[wa-inbox] Error para ${req.query.phone}:`, e.message);
       res.json({ ok: true, messages: [] });
     }
   });
