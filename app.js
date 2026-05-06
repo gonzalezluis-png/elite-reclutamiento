@@ -220,6 +220,7 @@ function applyRolePermissions(role) {
   const is   = (...rs) => rs.includes(role);
   show('nav-conversations',    is('developer','agente'));
   show('nav-messaging',        is('developer','agente'));
+  show('nav-wa-inbox',         is('developer','agente'));
   show('nav-external',         is('developer','entrevistador'));
   show('nav-registro-webinar', true);
   show('nav-team-chat',        is('developer','agente'));

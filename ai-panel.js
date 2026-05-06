@@ -14,6 +14,8 @@ function _hideAllViews() {
   document.getElementById('ai-entrevistas-view').style.display    = 'none';
   document.getElementById('team-chat-view').style.display         = 'none';
   document.getElementById('monitor-view').style.display           = 'none';
+  document.getElementById('wa-inbox-view').style.display          = 'none';
+  clearInterval(_waInboxPollInt);
   document.getElementById('leads-today-bar').style.display        = 'none';
   document.getElementById('pipeline-tabs').style.display    = 'none';
   document.getElementById('pipeline-subtabs').style.display = 'none';

@@ -58,6 +58,7 @@
     <div class="sidebar-bottom">
       <div class="sidebar-item" onclick="showConversations()" id="nav-conversations">📞 &nbsp;Conversaciones</div>
       <div class="sidebar-item" onclick="showMessaging()" id="nav-messaging">💬 &nbsp;Mensajería</div>
+      <div class="sidebar-item" onclick="showWAInbox()" id="nav-wa-inbox">📥 &nbsp;Entradas WhatsApp</div>
       <div class="sidebar-item" onclick="showMonitor()" id="nav-monitor">📊 &nbsp;Monitor de Leads</div>
       <div class="sidebar-item" onclick="openExternalApplicant()" id="nav-external" style="color:#60a5fa;">📥 &nbsp;Aplicantes Externos</div>
       <div class="sidebar-item sidebar-webinar-link" id="nav-registro-webinar" onclick="openRegistroWebinar()">📝 &nbsp;Registro Webinar</div>
@@ -110,6 +111,9 @@
 
     <!-- MENSAJERÍA -->
     <div id="messaging-view" style="display:none;flex:1;overflow:hidden;background:var(--bg);"></div>
+
+    <!-- ENTRADAS WHATSAPP -->
+    <div id="wa-inbox-view" style="display:none;flex:1;overflow:hidden;background:var(--bg);"></div>
 
     <!-- MONITOR DE LEADS -->
     <div id="monitor-view" style="display:none;flex:1;overflow-y:auto;background:var(--bg);"></div>
@@ -719,6 +723,7 @@
 <script src="monitor.js"></script>
 <script src="messaging.js"></script>
 <script src="wa-sms.js"></script>
+<script src="wa-inbox-view.js"></script>
 <script src="init.js"></script>
 </body>
 </html>
