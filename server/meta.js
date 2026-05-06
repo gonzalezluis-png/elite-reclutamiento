@@ -147,7 +147,7 @@ async function _logWAMessage(phone, direction, text, extra = {}) {
     const logId = await db.sbLogWAMessage(clean, direction, text, extra);
     // Mirror into lead's metaWa for UI
     const ts  = Date.now();
-    const sid = `meta_${ts}`;
+    const sid = logId || `meta_${ts}`;  // Use real wa_messages ID so sync deduplicates correctly
     const metaMsg = {
       sid,
       body:      text || '',

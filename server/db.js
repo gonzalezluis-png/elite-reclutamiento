@@ -115,10 +115,11 @@ async function sbGetAllWAContacts() {
     if (!byPhone[m.phone]) byPhone[m.phone] = [];
     byPhone[m.phone].push({
       body:      m.text,
-      direction: m.direction,
+      direction: m.direction === 'out' ? 'outbound' : m.direction === 'in' ? 'inbound' : m.direction,
       dateSent:  new Date(m.ts).toISOString(),
       status:    m.status,
       sid:       m.id,
+      ch:        'wa',
     });
   }
   return Object.entries(byPhone).map(([phone, messages]) => ({ phone, messages }));
