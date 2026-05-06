@@ -86,20 +86,7 @@ function waRenderThread(messages) {
   thread.scrollTop = thread.scrollHeight;
 }
 
-const WA_TEMPLATES = {
-  'aplicacante_registrado':                               { sid:'HXa9fe464baefe349f755700e56ba26848', vars:['nombre','fuente'] },
-  'link_de_entrevista_con_globe_life':                    { sid:'HXc1541737ff6cdd2907d6b371e751d1f9', vars:['nombre','hora','link'] },
-  'registrado_en_una_entrevista':                         { sid:'HXa6d83e7faa46a987cd82239b997381b9', vars:['nombre','fecha'] },
-  '2do_intento_de_contacto_webinar_no_visto_eliminacion': { sid:'HXa2f618ca272a83b16c56404ec34cd6f6', vars:['nombre'] },
-  '3er_intento_de_contacto':                             { sid:'HX175470685668cd261272511c80c7788a', vars:['nombre'] },
-  'en_webinar_webinar_visto':                            { sid:'HX2dec739e597fea20d78cfeddf2d20aef', vars:['nombre'] },
-  'webinar_con_video':                                    { sid:'HXa2e2aa6c119a9cb0efde545427681f1c', vars:['nombre'] },
-  'en_webinar_aplicantes':                               { sid:'HXca9415a238db82176a342470128892e8', vars:['nombre','correo'] },
-  'no_visto_webinar':                                    { sid:'HX981dc91dfdd54bdb7d44abf125639ec5', vars:['nombre'] },
-  'eliminacion_por_webinar_visto':                       { sid:'HXba2e7a22108e977fd04b9fc1423e7b3b', vars:['nombre'] },
-  'agenda_de_cita_para_manager':                         { sid:'HX2c89da1a9a1df9d8fa355f27045513ce', vars:['nombre_candidato','dia','hora'] },
-  'aviso_entrevista_con_manager_30_minutos_antes':        { sid:'HX073dda6f00a00001908811fe37978c41', vars:['nombre','hora','link_zoom'] },
-};
+const WA_TEMPLATES = {}; // Templates Twilio removidos — usar Meta Cloud API
 
 function waLoadTemplate() {
   const sel   = document.getElementById('wa-tpl-select');
@@ -145,43 +132,15 @@ async function waSend() {
   try {
     let payload, displayBody;
 
-    // Route through Meta if this is a Meta WA lead (same number the candidate knows)
-    const isMetaLead = (lead.metaWa?.length > 0) || lead.pipeline_id === 'postulados-whatsapp-meta';
-
-    if (tplKey && WA_TEMPLATES[tplKey]) {
-      // Templates always go through Twilio (Meta templates require different setup)
-      const tpl  = WA_TEMPLATES[tplKey];
-      const vars = {};
-      tpl.vars.forEach((v,i) => {
-        const el = document.getElementById(`wa-var-${i}`);
-        vars[(i+1).toString()] = el ? el.value.trim() : '';
-      });
-      payload = { to: phone, contentSid: tpl.sid, contentVariables: vars, leadId: lead.id };
-      displayBody = `[Plantilla: ${tplKey.replace(/_/g,' ')}] ${Object.values(vars).join(' · ')}`;
-      const res  = await fetch(`${SERVER_URL}/twilio/whatsapp`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
-      const data = await res.json();
-      if (!data.ok) throw new Error(data.error || 'Error al enviar');
-      if (!lead.whatsapp) lead.whatsapp = [];
-      lead.whatsapp.push({ direction:'outbound', body: displayBody, date: new Date().toISOString(), autor: currentUser?.name||'Agente', sid: data.sid, status:'sent' });
-    } else {
-      // Free text — use Meta if this is a Meta lead, Twilio otherwise
-      const body = inp.value.trim();
-      if (!body) { btn.disabled=false; btn.style.opacity='1'; return; }
-      displayBody = body;
-      if (isMetaLead) {
-        const res  = await fetch(`${SERVER_URL}/meta/wa-send`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ to: phone, body, leadId: lead.id }) });
-        const data = await res.json();
-        if (!data.ok) throw new Error(data.error || 'Error al enviar');
-        if (!lead.metaWa) lead.metaWa = [];
-        lead.metaWa.push({ direction:'outbound', body, dateSent: new Date(data.ts||Date.now()).toISOString(), autor: currentUser?.name||'Agente', sid: `meta_${data.ts||Date.now()}`, ch:'wa' });
-      } else {
-        const res  = await fetch(`${SERVER_URL}/twilio/whatsapp`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ to: phone, body, leadId: lead.id }) });
-        const data = await res.json();
-        if (!data.ok) throw new Error(data.error || 'Error al enviar');
-        if (!lead.whatsapp) lead.whatsapp = [];
-        lead.whatsapp.push({ direction:'outbound', body, date: new Date().toISOString(), autor: currentUser?.name||'Agente', sid: data.sid, status:'sent' });
-      }
-    }
+    // All WhatsApp sends go through Meta Cloud API
+    const body = inp.value.trim();
+    if (!body) { btn.disabled=false; btn.style.opacity='1'; return; }
+    displayBody = body;
+    const res  = await fetch(`${SERVER_URL}/meta/wa-send`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ to: phone, body, leadId: lead.id }) });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || 'Error al enviar');
+    if (!lead.metaWa) lead.metaWa = [];
+    lead.metaWa.push({ direction:'outbound', body, dateSent: new Date(data.ts||Date.now()).toISOString(), autor: currentUser?.name||'Agente', sid: `meta_${data.ts||Date.now()}`, ch:'wa' });
 
     addHistorial(lead.id, `WhatsApp enviado: "${displayBody.slice(0,60)}${displayBody.length>60?'…':''}"`, '📱');
     saveLeads();
@@ -203,17 +162,20 @@ async function waPoll(phone) {
   const lead = leads.find(l => l.id === _waLeadId);
   if (!lead) return;
   try {
-    const res  = await fetch(`${SERVER_URL}/twilio/whatsapp-inbox?phone=${encodeURIComponent(phone)}`);
+    const res  = await fetch(`${SERVER_URL}/meta/wa-inbox?phone=${encodeURIComponent(phone)}`);
     const data = await res.json();
     if (!data.messages) return;
-    if (!lead.whatsapp) lead.whatsapp = [];
+    if (!lead.metaWa) lead.metaWa = [];
     let updated = false;
     for (const msg of data.messages) {
-      if (!lead.whatsapp.find(s => s.sid === msg.sid)) {
-        lead.whatsapp.push(msg);
+      const ex = lead.metaWa.find(s => s.sid === msg.sid);
+      if (!ex) {
+        lead.metaWa.push({...msg, ch:'wa'});
         if (msg.direction === 'inbound')
-          addHistorial(lead.id, `WhatsApp recibido: "${msg.body.slice(0,50)}${msg.body.length>50?'…':''}"`, '📩');
+          addHistorial(lead.id, `WhatsApp recibido: "${(msg.body||'').slice(0,50)}"`, '📩');
         updated = true;
+      } else if (msg.status && ex.status !== msg.status) {
+        ex.status = msg.status; ex.error_code = msg.error_code; updated = true;
       }
     }
     if (updated) { saveLeads(); waRenderThread([...(lead.whatsapp||[]), ...(lead.metaWa||[])]); }

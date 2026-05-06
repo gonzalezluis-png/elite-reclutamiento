@@ -208,17 +208,22 @@ function _msgSetFilter(f) {
 function _msgGetConversations() {
   const convs = [];
   for (const lead of leads) {
-    const hasSms = lead.sms && lead.sms.length > 0;
-    const hasWa  = lead.whatsapp && lead.whatsapp.length > 0;
+    const hasSms    = lead.sms     && lead.sms.length > 0;
+    const hasWaTwi  = lead.whatsapp && lead.whatsapp.length > 0;
+    const hasWaMeta = lead.metaWa  && lead.metaWa.length > 0;
+    const hasWa     = hasWaTwi || hasWaMeta;
     if (!hasSms && !hasWa) continue;
     if (_msgFilter === 'sms' && !hasSms) continue;
     if (_msgFilter === 'wa'  && !hasWa)  continue;
 
+    const ts = m => new Date(m.dateSent || m.date || 0);
+
     // Build combined timeline
     const allMsgs = [
-      ...(hasSms ? lead.sms.map(m => ({...m, ch:'sms'}))  : []),
-      ...(hasWa  ? lead.whatsapp.map(m => ({...m, ch:'wa'})) : []),
-    ].sort((a,b) => new Date(b.date) - new Date(a.date));
+      ...(hasSms    ? lead.sms.map(m => ({...m, ch:'sms'}))      : []),
+      ...(hasWaTwi  ? lead.whatsapp.map(m => ({...m, ch:'wa'}))  : []),
+      ...(hasWaMeta ? lead.metaWa.map(m => ({...m, ch:'wa'}))    : []),
+    ].sort((a,b) => ts(b) - ts(a));
 
     const last   = allMsgs[0];
     const unread = allMsgs.filter(m => m.direction === 'inbound' && !m.read).length;
@@ -226,11 +231,11 @@ function _msgGetConversations() {
 
     const q = _msgSearch.toLowerCase();
     if (q && !lead.nombre.toLowerCase().includes(q) && !(lead.telefono||'').includes(q) &&
-        !allMsgs.some(m => m.body.toLowerCase().includes(q))) continue;
+        !allMsgs.some(m => (m.body||'').toLowerCase().includes(q))) continue;
 
     convs.push({ lead, last, unread, hasSms, hasWa });
   }
-  return convs.sort((a,b) => new Date(b.last.date) - new Date(a.last.date));
+  return convs.sort((a,b) => new Date(b.last.dateSent||b.last.date||0) - new Date(a.last.dateSent||a.last.date||0));
 }
 
 function _msgRenderList() {
@@ -247,7 +252,7 @@ function _msgRenderList() {
     const color    = colors[(lead.nombre||'').charCodeAt(0) % colors.length];
     const chIcon   = last.ch === 'wa' ? '💬' : '📱';
     const preview  = (last.direction==='outbound' ? '↗ ':'↙ ') + (last.body||'').slice(0,40);
-    const t        = last.date ? fmtDateTime(last.date) : '';
+    const t        = (last.dateSent || last.date) ? fmtDateTime(last.dateSent || last.date) : '';
     const isActive = _msgLeadId === lead.id;
     return `<div class="msg-conv-item${isActive?' active':''}" onclick="_msgOpenConv('${lead.id}')">
       <div class="msg-conv-avatar" style="background:${color}">${initials}</div>
@@ -304,7 +309,14 @@ function _msgRenderThread() {
     const time   = _d ? fmtDateTime(_d) : '';
     const ch     = m.ch;
     const tick   = failed ? '❌' : (out && ch==='wa' ? (m.status==='read' ? '<span style="color:#4fc3f7">✓✓</span>' : m.status==='delivered' ? '<span style="color:rgba(255,255,255,.5)">✓✓</span>' : '<span style="color:rgba(255,255,255,.35)">✓</span>') : '');
-    const failNote = failed ? `<div style="font-size:10px;color:#f87171;margin-top:2px;">No entregado — ventana 24h expirada</div>` : '';
+    const _errCode = m.error_code ? Number(m.error_code) : 0;
+    const _errMsg  = _errCode === 131047 ? 'Ventana 24h expirada — usa una plantilla para recontactar'
+                   : _errCode === 190    ? 'Token expirado — reconectar integración Meta'
+                   : _errCode === 130429 ? 'Límite de mensajes alcanzado — intenta más tarde'
+                   : _errCode === 131026 ? 'Número no válido en WhatsApp'
+                   : _errCode ? `Error Meta ${_errCode}`
+                   : 'No entregado';
+    const failNote = failed ? `<div style="font-size:10px;color:#f87171;margin-top:2px;">${_errMsg}</div>` : '';
     return `<div class="msg-bubble-wrap ${out?'out':'in'}">
       <div class="msg-bubble ${out?'out':'in'} ${ch}${failed?' failed':''}">${esc(m.body||'')}</div>
       <div class="msg-bubble-meta">
@@ -446,26 +458,16 @@ async function _msgSend() {
     let payload, displayBody;
 
     if (_msgChannel === 'wa') {
-      const selEl  = document.getElementById('msg-tpl-sel');
-      const tplKey = selEl?.value;
-      const tpl    = WA_TEMPLATES[tplKey];
-      if (tplKey && tpl) {
-        const vars = {};
-        tpl.vars.forEach((v,i) => { const el=document.getElementById(`msg-var-${i}`); vars[(i+1).toString()]=el?el.value.trim():''; });
-        payload = { to: phone, contentSid: tpl.sid, contentVariables: vars, leadId: lead.id };
-        displayBody = `[${tplKey.replace(/_/g,' ')}] ${Object.values(vars).join(' · ')}`;
-      } else {
-        const inp = document.getElementById('msg-inp');
-        const body = inp?.value.trim();
-        if (!body) return;
-        payload = { to: phone, body, leadId: lead.id };
-        displayBody = body;
-      }
-      const res  = await fetch(`${SERVER_URL}/twilio/whatsapp`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+      const inp = document.getElementById('msg-inp');
+      const body = inp?.value.trim();
+      if (!body) return;
+      payload = { to: phone, body, leadId: lead.id };
+      displayBody = body;
+      const res  = await fetch(`${SERVER_URL}/meta/wa-send`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
       const data = await res.json();
       if (!data.ok) throw new Error(data.error);
-      if (!lead.whatsapp) lead.whatsapp = [];
-      lead.whatsapp.push({ direction:'outbound', body: displayBody, date: new Date().toISOString(), autor: currentUser?.name||'Agente', sid: data.sid, status:'sent', ch:'wa' });
+      if (!lead.metaWa) lead.metaWa = [];
+      lead.metaWa.push({ direction:'outbound', body: displayBody, dateSent: new Date(data.ts||Date.now()).toISOString(), autor: currentUser?.name||'Agente', sid:`meta_${data.ts||Date.now()}`, status:'sent', ch:'wa' });
       addHistorial(lead.id, `WhatsApp: "${displayBody.slice(0,60)}"`, '💬');
     } else {
       const inp  = document.getElementById('msg-inp');
@@ -497,23 +499,23 @@ async function _msgPollActive() {
   const phone = lead.telefono;
   let updated = false;
   try {
-    // Poll SMS
-    const r1   = await fetch(`${SERVER_URL}/twilio/sms-inbox?phone=${encodeURIComponent(phone)}`);
-    const d1   = await r1.json();
+    // Poll SMS (Twilio)
+    const r1 = await fetch(`${SERVER_URL}/twilio/sms-inbox?phone=${encodeURIComponent(phone)}`);
+    const d1 = await r1.json();
     if (d1.messages) for (const m of d1.messages) {
       if (!lead.sms) lead.sms = [];
       const ex1 = lead.sms.find(s => s.sid === m.sid);
       if (!ex1) { lead.sms.push(m); updated = true; }
       else if (!ex1.dateSent && m.dateSent) { Object.assign(ex1, m); updated = true; }
     }
-    // Poll WA
-    const r2   = await fetch(`${SERVER_URL}/twilio/whatsapp-inbox?phone=${encodeURIComponent(phone)}`);
-    const d2   = await r2.json();
+    // Poll Meta WA
+    const r2 = await fetch(`${SERVER_URL}/meta/wa-inbox?phone=${encodeURIComponent(phone)}`);
+    const d2 = await r2.json();
     if (d2.messages) for (const m of d2.messages) {
-      if (!lead.whatsapp) lead.whatsapp = [];
-      const ex2 = lead.whatsapp.find(s => s.sid === m.sid);
-      if (!ex2) { lead.whatsapp.push(m); updated = true; }
-      else if (!ex2.dateSent && m.dateSent) { Object.assign(ex2, m); updated = true; }
+      if (!lead.metaWa) lead.metaWa = [];
+      const ex2 = lead.metaWa.find(s => s.sid === m.sid);
+      if (!ex2) { lead.metaWa.push({...m, ch:'wa'}); updated = true; }
+      else if (m.status && ex2.status !== m.status) { ex2.status = m.status; ex2.error_code = m.error_code; updated = true; }
     }
     if (updated) { saveLeads(); _msgRenderList(); _msgRenderThread(); }
   } catch {}
@@ -666,36 +668,14 @@ async function lcSend() {
       if (!lead.sms) lead.sms = [];
       lead.sms.push({ body, direction: 'outbound', dateSent: new Date().toISOString(), sid: 'local_' + Date.now() });
     } else {
-      const key = document.getElementById('lc-tpl-select').value;
-      const isMetaLead = (lead.metaWa?.length > 0) || lead.pipeline_id === 'postulados-whatsapp-meta';
-      if (key) {
-        // Templates via Twilio
-        const tpl  = WA_TEMPLATES[key];
-        const vars = {};
-        document.querySelectorAll('#lc-tpl-vars input').forEach(inp => { vars[inp.dataset.var] = inp.value.trim(); });
-        const payload = { to: phone, contentSid: tpl.sid, contentVariables: vars, leadId: lead.id };
-        const res = await fetch(`${SERVER_URL}/twilio/whatsapp`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
-        if (!res.ok) { const d = await res.json().catch(()=>({})); throw new Error(d.error || `Error WhatsApp (${res.status})`); }
-        if (!lead.whatsapp) lead.whatsapp = [];
-        lead.whatsapp.push({ body: `[Plantilla: ${key}]`, direction:'outbound', dateSent: new Date().toISOString(), sid: 'local_'+Date.now() });
-      } else if (isMetaLead) {
-        // Free text to Meta lead → use Meta Cloud API (same number candidate knows)
-        const body = document.getElementById('lc-textarea').value.trim();
-        if (!body) { btn.disabled = false; return; }
-        const res = await fetch(`${SERVER_URL}/meta/wa-send`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ to: phone, body, leadId: lead.id }) });
-        const metaData = await res.json().catch(()=>({}));
-        if (!res.ok) throw new Error(metaData.error || `Error WhatsApp (${res.status})`);
-        if (!lead.metaWa) lead.metaWa = [];
-        lead.metaWa.push({ body, direction:'outbound', dateSent: new Date(metaData.ts||Date.now()).toISOString(), autor: currentUser?.name||'Agente', sid:`meta_${metaData.ts||Date.now()}`, ch:'wa' });
-      } else {
-        // Free text to Twilio lead
-        const body = document.getElementById('lc-textarea').value.trim();
-        if (!body) { btn.disabled = false; return; }
-        const res = await fetch(`${SERVER_URL}/twilio/whatsapp`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ to: phone, body, leadId: lead.id }) });
-        if (!res.ok) { const d = await res.json().catch(()=>({})); throw new Error(d.error || `Error WhatsApp (${res.status})`); }
-        if (!lead.whatsapp) lead.whatsapp = [];
-        lead.whatsapp.push({ body, direction:'outbound', dateSent: new Date().toISOString(), sid:'local_'+Date.now() });
-      }
+      // All WhatsApp sends go through Meta Cloud API
+      const body = document.getElementById('lc-textarea').value.trim();
+      if (!body) { btn.disabled = false; return; }
+      const res = await fetch(`${SERVER_URL}/meta/wa-send`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ to: phone, body, leadId: lead.id }) });
+      const metaData = await res.json().catch(()=>({}));
+      if (!res.ok) throw new Error(metaData.error || `Error WhatsApp (${res.status})`);
+      if (!lead.metaWa) lead.metaWa = [];
+      lead.metaWa.push({ body, direction:'outbound', dateSent: new Date(metaData.ts||Date.now()).toISOString(), autor: currentUser?.name||'Agente', sid:`meta_${metaData.ts||Date.now()}`, ch:'wa' });
     }
     document.getElementById('lc-textarea').value = '';
     document.getElementById('lc-tpl-select').value = '';
@@ -727,9 +707,8 @@ async function lcFetchMessages(lead) {
   if (!lead?.telefono) return;
   const since = lead.created_at ? new Date(lead.created_at).getTime() : 0;
   try {
-    const [r1, r2, r3] = await Promise.all([
+    const [r1, r2] = await Promise.all([
       fetch(`${SERVER_URL}/twilio/sms-inbox?phone=${encodeURIComponent(lead.telefono)}`),
-      fetch(`${SERVER_URL}/twilio/whatsapp-inbox?phone=${encodeURIComponent(lead.telefono)}`),
       fetch(`${SERVER_URL}/meta/wa-inbox?phone=${encodeURIComponent(lead.telefono)}`),
     ]);
     let updated = false;
@@ -745,19 +724,8 @@ async function lcFetchMessages(lead) {
     }
     const d2 = await r2.json();
     if (d2.messages) {
-      if (!lead.whatsapp) lead.whatsapp = [];
-      for (const m of d2.messages) {
-        if (since && m.dateSent && new Date(m.dateSent).getTime() < since) continue;
-        const ex = lead.whatsapp.find(s => s.sid === m.sid);
-        if (!ex) { lead.whatsapp.push(m); updated = true; }
-        else if (!ex.dateSent && m.dateSent) { Object.assign(ex, m); updated = true; }
-      }
-    }
-    // Meta WA messages — stored in separate array to avoid mixing with Twilio
-    const d3 = await r3.json();
-    if (d3.messages) {
       if (!lead.metaWa) lead.metaWa = [];
-      for (const m of d3.messages) {
+      for (const m of d2.messages) {
         if (since && m.dateSent && new Date(m.dateSent).getTime() < since) continue;
         const ex = lead.metaWa.find(s => s.sid === m.sid);
         if (!ex) { lead.metaWa.push({...m, ch:'wa'}); updated = true; }

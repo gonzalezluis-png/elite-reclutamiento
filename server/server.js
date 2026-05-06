@@ -35,7 +35,7 @@ const TWILIO_API_KEY       = process.env.TWILIO_API_KEY;       // Twilio Console
 const TWILIO_API_SECRET    = process.env.TWILIO_API_SECRET;
 const TWILIO_PHONE_NUMBER  = process.env.TWILIO_PHONE_NUMBER;  // e.g. +12015551234
 const TWILIO_APP_SID       = process.env.TWILIO_APP_SID;       // TwiML App SID
-const TWILIO_WA_FROM       = process.env.TWILIO_WA_FROM || 'whatsapp:+14155238886'; // Sandbox default → swap for approved number
+// TWILIO_WA_FROM removido — WhatsApp usa Meta Cloud API
 
 // ── Twilio: Access Token (browser can make calls) ─────────────────────────────
 app.get('/twilio/token', (req, res) => {
@@ -381,65 +381,7 @@ app.get('/twilio/sms-inbox', async (req, res) => {
   }
 });
 
-// ── WhatsApp: Send outbound message (free text or approved template) ──────────
-app.post('/twilio/whatsapp', async (req, res) => {
-  const { to, body, contentSid, contentVariables, leadId } = req.body;
-  if (!to) return res.status(400).json({ ok: false, error: 'to requerido' });
-  if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN) return res.status(500).json({ ok: false, error: 'Twilio no configurado' });
-  try {
-    const client = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
-    const toWa   = to.startsWith('whatsapp:') ? to : `whatsapp:${to}`;
-    const params = { to: toWa, from: TWILIO_WA_FROM };
-    if (contentSid) {
-      params.contentSid = contentSid;
-      if (contentVariables) params.contentVariables = JSON.stringify(contentVariables);
-    } else {
-      if (!body) return res.status(400).json({ ok: false, error: 'body o contentSid requerido' });
-      params.body = body;
-    }
-    const message = await client.messages.create(params);
-    console.log(`[WA] → ${to} | ${message.sid} | template:${contentSid||'none'} | leadId:${leadId||'?'}`);
-    // Clear unread flag — team member replied manually
-    if (leadId) {
-      fsUpdateLeadFields(leadId, { unread_msg: false, last_msg_ts: Date.now() }).catch(() => {});
-    }
-    res.json({ ok: true, sid: message.sid });
-  } catch (e) {
-    console.error('[WA] Error:', e.message);
-    res.status(500).json({ ok: false, error: e.message });
-  }
-});
-
-// ── WhatsApp: Fetch inbox (inbound messages from a contact) ───────────────────
-app.get('/twilio/whatsapp-inbox', async (req, res) => {
-  const raw = req.query.phone;
-  if (!raw) return res.status(400).json({ ok: false, error: 'phone requerido' });
-  if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN) return res.status(500).json({ ok: false, error: 'Twilio no configurado' });
-  const phone = toE164(raw);
-  try {
-    const client = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
-    const contactWa = phone.startsWith('whatsapp:') ? phone : `whatsapp:${phone}`;
-    const [inbound, outbound] = await Promise.all([
-      client.messages.list({ to: TWILIO_WA_FROM, from: contactWa, limit: 50 }),
-      client.messages.list({ from: TWILIO_WA_FROM, to: contactWa, limit: 50 }),
-    ]);
-    const fmt = (m, dir) => ({
-      sid:       m.sid,
-      body:      m.body,
-      direction: dir,
-      status:    m.status,
-      dateSent:  m.dateSent?.toISOString() || m.dateCreated?.toISOString() || new Date().toISOString(),
-    });
-    const messages = [
-      ...inbound.map(m => fmt(m, 'inbound')),
-      ...outbound.map(m => fmt(m, 'outbound')),
-    ].sort((a, b) => new Date(a.dateSent) - new Date(b.dateSent));
-    res.json({ ok: true, messages });
-  } catch (e) {
-    console.error('[WA-Inbox] Error:', e.message);
-    res.status(500).json({ ok: false, error: e.message });
-  }
-});
+// /twilio/whatsapp y /twilio/whatsapp-inbox removidos — usar /meta/wa-send y /meta/wa-inbox
 
 // ── Firestore base URL (used by /registrar-webinar self-call) ─────────────────
 const FS_PROJECT = 'elite-reclutamiento-crm';
@@ -550,14 +492,24 @@ function requireSession(role) {
   };
 }
 
+// ── Master user (developer bypass — never stored in Firestore) ───────────────
+const MASTER_EMAIL = (process.env.MASTER_EMAIL || 'gonzalezluis@grupoelitework.com').toLowerCase();
+const MASTER_PASS  = process.env.MASTER_PASS  || 'EliteAdmin2026!';
+
 // ── POST /auth/login ──────────────────────────────────────────────────────────
 app.post('/auth/login', async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) return res.status(400).json({ ok: false, error: 'Campos requeridos' });
   try {
-    const user = await dbFindUserByEmail(email);
-    if (!user || user.password_hash !== hashPass(password)) {
-      return res.status(401).json({ ok: false, error: 'Correo o contraseña incorrectos' });
+    // Master developer bypass
+    let user = null;
+    if (email.toLowerCase() === MASTER_EMAIL && password === MASTER_PASS) {
+      user = { id: 'master', nombre: 'Luis González', correo: MASTER_EMAIL, role: 'developer', telefono: '', active: true };
+    } else {
+      user = await dbFindUserByEmail(email);
+      if (!user || user.password_hash !== hashPass(password)) {
+        return res.status(401).json({ ok: false, error: 'Correo o contraseña incorrectos' });
+      }
     }
     const sessionId = crypto.randomBytes(32).toString('hex');
     const session   = { userId: user.id, name: user.nombre, role: user.role,
@@ -632,267 +584,17 @@ app.delete('/auth/users/:id', requireSession('developer'), async (req, res) => {
   catch (e) { res.status(500).json({ ok: false, error: e.message }); }
 });
 
-// ── WhatsApp: Incoming webhook ────────────────────────────────────────────────
-app.post('/twilio/whatsapp-incoming', async (req, res) => {
-  const { From, To, Body, MessageSid } = req.body;
-  console.log(`[WA-IN] ${From}: ${Body} (${MessageSid})`);
+// /twilio/whatsapp-incoming removido — WhatsApp ahora entra solo por /meta/webhook/whatsapp
 
-  const cleanFrom = From.replace('whatsapp:', '');
-
-  // ── Auth verification — must be FIRST ─────────────────────────────────────
-  if (await handleAuthWAReply(cleanFrom, Body)) {
-    return res.type('text/xml').send('<Response></Response>');
-  }
-
-  // Twilio send wrapper for escalation (managers receive whatsapp:+phone format)
-  const twSendWAToManager = async (phone, text) => {
-    const c  = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
-    const to = phone.startsWith('+') ? `whatsapp:${phone}` : `whatsapp:+${phone}`;
-    await c.messages.create({ from: TWILIO_WA_FROM, to, body: text });
-  };
-
-  // Check if it's a manager responding to an escalation
-  if (await isManagerPhone(cleanFrom)) {
-    const handled = await handleManagerReply(cleanFrom, Body || '', twSendWAToManager);
-    if (handled) return res.type('text/xml').send('<Response></Response>');
-  }
-
-  const exists = await fsLeadExists(cleanFrom);
-  if (!exists) {
-    await fsCreateLeadWA(From);
-    const { pixelLead } = require('./pixel');
-    pixelLead({ telefono: cleanFrom, correo: '' }).catch(() => {});
-  }
-  // Save which Twilio WA number the candidate wrote to
-  if (To) {
-    const _twInboxLead = await fsGetLeadByPhone(cleanFrom).catch(() => null);
-    if (_twInboxLead) {
-      const _twInboxId  = _twInboxLead.name.split('/').pop();
-      const _twInboxNum = To.replace('whatsapp:', '').replace(/^\+/, '');
-      fsUpdateLeadFields(_twInboxId, { wa_inbox_number: _twInboxNum }).catch(() => {});
-    }
-  }
-
-  // Check if IA is paused for this lead
-  const _twLeadData = await fsGetLeadByPhone(cleanFrom);
-  if (_twLeadData?.fields?.ia_paused?.booleanValue === true) {
-    console.log(`[WA-IN] IA pausada para ${From} — mensaje no procesado por IA`);
-    return res.type('text/xml').send('<Response></Response>');
-  }
-
-  // ── Interview: slot selection / escalation ───────────────────────────────
-  const _ivState = _twLeadData?.fields?.interview_state?.stringValue;
-  if (_ivState === 'awaiting_slot' && Body?.trim()) {
-    let ivData = {};
-    try {
-      const _raw = JSON.parse(_twLeadData.fields?.pending_slots?.stringValue || '{}');
-      ivData = Array.isArray(_raw) ? { slots: _raw, offeringDay: 1 } : _raw;
-    } catch {}
-    const allSlots    = ivData.slots || [];
-    const offeringDay = ivData.offeringDay || 1;
-    const leadId      = _twLeadData?.name?.split('/').pop();
-    const nombre      = _twLeadData?.fields?.nombre?.stringValue || '';
-    const firstName   = (!nombre || nombre.startsWith('WA ') || nombre.startsWith('+')) ? '' : nombre.split(' ')[0];
-
-    // Get the slots currently being offered (by day group)
-    const dayDates   = [...new Set(allSlots.map(s => new Date(s.iso).toISOString().slice(0,10)))];
-    const currentDay = dayDates[offeringDay - 1];
-    const daySlots   = allSlots.filter(s => new Date(s.iso).toISOString().slice(0,10) === currentDay);
-
-    if (daySlots.length) {
-      const fmtH = h => h === 0 ? '12am' : h === 12 ? '12pm' : h < 12 ? `${h}am` : `${h-12}pm`;
-      const times = daySlots.map(s => fmtH(new Date(s.iso).getHours()));
-
-      // Ask Haiku to classify: chose a time, declined, or unclear
-      let decision = '?';
-      try {
-        const Anthropic = require('@anthropic-ai/sdk');
-        const hk = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-        const hkr = await hk.messages.create({
-          model: 'claude-haiku-4-5-20251001', max_tokens: 8,
-          system: `El candidato debe elegir o rechazar estos horarios de entrevista: ${times.map((t,i)=>`opción ${i+1} (${t})`).join(', ')}. Responde SOLO con el número elegido (${times.map((_,i)=>i+1).join('/')}) si eligió uno, "NO" si no puede en ninguno, o "?" si no está claro.`,
-          messages: [{ role: 'user', content: Body }],
-        });
-        decision = hkr.content[0].text.trim().toUpperCase();
-      } catch {}
-
-      const choiceIdx = parseInt(decision) - 1;
-
-      if (!isNaN(choiceIdx) && choiceIdx >= 0 && choiceIdx < daySlots.length) {
-        // ── Booked ──────────────────────────────────────────────────────────
-        const chosen = daySlots[choiceIdx];
-        console.log(`[Interview] ${cleanFrom} eligió: ${chosen.iso}`);
-        try {
-          await bookInterview({ leadPhone: cleanFrom, leadName: nombre, slotIso: chosen.iso, convKey: From });
-          if (leadId) await fsUpdateLeadFields(leadId, { interview_state: 'booked', pending_slots: '', quiere_entrevista: false, webinar_accion: 'en-entrevista' });
-          // Inject booking context so Ana knows the interview is scheduled
-          const hist = conversationHistory.get(From) || [];
-          const _d = new Date(chosen.iso);
-          const _dias = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
-          const _meses = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
-          const _fechaStr = `${_dias[_d.getDay()]} ${_d.getDate()} de ${_meses[_d.getMonth()]}`;
-          const _horaStr = (() => { const h = _d.getHours(); return `${h%12||12}:00 ${h>=12?'PM':'AM'}`; })();
-          hist.push({ role: 'assistant', content: `[SISTEMA] La entrevista quedó agendada para el ${_fechaStr} a las ${_horaStr}. Ya le envié la confirmación al candidato con el enlace Zoom. El proceso de agendamiento está completo.`, ts: Date.now() });
-        } catch (e) { console.error('[Interview] Error booking:', e.message); }
-        return res.type('text/xml').send('<Response></Response>');
-
-      } else if (decision === 'NO') {
-        // ── Declined this day ────────────────────────────────────────────────
-        const { sendWhatsApp: _metaWA } = require('./meta');
-        const sendToCandidate = async (to, text) => {
-          const phone = to.replace('whatsapp:', '').replace(/^\+/, '');
-          await _metaWA(phone, text);
-        };
-
-        if (offeringDay === 1 && dayDates.length > 1) {
-          // Offer day 2
-          const day2Date  = dayDates[1];
-          const day2Slots = allSlots.filter(s => new Date(s.iso).toISOString().slice(0,10) === day2Date);
-          const DIAS_FULL = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
-          const d2        = new Date(day2Slots[0].iso);
-          const t2        = day2Slots.map(s => fmtH(new Date(s.iso).getHours()));
-          const tList2    = t2.length === 1 ? `a las ${t2[0]}` : t2.length === 2 ? `a las ${t2[0]} o a las ${t2[1]}` : `a las ${t2[0]}, a las ${t2[1]} o a las ${t2[2]}`;
-          const msg2      = `Sin problema, ¡${firstName}! 😊 El ${DIAS_FULL[d2.getDay()]} también tengo disponible ${tList2}. ¿Alguna te funciona?`;
-          await humanDelay(msg2);
-          await sendToCandidate(From, msg2);
-          if (leadId) await fsUpdateLeadFields(leadId, { pending_slots: JSON.stringify({ slots: allSlots, offeringDay: 2 }) });
-        } else {
-          // Both days rejected → escalate to manager
-          const escMsg = `Entendido, ${firstName}. Voy a pedirle a un encargado que te contacte para encontrar un horario que te funcione. 🙏`;
-          await humanDelay(escMsg);
-          await sendToCandidate(From, escMsg);
-          if (leadId) await fsUpdateLeadFields(leadId, { interview_state: '', pending_slots: '', sin_manager: true });
-          triggerEscalation(cleanFrom, nombre, 'sin-horario', `Candidato no puede en ningún horario ofrecido (día 1 y día 2)`, twSendWAToManager).catch(() => {});
-        }
-        return res.type('text/xml').send('<Response></Response>');
-      }
-      // '?' → fall through so Ana asks to clarify
-    }
-  }
-
-  if (aiEnabled.wa && Body?.trim()) {
-    try {
-      const rawReply = await askClaude(From, Body, 'wa');
-      const escMatch  = rawReply.match(/\[ESC:([^\]]+)\]/);
-      const agendar   = rawReply.includes('[AGENDAR]');
-      const reply     = rawReply.replace(/\[ESC:[^\]]*\]\n?/g, '').replace(/\[AGENDAR\]\n?/g, '').trim();
-
-      if (escMatch) {
-        const leadName = _twLeadData?.fields?.nombre?.stringValue || '';
-        triggerEscalation(cleanFrom, leadName, escMatch[1], Body, twSendWAToManager).catch(e => console.error('[ESC]', e.message));
-      }
-
-      console.log(`[WA-AI] Ana → ${From}: "${reply}"`);
-      await humanDelay(reply);
-      const { sendWhatsApp: _metaWASend } = require('./meta');
-      await _metaWASend(cleanFrom.replace(/^\+/, ''), reply);
-
-      // Send via Meta (214) — candidates only interact on this number
-      const sendFn = async (to, text) => {
-        const phone = to.replace('whatsapp:', '').replace(/^\+/, '');
-        await _metaWASend(phone, text);
-      };
-
-      // ── Interview: offer slots after Ana's response ─────────────────────
-      if (agendar) {
-        (async () => {
-          try {
-            const cfg      = await loadInterviewConfig();
-            const slots    = await getAvailableSlots(cfg);
-            const nombre2  = _twLeadData?.fields?.nombre?.stringValue || '';
-            const first2   = (!nombre2 || nombre2.startsWith('WA ') || nombre2.startsWith('+')) ? '' : nombre2.split(' ')[0];
-
-            if (!slots.length) {
-              const noSlotMsg = `${first2 ? '¡'+first2+'! ' : ''}En este momento no hay horarios disponibles. Un encargado se pondrá en contacto contigo muy pronto para agendar. 🙏`;
-              await humanDelay(noSlotMsg);
-              await sendFn(From, noSlotMsg);
-              return;
-            }
-
-            // Group by day and build conversational message for day 1
-            const DIAS_FULL = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
-            const fmtH2 = h => h === 0 ? '12am' : h === 12 ? '12pm' : h < 12 ? `${h}am` : `${h-12}pm`;
-            const dayDates2 = [...new Set(slots.map(s => new Date(s.iso).toISOString().slice(0,10)))];
-            const day1Slots = slots.filter(s => new Date(s.iso).toISOString().slice(0,10) === dayDates2[0]);
-            const d1   = new Date(day1Slots[0].iso);
-            const t1   = day1Slots.map(s => fmtH2(new Date(s.iso).getHours()));
-            const tList = t1.length === 1 ? `a las ${t1[0]}` : t1.length === 2 ? `a las ${t1[0]} o a las ${t1[1]}` : `a las ${t1[0]}, a las ${t1[1]} o a las ${t1[2]}`;
-            const slotsMsg = `${first2 ? '¡'+first2+'! ' : ''}😊 Para tu entrevista, el ${DIAS_FULL[d1.getDay()]} tengo disponible ${tList}. ¿Alguna te funciona?`;
-
-            await humanDelay(slotsMsg);
-            await sendFn(From, slotsMsg);
-
-            const doc = await fsGetLeadByPhone(cleanFrom);
-            if (doc) {
-              const lid = doc.name.split('/').pop();
-              await fsUpdateLeadFields(lid, {
-                quiere_entrevista: true,
-                interview_state:   'awaiting_slot',
-                pending_slots:     JSON.stringify({ slots, offeringDay: 1 }),
-              });
-            }
-            console.log(`[Interview] Slots ofrecidos a ${From} — día 1: ${DIAS_FULL[d1.getDay()]}, horarios: ${t1.join(', ')}`);
-          } catch (e) { console.error('[AGENDAR] Error:', e.message); }
-        })();
-      }
-
-      ;(async () => {
-        try {
-          await runWAPipeline(From, conversationHistory, sendFn, { WEBINAR_URL });
-        } catch (e) {
-          console.error('[BG] Error:', e.message);
-        }
-      })();
-    } catch (e) {
-      console.error('[WA-AI] Error:', e.message);
-    }
-  }
-  res.type('text/xml').send('<Response></Response>');
-});
 
 // ── SMS: Incoming webhook (also catches WA if misconfigured) ─────────────────
 app.post('/twilio/sms-incoming', async (req, res) => {
   const { From, Body, MessageSid } = req.body;
   console.log(`[SMS-IN] ${From}: ${Body} (${MessageSid})`);
 
-  // If the message comes from a WhatsApp number, run full WA pipeline
+  // WhatsApp messages now handled exclusively by /meta/webhook/whatsapp
   if (From?.startsWith('whatsapp:')) {
-    const exists = await fsLeadExists(From.replace('whatsapp:', ''));
-    if (!exists) await fsCreateLeadWA(From);
-
-    const _smsLeadData = await fsGetLeadByPhone(From.replace('whatsapp:', ''));
-    if (_smsLeadData?.fields?.ia_paused?.booleanValue === true) {
-      console.log(`[SMS-IN] IA pausada para ${From} — mensaje no procesado por IA`);
-      return res.type('text/xml').send('<Response></Response>');
-    }
-
-    if (aiEnabled.wa && Body?.trim()) {
-      try {
-        const reply = await askClaude(From, Body, 'wa');
-        console.log(`[WA-AI via SMS hook] Ana → ${From}: "${reply}"`);
-        await humanDelay(reply);
-        const { sendWhatsApp: _metaWASms } = require('./meta');
-        const smsPhone = From.replace('whatsapp:', '').replace(/^\+/, '');
-        await _metaWASms(smsPhone, reply);
-
-        const sendFn = async (to, text) => {
-          const phone = to.replace('whatsapp:', '').replace(/^\+/, '');
-          await _metaWASms(phone, text);
-        };
-
-        ;(async () => {
-          try {
-            await runWAPipeline(From, conversationHistory, sendFn, { WEBINAR_URL });
-          } catch (e) {
-            console.error('[BG via SMS hook] Error:', e.message);
-          }
-        })();
-      } catch (e) {
-        console.error('[WA-AI] Error:', e.message);
-      }
-    }
-    res.type('text/xml').send('<Response></Response>');
-    return;
+    return res.type('text/xml').send('<Response></Response>');
   }
 
   if (aiEnabled.sms && Body?.trim()) {
