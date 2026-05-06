@@ -35,6 +35,7 @@ function postLoginInit() {
         renderSidebar();
         renderKanban();
         if (typeof _updateLeadsTodayBar === 'function') _updateLeadsTodayBar();
+        if (activeView === 'monitor' && typeof renderMonitor === 'function') renderMonitor();
         showToast(`☁️ ${fsLeads.length} leads cargados`);
       } else {
         await fsSaveAll();

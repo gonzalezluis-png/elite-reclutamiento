@@ -12,6 +12,17 @@ function showMonitor() {
   el.style.display = 'block';
   renderSidebar();
   renderMonitor();
+  // If leads haven't loaded from Firestore yet, fetch them now
+  if (leads.length === 0) {
+    fsLoadLeads().then(fsLeads => {
+      if (fsLeads.length > 0 && activeView === 'monitor') {
+        leads = fsLeads;
+        localStorage.setItem('er_leads', JSON.stringify(leads));
+        renderMonitor();
+        renderSidebar();
+      }
+    }).catch(() => {});
+  }
 }
 
 function renderMonitor() {
