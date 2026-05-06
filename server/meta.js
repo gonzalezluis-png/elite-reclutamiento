@@ -1106,6 +1106,59 @@ function registerMetaRoutes(app) {
     }
   });
 
+  // ── Make.com lead intake ──────────────────────────────────────────────────
+  app.post('/meta/make-lead', async (req, res) => {
+    try {
+      const body     = req.body || {};
+      const nombre   = body.full_name   || body.nombre   || body.name         || '';
+      const correo   = body.email       || body.correo   || '';
+      const telefono = body.phone_number|| body.phone    || body.telefono     || '';
+      const ubicacion= body.city        || body.ubicacion|| body.state        || '';
+      const leadgenId= body.id          || body.leadgen_id || '';
+      const now      = new Date().toISOString();
+      const uid      = `meta_make_${leadgenId || Date.now()}`;
+
+      const lead = {
+        id:           uid,
+        nombre:       nombre || `Lead Meta ${uid.slice(-6)}`,
+        correo,
+        telefono,
+        ubicacion,
+        fuente:       'Meta / Facebook',
+        pipeline_id:  'postulados-meta',
+        etapa:        'New Lead',
+        estado:       'abierto',
+        ad_nombre:    body.ad_name       || '',
+        ad_clid:      body.ad_id         || '',
+        meta_form_id: body.form_id       || '',
+        created_at:   now,
+        updated_at:   now,
+      };
+
+      await db.sbSaveLead(lead);
+
+      // Welcome WhatsApp if office hours
+      if (telefono) {
+        const ct      = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' }));
+        const day     = ct.getDay();
+        const timeVal = ct.getHours() * 60 + ct.getMinutes();
+        const inOffice = (day >= 1 && day <= 5 && timeVal >= 540 && timeVal < 1080)
+                      || (day === 6 && timeVal >= 540 && timeVal < 720);
+        const firstName = nombre.split(' ')[0] || nombre;
+        const msg = inOffice
+          ? `Hola ${firstName}, hemos recibido tu solicitud para Grupo Elite. Es un placer tenerte con nosotros, en breve te estaremos llamando para darte más información.`
+          : `Hola ${firstName}, hemos recibido tu solicitud para Grupo Elite. En este momento nuestras oficinas están cerradas, pero en cuanto abramos te contactaremos. ¡Gracias por tu interés!`;
+        sendWhatsApp(telefono.replace(/\D/g, ''), msg).catch(() => {});
+      }
+
+      console.log(`[Make Lead] Guardado: ${nombre} (${telefono})`);
+      res.json({ ok: true, id: uid });
+    } catch (e) {
+      console.error('[Make Lead] Error:', e.message);
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
   // ── LeadGen diagnostic ────────────────────────────────────────────────────
   app.get('/meta/leadgen/test', async (req, res) => {
     const { leadgen_id } = req.query;
