@@ -813,21 +813,23 @@ function lcRenderActivity(lead) {
 function lcRenderTimeline(lead) {
   const el = document.getElementById('lc-timeline');
   if (!el) return;
+
+  // Build unified timeline: messages + calls sorted by time
   const items = [];
   const _allMsgs = dedupMsgs([
-    ...(lead.sms||[]).map(m => ({...m, _type:'sms'})),
-    ...(lead.whatsapp||[]).map(m => ({...m, _type:'wa'})),
-    ...(lead.metaWa||[]).map(m => ({...m, _type:'wa'})),
+    ...(lead.sms||[]).map(m => ({...m, ch:'sms'})),
+    ...(lead.whatsapp||[]).map(m => ({...m, ch:'wa'})),
+    ...(lead.metaWa||[]).map(m => ({...m, ch:'wa'})),
   ].sort((a,b) => new Date(a.dateSent||a.dateCreated||a.date||0) - new Date(b.dateSent||b.dateCreated||b.date||0)));
+
   for (const m of _allMsgs) {
-    items.push({ type: m._type, out: m.direction?.startsWith('outbound'), body: m.body, date: new Date(m.dateSent || m.dateCreated || m.date || 0) });
+    items.push({ _msg: m, ch: m.ch, out: m.direction?.startsWith('outbound'), date: new Date(m.dateSent||m.dateCreated||m.date||0) });
   }
-  // Calls from Twilio
   for (const c of (lead.calls || [])) {
     const out  = c.direction?.startsWith('outbound');
     const miss = c.status === 'no-answer' || c.status === 'busy' || c.status === 'failed';
     const dur  = parseInt(c.duration) > 0 ? `${Math.floor(c.duration/60)}:${String(c.duration%60).padStart(2,'0')}` : '';
-    items.push({ type:'call', out, miss, dur, status: c.status, date: new Date(c.startTime || 0) });
+    items.push({ _call: c, out, miss, dur, date: new Date(c.startTime||0) });
   }
   items.sort((a, b) => a.date - b.date);
 
@@ -843,7 +845,7 @@ function lcRenderTimeline(lead) {
     let daySep = '';
     if (dayKey && dayKey !== lastDay) {
       lastDay = dayKey;
-      daySep = `<div style="display:flex;align-items:center;gap:8px;margin:8px 0;">
+      daySep = `<div style="display:flex;align-items:center;gap:8px;margin:8px 0 4px;">
         <div style="flex:1;height:1px;background:var(--border)"></div>
         <span style="font-size:10px;color:var(--text2);white-space:nowrap">${dayKey}</span>
         <div style="flex:1;height:1px;background:var(--border)"></div>
@@ -851,25 +853,45 @@ function lcRenderTimeline(lead) {
     }
     const timeStr = d.getTime() ? d.toLocaleTimeString('es-MX', {hour:'2-digit',minute:'2-digit'}) : '';
 
-    if (item.type === 'call') {
+    if (item._call) {
       const cls  = item.miss ? 'miss' : item.out ? 'out' : 'in';
       const icon = item.miss ? '📵' : item.out ? '↗' : '↙';
       const lbl  = item.miss ? 'Llamada perdida' : item.out ? 'Llamada saliente' : 'Llamada entrante';
-      return daySep + `<div style="display:flex;justify-content:center;margin:2px 0;">
+      return daySep + `<div style="display:flex;justify-content:center;margin:4px 0;">
         <div class="lc-bubble call">
-          <span class="lc-call-pill ${cls}">${icon} ${lbl}${item.dur ? ' · ' + item.dur : ''}</span>
+          <span class="lc-call-pill ${cls}">${icon} ${lbl}${item.dur ? ' · '+item.dur : ''}</span>
           ${timeStr ? `<span style="font-size:10px;color:var(--text2);margin-left:auto">${timeStr}</span>` : ''}
         </div>
       </div>`;
     }
-    const wrapCls = item.out ? 'out' : 'in';
-    const bubCls  = `${item.out?'out':'in'} ${item.type}`;
-    const chLabel = item.type === 'sms' ? '💬' : '📱';
-    return daySep + `<div class="lc-bubble-wrap ${wrapCls}">
-      <div class="lc-bubble ${bubCls}">${esc(item.body || '')}</div>
-      <div class="lc-bubble-meta">${chLabel} ${timeStr}</div>
+
+    // Message — same style as _msgRenderThread
+    const m      = item._msg;
+    const out    = item.out;
+    const ch     = item.ch;
+    const failed = out && m.status === 'failed';
+    const tick   = failed ? '❌' : (out && ch==='wa'
+      ? (m.status==='read'      ? '<span style="color:#4fc3f7">✓✓</span>'
+       : m.status==='delivered' ? '<span style="color:rgba(255,255,255,.5)">✓✓</span>'
+       :                          '<span style="color:rgba(255,255,255,.35)">✓</span>')
+      : '');
+    const _errCode = m.error_code ? Number(m.error_code) : 0;
+    const _errMsg  = _errCode === 131047 ? 'Ventana 24h expirada — usa una plantilla'
+                   : _errCode === 190    ? 'Token expirado — reconectar integración Meta'
+                   : _errCode === 130429 ? 'Límite de mensajes alcanzado'
+                   : _errCode === 131026 ? 'Número no válido en WhatsApp'
+                   : _errCode ? `Error Meta ${_errCode}` : 'No entregado';
+    const failNote = failed ? `<div style="font-size:10px;color:#f87171;margin-top:2px;">${_errMsg}</div>` : '';
+    return daySep + `<div class="msg-bubble-wrap ${out?'out':'in'}">
+      <div class="msg-bubble ${out?'out':'in'} ${ch}${failed?' failed':''}">${esc(m.body||'')}</div>
+      <div class="msg-bubble-meta">
+        <span class="msg-channel-tag ${ch}">${ch==='wa'?'WhatsApp':'SMS'}</span>
+        ${timeStr}${m.autor?' · '+esc(m.autor):''}${tick?' '+tick:''}
+      </div>
+      ${failNote}
     </div>`;
   }).join('');
+
   el.scrollTop = el.scrollHeight;
 }
 
