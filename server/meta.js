@@ -1099,6 +1099,14 @@ function registerMetaRoutes(app) {
     });
   });
 
+  // ── Reload WA token from Firestore without restarting server ───────────────
+  app.get('/meta/reload-token', async (req, res) => {
+    const before = _waToken ? _waToken.slice(-8) : 'none';
+    await _loadTokenFromFS();
+    const after  = _waToken ? _waToken.slice(-8) : 'none';
+    res.json({ before, after, changed: before !== after, tokenPresent: !!_waToken });
+  });
+
   // ── Test send — returns full Meta API response for debugging ────────────────
   app.get('/meta/wa-test-send', async (req, res) => {
     const to   = (req.query.to || '').replace(/\D/g, '');
