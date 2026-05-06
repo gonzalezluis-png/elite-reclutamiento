@@ -217,18 +217,20 @@ function getAllowedPipelines(role) {
 }
 function applyRolePermissions(role) {
   const show = (id, v) => { const el = document.getElementById(id); if (el) el.style.display = v ? '' : 'none'; };
-  const is   = (...rs) => rs.includes(role);
-  show('nav-conversations',    is('developer','agente'));
-  show('nav-messaging',        is('developer','agente'));
-  show('nav-wa-inbox',         is('developer','agente'));
-  show('nav-external',         is('developer','entrevistador'));
+  const dev  = role === 'developer';
+  // Todos los usuarios ven estas secciones:
+  show('nav-conversations',    true);
+  show('nav-messaging',        true);
+  show('nav-wa-inbox',         true);
   show('nav-registro-webinar', true);
-  show('nav-team-chat',        is('developer','agente'));
-  show('nav-ai',               is('developer','agente'));
-  show('nav-ai-entrevistas',   true);
-  show('nav-monitor',          is('developer','agente'));
-  show('nav-config',           is('developer'));
-  show('nav-users',            is('developer'));
+  show('nav-team-chat',        true);
+  show('nav-config',           true);
+  // Solo developer/admin:
+  show('nav-external',         dev);
+  show('nav-ai',               dev);
+  show('nav-ai-entrevistas',   dev);
+  show('nav-monitor',          dev);
+  show('nav-users',            dev);
 }
 function initAppWithUser(user) {
   currentUser   = { name: user.name, role: user.role, email: user.correo || user.email || '', userId: user.userId || '' };
