@@ -739,7 +739,6 @@ async function lcFetchCalls(lead) {
 
 async function lcFetchMessages(lead) {
   if (!lead?.telefono) return;
-  const since = lead.created_at ? new Date(lead.created_at).getTime() : 0;
   try {
     const [r1, r2] = await Promise.all([
       fetch(`${SERVER_URL}/twilio/sms-inbox?phone=${encodeURIComponent(lead.telefono)}`),
@@ -750,7 +749,6 @@ async function lcFetchMessages(lead) {
     if (d1.messages) {
       if (!lead.sms) lead.sms = [];
       for (const m of d1.messages) {
-        if (since && m.dateSent && new Date(m.dateSent).getTime() < since) continue;
         const ex = lead.sms.find(s => s.sid === m.sid);
         if (!ex) { lead.sms.push(m); updated = true; }
         else if (!ex.dateSent && m.dateSent) { Object.assign(ex, m); updated = true; }
@@ -760,7 +758,6 @@ async function lcFetchMessages(lead) {
     if (d2.messages) {
       if (!lead.metaWa) lead.metaWa = [];
       for (const m of d2.messages) {
-        if (since && m.dateSent && new Date(m.dateSent).getTime() < since) continue;
         const ex = lead.metaWa.find(s => s.sid === m.sid);
         if (!ex) { lead.metaWa.push({...m, ch:'wa'}); updated = true; }
         else if (m.status && ex.status !== m.status) { ex.status = m.status; ex.error_code = m.error_code; updated = true; }
