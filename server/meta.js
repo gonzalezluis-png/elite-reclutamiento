@@ -1,7 +1,7 @@
 const crypto = require('crypto');
 const { handleAuthWAReply } = require('./auth-sessions');
 const { askClaude, conversationHistory } = require('./ai');
-const { fsLeadExists, fsCreateLeadWA, fsGetLeadByPhone, fsUpdateLeadFields, runWAPipeline, humanDelay } = require('./pipeline');
+const { fsLeadExists, fsCreateLeadWA, fsGetLeadByPhone, fsUpdateLeadFields, runWAPipeline, humanDelay, fsAppendLeadMetaWa, toE164 } = require('./pipeline');
 const { triggerEscalation, cancelEscalation, handleManagerReply, checkTimeouts, isManagerPhone, logTeamMessage, loadManagers } = require('./escalation');
 const { pixelLead } = require('./pixel');
 const { loadInterviewConfig, getAvailableSlots, bookInterview, listInterviews, updateInterview, getCandidateTZ, formatSlotLabel, TEAM_TZ } = require('./interviews');
@@ -158,12 +158,14 @@ const _wamidIndex = new Map();
 async function fsLogWAMessage(phone, direction, text, extra = {}) {
   try {
     const clean = phone.replace(/^wa_meta:/, '').replace(/^\+/, '');
-    const msgId = `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    const ts    = Date.now();
+    const msgId = `${ts}_${Math.random().toString(36).slice(2, 7)}`;
+    const sid   = `meta_${ts}`;
     const docUrl = `${FS_BASE}/wa_messages/${clean}/msgs/${msgId}?key=${FS_KEY}`;
     const fields = {
       direction: { stringValue: direction },
       text:      { stringValue: text || '' },
-      ts:        { integerValue: String(Date.now()) },
+      ts:        { integerValue: String(ts) },
     };
     if (extra.status) fields.status = { stringValue: extra.status };
     if (extra.msgId)  fields.wamid  = { stringValue: extra.msgId };
@@ -172,6 +174,16 @@ async function fsLogWAMessage(phone, direction, text, extra = {}) {
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify({ fields }),
     });
+    // Mirror message into the lead document so fsLoadLeads returns it pre-populated
+    const metaMsg = {
+      sid,
+      body:      text || '',
+      direction: direction === 'out' ? 'outbound' : 'inbound',
+      dateSent:  new Date(ts).toISOString(),
+      ch:        'wa',
+    };
+    if (extra.status) metaMsg.status = extra.status;
+    fsAppendLeadMetaWa(clean, metaMsg).catch(() => {});
     return msgId;
   } catch { return null; }
 }

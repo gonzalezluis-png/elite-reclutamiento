@@ -34,6 +34,13 @@ function rawPhone(from) {
   return from.replace(/^wa_meta:/, '').replace(/^whatsapp:/, '');
 }
 
+// ── Phone → leadId in-memory cache (avoids full leads scan per message) ───────
+const _phoneLeadCache = new Map(); // E164 → leadId
+
+function _cachePhone(phone, leadId) {
+  _phoneLeadCache.set(toE164(rawPhone(phone)), leadId);
+}
+
 // ── Firestore helpers ─────────────────────────────────────────────────────────
 function fsVal(v) {
   if (v === null || v === undefined) return { nullValue: null };
@@ -57,13 +64,64 @@ async function fsUpdateLeadFields(leadId, fields) {
 
 async function fsGetLeadByPhone(phone) {
   try {
+    const normalized = toE164(rawPhone(phone));
+    // Check cache first
+    const cachedId = _phoneLeadCache.get(normalized);
+    if (cachedId) {
+      const doc = await fetch(`${FS_BASE}/leads/${cachedId}?key=${FS_KEY}`).then(r => r.json()).catch(() => null);
+      if (doc && doc.fields) return doc;
+    }
+    // Fallback: scan all leads
     const data = await fetch(`${FS_BASE}/leads?key=${FS_KEY}&pageSize=500`).then(r => r.json());
-    const normalized = toE164(phone);
-    return (data.documents || []).find(doc => {
+    const found = (data.documents || []).find(doc => {
       const tel = doc.fields?.telefono?.stringValue || '';
       return toE164(tel) === normalized;
     }) || null;
+    if (found) _cachePhone(phone, found.name.split('/').pop());
+    return found;
   } catch { return null; }
+}
+
+// Append a message to lead's metaWa array in Firestore (fire-and-forget)
+async function fsAppendLeadMetaWa(phone, message) {
+  try {
+    const normalized = toE164(rawPhone(phone));
+    let leadId = _phoneLeadCache.get(normalized);
+    if (!leadId) {
+      const doc = await fsGetLeadByPhone(phone);
+      if (!doc) return;
+      leadId = doc.name.split('/').pop();
+    }
+    // Read current metaWa, append, write back
+    const docRes = await fetch(`${FS_BASE}/leads/${leadId}?key=${FS_KEY}&mask.fieldPaths=metaWa`).then(r => r.json()).catch(() => ({}));
+    const existing = (docRes.fields?.metaWa?.arrayValue?.values || []).map(v => {
+      const f = v.mapValue?.fields || {};
+      return {
+        sid:        f.sid?.stringValue       || '',
+        body:       f.body?.stringValue      || '',
+        direction:  f.direction?.stringValue || '',
+        dateSent:   f.dateSent?.stringValue  || '',
+        status:     f.status?.stringValue    || '',
+        error_code: Number(f.error_code?.integerValue || 0) || undefined,
+        ch:         f.ch?.stringValue        || 'wa',
+      };
+    });
+    // Update status if sid already exists, otherwise append
+    const idx = existing.findIndex(m => m.sid === message.sid);
+    if (idx >= 0) {
+      if (message.status) existing[idx].status = message.status;
+      if (message.error_code) existing[idx].error_code = message.error_code;
+    } else {
+      existing.push(message);
+    }
+    await fetch(`${FS_BASE}/leads/${leadId}?key=${FS_KEY}&updateMask.fieldPaths=metaWa`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fields: { metaWa: fsVal(existing) } }),
+    });
+  } catch(e) {
+    console.warn('[metaWa sync]', e.message);
+  }
 }
 
 async function fsLeadExists(phone) {
@@ -73,6 +131,7 @@ async function fsLeadExists(phone) {
 async function fsCreateLeadWA(from) {
   const phone = rawPhone(from);
   const id    = 'lead-wa-' + Date.now();
+  _cachePhone(phone, id);
   const now   = new Date().toISOString();
   const doc   = {
     fields: {
@@ -393,6 +452,7 @@ module.exports = {
   fsGetLeadByPhone,
   fsLeadExists,
   fsCreateLeadWA,
+  fsAppendLeadMetaWa,
   webinarInviteSent,
   extractAndUpdateLead,
   detectWebinarIntent,

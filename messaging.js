@@ -180,7 +180,6 @@ async function _msgSyncAllContacts() {
     let anyUpdated = false;
     for (const { phone, messages } of data.contacts) {
       if (!messages.length) continue;
-      // Match lead by phone (last 10 digits)
       const digits = phone.replace(/\D/g, '');
       const lead = leads.find(l => {
         const ld = (l.telefono || '').replace(/\D/g, '');
@@ -189,13 +188,16 @@ async function _msgSyncAllContacts() {
       if (!lead) continue;
       if (!lead.metaWa) lead.metaWa = [];
       for (const m of messages) {
-        if (!lead.metaWa.find(s => s.sid === m.sid)) {
-          lead.metaWa.push(m);
-          anyUpdated = true;
-        }
+        const ex = lead.metaWa.find(s => s.sid === m.sid);
+        if (!ex) { lead.metaWa.push(m); anyUpdated = true; }
+        else if (m.status && ex.status !== m.status) { ex.status = m.status; anyUpdated = true; }
       }
     }
-    if (anyUpdated) { saveLeads(); _msgRenderList(); }
+    if (anyUpdated) {
+      saveLeads();
+      // Re-render messaging list only if view is open
+      if (document.getElementById('msg-conv-list')) _msgRenderList();
+    }
   } catch {}
 }
 
