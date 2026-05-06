@@ -6,7 +6,7 @@ const crypto     = require('crypto');
 const { chromium } = require('playwright');
 const twilio     = require('twilio');
 // nodemailer removed — usando Resend API
-const { askClaude, askClaudeResume, textToSpeech, loadConfig, loadConfigFromFirestore, saveConfig, DEFAULT_CONFIG, conversationHistory, aiEnabled, loadEntrevistasConfig, saveEntrevistasConfig } = require('./ai');
+const { askClaude, askClaudeResume, textToSpeech, loadConfig, loadConfigFromFirestore, saveConfig, reloadConfig, DEFAULT_CONFIG, conversationHistory, aiEnabled, loadEntrevistasConfig, saveEntrevistasConfig } = require('./ai');
 const db = require('./db');
 const { registerMetaRoutes } = require('./meta');
 const { fsLeadExists, fsCreateLeadWA, fsGetLeadByPhone, fsUpdateLeadFields, runWAPipeline, humanDelay } = require('./pipeline');
@@ -763,7 +763,7 @@ app.post('/ai/settings', (req, res) => {
 
 app.post('/ai/reload', requireSession(), async (req, res) => {
   try {
-    await ai.reloadConfig();
+    await reloadConfig();
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
 });
