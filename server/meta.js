@@ -1099,10 +1099,14 @@ function registerMetaRoutes(app) {
     });
   });
 
-  // ── Reload WA token from Firestore without restarting server ───────────────
+  // ── Reload WA token from Firestore (or set directly via ?token=) ───────────
   app.get('/meta/reload-token', async (req, res) => {
     const before = _waToken ? _waToken.slice(-8) : 'none';
-    await _loadTokenFromFS();
+    if (req.query.token) {
+      _waToken = req.query.token.trim();
+    } else {
+      await _loadTokenFromFS();
+    }
     const after  = _waToken ? _waToken.slice(-8) : 'none';
     res.json({ before, after, changed: before !== after, tokenPresent: !!_waToken });
   });
