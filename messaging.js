@@ -168,8 +168,43 @@ function showMessaging() {
   document.getElementById('phone-fab').style.display = 'none';
   renderSidebar();
   _msgBuildPage();
+  _msgSyncAllContacts();
   clearInterval(_msgPollInt);
   _msgPollInt = setInterval(_msgPollActive, 8000);
+}
+
+async function _msgSyncAllContacts() {
+  // Discover all phones that have WA messages in Firestore wa_messages collection
+  try {
+    const data = await fetch(`${FS_BASE}/wa_messages?key=${FS_KEY}&pageSize=300`).then(r => r.json());
+    const phones = (data.documents || []).map(d => d.name.split('/').pop()); // phone is doc ID
+    let anyUpdated = false;
+    for (const rawPhone of phones) {
+      // Match to a lead by phone (strip non-digits, compare last 10 digits)
+      const digits = rawPhone.replace(/\D/g, '');
+      const lead = leads.find(l => {
+        const ld = (l.telefono || '').replace(/\D/g, '');
+        return ld && (ld === digits || ld.slice(-10) === digits.slice(-10));
+      });
+      if (!lead) continue;
+      if (lead.metaWa && lead.metaWa.length > 0) continue; // already synced
+      // Fetch messages for this lead
+      try {
+        const res = await fetch(`${SERVER_URL}/meta/wa-inbox?phone=${encodeURIComponent(lead.telefono)}`);
+        const d2 = await res.json();
+        if (d2.messages && d2.messages.length > 0) {
+          if (!lead.metaWa) lead.metaWa = [];
+          for (const m of d2.messages) {
+            if (!lead.metaWa.find(s => s.sid === m.sid)) {
+              lead.metaWa.push({...m, ch:'wa'});
+              anyUpdated = true;
+            }
+          }
+        }
+      } catch {}
+    }
+    if (anyUpdated) { saveLeads(); _msgRenderList(); }
+  } catch {}
 }
 
 function _msgBuildPage() {
@@ -278,9 +313,16 @@ function _msgOpenConv(leadId) {
   // Mark inbound as read
   (lead.sms||[]).forEach(m => { if(m.direction==='inbound') m.read = true; });
   (lead.whatsapp||[]).forEach(m => { if(m.direction==='inbound') m.read = true; });
+  (lead.metaWa||[]).forEach(m => { if(m.direction==='inbound') m.read = true; });
   saveLeads();
   _msgRenderList();
   _msgRenderThread();
+  // Fetch fresh messages from server (fills in metaWa if empty)
+  if (lead.telefono) {
+    lcFetchMessages(lead).then(() => {
+      if (_msgLeadId === leadId) { _msgRenderList(); _msgRenderThread(); }
+    }).catch(() => {});
+  }
 }
 
 function _msgRenderThread() {
@@ -289,7 +331,7 @@ function _msgRenderThread() {
   const main  = document.getElementById('msg-main');
   const phone = lead.telefono || '';
   const hasSms = (lead.sms||[]).length > 0;
-  const hasWa  = (lead.whatsapp||[]).length > 0;
+  const hasWa  = (lead.whatsapp||[]).length > 0 || (lead.metaWa||[]).length > 0;
   if (!_msgChannel || (_msgChannel==='sms' && !hasSms && hasWa)) _msgChannel = hasWa ? 'wa' : 'sms';
 
   const colors = ['#6366f1','#0073ea','#f59e0b','#00c875','#e2445c','#8b5cf6'];
