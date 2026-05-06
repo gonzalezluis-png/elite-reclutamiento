@@ -1079,14 +1079,29 @@ const LEAD_COLS = new Set([
   'contacto','link_webinar','webinar_pausas','webinar_completado','webinar_ultima_sesion',
   'webinar_ultimo_evento','quiere_entrevista_fecha','created_at','updated_at',
 ]);
+const LEAD_TS_COLS = new Set([
+  'webinar_email_enviado','fecha_inscripcion_webinar','quiere_entrevista_fecha',
+  'webinar_ultima_sesion','created_at','updated_at',
+]);
+
+function sanitizeLeadFields(fields) {
+  const out = {};
+  for (const [k, v] of Object.entries(fields)) {
+    // Empty string in a timestamptz column → null
+    out[k] = (LEAD_TS_COLS.has(k) && v === '') ? null : v;
+  }
+  return out;
+}
 
 app.patch('/leads/:id', requireSession(), async (req, res) => {
   const { id } = req.params;
   try {
     const raw = req.body || {};
     delete raw.id;
-    // Strip unknown columns to avoid PostgREST PGRST204 errors
-    const fields = Object.fromEntries(Object.entries(raw).filter(([k]) => LEAD_COLS.has(k)));
+    // Strip unknown columns, then sanitize empty timestamps
+    const fields = sanitizeLeadFields(
+      Object.fromEntries(Object.entries(raw).filter(([k]) => LEAD_COLS.has(k)))
+    );
     await db.sbUpdateLead(id, fields);
     res.json({ ok: true });
   } catch (e) {
@@ -1099,7 +1114,9 @@ app.post('/leads', requireSession(), async (req, res) => {
   try {
     const raw = req.body || {};
     if (!raw.id) raw.id = `lead_${Date.now()}`;
-    const lead = Object.fromEntries(Object.entries(raw).filter(([k]) => k === 'id' || LEAD_COLS.has(k)));
+    const lead = sanitizeLeadFields(
+      Object.fromEntries(Object.entries(raw).filter(([k]) => k === 'id' || LEAD_COLS.has(k)))
+    );
     await db.sbSaveLead(lead);
     res.json({ ok: true, id: lead.id });
   } catch (e) {
