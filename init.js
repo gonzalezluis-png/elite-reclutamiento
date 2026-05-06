@@ -73,6 +73,8 @@ function postLoginInit() {
         newLeads.forEach(l => _notifyNewLead(l));
       }
     } catch(e) {}
+    // Sync WA messages from server (backup for when fsAppendLeadMetaWa misses)
+    if (typeof _msgSyncAllContacts === 'function') _msgSyncAllContacts();
   }, 15 * 1000);
 
   // Close modals on overlay click
