@@ -271,7 +271,7 @@ async function doLogin() {
     btn.disabled = false; btn.textContent = 'Entrar';
     // Developer (or pre-verified) → skip WA screen
     if (data.verified) {
-      sessionStorage.setItem('er_session', JSON.stringify({ token: data.sessionId, name: data.name, role: data.role }));
+      localStorage.setItem('er_session', JSON.stringify({ token: data.sessionId, name: data.name, role: data.role }));
       initAppWithUser({ token: data.sessionId, name: data.name, role: data.role });
       return;
     }
@@ -300,7 +300,7 @@ function startWAPoller(sessionId) {
       if (data.expired) { clearInterval(_waPoller); document.getElementById('wa-verify-error').textContent = 'Sesión expirada.'; return; }
       if (data.verified) {
         clearInterval(_waPoller);
-        sessionStorage.setItem('er_session', JSON.stringify({ token: sessionId, name: data.name, role: data.role }));
+        localStorage.setItem('er_session', JSON.stringify({ token: sessionId, name: data.name, role: data.role }));
         initAppWithUser({ token: sessionId, name: data.name, role: data.role });
       }
     } catch(e) {}
@@ -382,7 +382,7 @@ async function resetAllLeads() {
 }
 
 function doLogout() {
-  sessionStorage.removeItem('er_session');
+  localStorage.removeItem('er_session');
   _sessionToken = null; currentUser = null;
   document.getElementById('login-page').classList.remove('hidden');
   document.getElementById('app').style.display = 'none';

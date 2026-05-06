@@ -1,6 +1,6 @@
 // ── SESSION RESTORE ──────────────────────────────────────────────────────────
 (async () => {
-  const stored = sessionStorage.getItem('er_session');
+  const stored = localStorage.getItem('er_session');
   if (stored) {
     try {
       const { token, name, role } = JSON.parse(stored);
@@ -13,7 +13,7 @@
         return;
       }
     } catch(e) {}
-    sessionStorage.removeItem('er_session');
+    localStorage.removeItem('er_session');
   }
   // Show login if no valid session
   document.getElementById('login-page').classList.remove('hidden');
