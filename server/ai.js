@@ -171,6 +171,12 @@ function loadConfig() {
   return _configCache;
 }
 
+function reloadConfig() {
+  _configCache = null;
+  _entrevistasCache = null;
+  return loadConfigFromFirestore().then(cfg => { _configCache = cfg; return cfg; });
+}
+
 async function saveConfig(config) {
   try {
     _configCache = config;
@@ -353,4 +359,4 @@ async function textToSpeech(text) {
   return Buffer.from(await resp.arrayBuffer());
 }
 
-module.exports = { askClaude, askClaudeResume, textToSpeech, loadConfig, loadConfigFromFirestore, saveConfig, DEFAULT_CONFIG, conversationHistory, aiEnabled, loadEntrevistasConfig, saveEntrevistasConfig };
+module.exports = { askClaude, askClaudeResume, textToSpeech, loadConfig, loadConfigFromFirestore, saveConfig, reloadConfig, DEFAULT_CONFIG, conversationHistory, aiEnabled, loadEntrevistasConfig, saveEntrevistasConfig };

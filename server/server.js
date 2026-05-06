@@ -716,6 +716,13 @@ app.post('/ai/settings', (req, res) => {
   res.json({ ok: true, enabled: aiEnabled });
 });
 
+app.post('/ai/reload', requireSession(), async (req, res) => {
+  try {
+    await ai.reloadConfig();
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
 // ── AI: Conversation history ──────────────────────────────────────────────────
 app.get('/ai/history', (req, res) => {
   const all = {};
