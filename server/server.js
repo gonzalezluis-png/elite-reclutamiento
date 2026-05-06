@@ -491,7 +491,7 @@ app.post('/auth/login', async (req, res) => {
           .catch(e => console.error('[Auth] WA error:', e.message));
       } catch(e) {}
     }
-    res.json({ ok: true, sessionId, name: user.nombre, role: user.role, verified: true });
+    res.json({ ok: true, sessionId, name: user.nombre, role: user.role, correo: user.correo, userId: user.id, verified: true });
   } catch (e) {
     console.error('[Auth] Login error:', e.message);
     res.status(500).json({ ok: false, error: 'Error del servidor' });
@@ -544,6 +544,51 @@ app.put('/auth/users/:id', requireSession('developer'), async (req, res) => {
 app.delete('/auth/users/:id', requireSession('developer'), async (req, res) => {
   try { await dbDeleteUser(req.params.id); res.json({ ok: true }); }
   catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+// ── PUT /auth/me — change own email/password with current password verification ─
+app.put('/auth/me', requireSession(), async (req, res) => {
+  const { current_password, new_correo, new_password } = req.body;
+  if (!current_password) return res.status(400).json({ ok: false, error: 'Contraseña actual requerida' });
+  try {
+    const session = req.authSession;
+    let user;
+    if (session.userId === 'master') {
+      user = await dbFindUserByEmail(MASTER_EMAIL);
+    } else {
+      const all = await dbGetUsers();
+      user = all.find(u => u.id === session.userId);
+    }
+    if (!user) return res.status(404).json({ ok: false, error: 'Usuario no encontrado' });
+    if (user.password_hash !== hashPass(current_password))
+      return res.status(401).json({ ok: false, error: 'Contraseña actual incorrecta' });
+    const fields = {};
+    if (new_correo && new_correo.toLowerCase() !== (user.correo || '').toLowerCase()) {
+      const exists = await dbFindUserByEmail(new_correo);
+      if (exists && exists.id !== user.id) return res.status(409).json({ ok: false, error: 'Ese correo ya está en uso' });
+      fields.correo = new_correo.toLowerCase();
+    }
+    if (new_password) fields.password = new_password;
+    if (!Object.keys(fields).length) return res.json({ ok: true });
+    await dbUpdateUser(user.id, fields);
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+// ── POST /auth/impersonate/:userId — developer enters as another user ──────────
+app.post('/auth/impersonate/:userId', requireSession('developer'), async (req, res) => {
+  try {
+    const all  = await dbGetUsers();
+    const user = all.find(u => u.id === req.params.userId);
+    if (!user) return res.status(404).json({ ok: false, error: 'Usuario no encontrado' });
+    const sessionId = crypto.randomBytes(32).toString('hex');
+    await fsSetSession(sessionId, {
+      userId: user.id, name: user.nombre, role: user.role,
+      phone: normalizePhone(user.telefono), verified: true,
+      expires: Date.now() + 24 * 60 * 60 * 1000,
+    });
+    res.json({ ok: true, sessionId, name: user.nombre, role: user.role, correo: user.correo, userId: user.id });
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
 });
 
 // /twilio/whatsapp-incoming removido — WhatsApp ahora entra solo por /meta/webhook/whatsapp

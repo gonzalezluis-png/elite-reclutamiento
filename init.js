@@ -3,12 +3,12 @@
   const stored = localStorage.getItem('er_session');
   if (stored) {
     try {
-      const { token, name, role } = JSON.parse(stored);
+      const { token, name, role, correo, userId } = JSON.parse(stored);
       // Validate session is still alive on server
       const r    = await fetch(`${SERVER_URL}/auth/status/${token}`);
       const data = await r.json();
       if (data.verified && !data.expired) {
-        initAppWithUser({ token, name: data.name || name, role: data.role || role });
+        initAppWithUser({ token, name: data.name || name, role: data.role || role, correo, userId });
         postLoginInit();
         return;
       }

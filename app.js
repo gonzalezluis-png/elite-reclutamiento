@@ -231,7 +231,7 @@ function applyRolePermissions(role) {
   show('nav-users',            is('developer'));
 }
 function initAppWithUser(user) {
-  currentUser   = { name: user.name, role: user.role };
+  currentUser   = { name: user.name, role: user.role, email: user.correo || user.email || '', userId: user.userId || '' };
   _sessionToken = user.token;
   document.getElementById('wa-verify-screen').style.display = 'none';
   document.getElementById('login-page').classList.add('hidden');
@@ -272,8 +272,8 @@ async function doLogin() {
     btn.disabled = false; btn.textContent = 'Entrar';
     // Developer (or pre-verified) → skip WA screen
     if (data.verified) {
-      localStorage.setItem('er_session', JSON.stringify({ token: data.sessionId, name: data.name, role: data.role }));
-      initAppWithUser({ token: data.sessionId, name: data.name, role: data.role });
+      localStorage.setItem('er_session', JSON.stringify({ token: data.sessionId, name: data.name, role: data.role, correo: data.correo, userId: data.userId }));
+      initAppWithUser({ token: data.sessionId, name: data.name, role: data.role, correo: data.correo, userId: data.userId });
       return;
     }
     document.getElementById('login-page').classList.add('hidden');
@@ -301,8 +301,8 @@ function startWAPoller(sessionId) {
       if (data.expired) { clearInterval(_waPoller); document.getElementById('wa-verify-error').textContent = 'Sesión expirada.'; return; }
       if (data.verified) {
         clearInterval(_waPoller);
-        localStorage.setItem('er_session', JSON.stringify({ token: sessionId, name: data.name, role: data.role }));
-        initAppWithUser({ token: sessionId, name: data.name, role: data.role });
+        localStorage.setItem('er_session', JSON.stringify({ token: sessionId, name: data.name, role: data.role, correo: data.correo, userId: data.userId }));
+        initAppWithUser({ token: sessionId, name: data.name, role: data.role, correo: data.correo, userId: data.userId });
       }
     } catch(e) {}
   }, 3000);
@@ -329,16 +329,106 @@ async function loadUsersList() {
     if (!data.ok) { el.innerHTML = `<div style="color:var(--red);font-size:12px">${data.error}</div>`; return; }
     const RL = { developer:'Desarrollador', agente:'Agente', entrevistador:'Entrevistador' };
     el.innerHTML = data.users.map(u => `
-      <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--bg);border-radius:8px;margin-bottom:6px;border:1px solid var(--border)">
-        <div style="width:32px;height:32px;border-radius:50%;background:rgba(167,139,250,.2);color:#a78bfa;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0">${u.nombre[0]}</div>
+      <div style="display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--bg);border-radius:8px;margin-bottom:6px;border:1px solid var(--border)">
+        <div style="width:32px;height:32px;border-radius:50%;background:rgba(167,139,250,.2);color:#a78bfa;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0">${(u.nombre||'?')[0]}</div>
         <div style="flex:1;min-width:0">
           <div style="font-size:12px;font-weight:600;color:#fff">${u.nombre}</div>
           <div style="font-size:11px;color:var(--text3)">${u.correo} · ${u.telefono}</div>
         </div>
-        <span style="font-size:10px;font-weight:600;padding:2px 8px;border-radius:10px;background:rgba(167,139,250,.15);color:#a78bfa">${RL[u.role]||u.role}</span>
+        <span style="font-size:10px;font-weight:600;padding:2px 8px;border-radius:10px;background:rgba(167,139,250,.15);color:#a78bfa;white-space:nowrap">${RL[u.role]||u.role}</span>
+        <button onclick="openEditUser('${u.id}','${u.nombre}','${u.correo}','${u.role}')" style="background:rgba(79,127,255,.1);border:1px solid rgba(79,127,255,.3);color:var(--accent);border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer;white-space:nowrap">✏️ Editar</button>
+        <button onclick="impersonateUser('${u.id}','${u.nombre}')" style="background:rgba(0,200,117,.1);border:1px solid rgba(0,200,117,.3);color:#00c875;border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer;white-space:nowrap">👁 Entrar</button>
         <button onclick="deleteUser('${u.id}','${u.nombre}')" style="background:rgba(226,68,92,.1);border:1px solid rgba(226,68,92,.25);color:var(--red);border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer">✕</button>
       </div>`).join('') || '<div style="font-size:12px;color:var(--text3)">Sin usuarios registrados.</div>';
   } catch(e) { el.innerHTML = `<div style="color:var(--red);font-size:12px">Error de conexión</div>`; }
+}
+
+// ── Edit user (admin) ─────────────────────────────────────────────────────────
+function openEditUser(id, nombre, correo, role) {
+  const RL = { developer:'Desarrollador', agente:'Agente', entrevistador:'Entrevistador' };
+  const overlay = document.createElement('div');
+  overlay.id = 'edit-user-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:10000;';
+  overlay.innerHTML = `
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:14px;padding:28px;width:380px;max-width:95vw;">
+      <div style="font-size:15px;font-weight:700;color:#fff;margin-bottom:18px;">✏️ Editar usuario</div>
+      <div style="font-size:12px;color:var(--text3);margin-bottom:14px;">${nombre} · ${correo}</div>
+      <div style="display:flex;flex-direction:column;gap:12px;">
+        <div><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px;">Nuevo correo</label>
+          <input id="eu-correo" type="email" value="${correo}" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:9px 12px;color:var(--text);font-size:13px;outline:none;box-sizing:border-box;" /></div>
+        <div><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px;">Nueva contraseña (dejar vacío para no cambiar)</label>
+          <input id="eu-pass" type="password" placeholder="Nueva contraseña" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:9px 12px;color:var(--text);font-size:13px;outline:none;box-sizing:border-box;" /></div>
+        <div><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px;">Rol</label>
+          <select id="eu-role" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:9px 12px;color:var(--text);font-size:13px;outline:none;box-sizing:border-box;">
+            <option value="developer" ${role==='developer'?'selected':''}>Desarrollador</option>
+            <option value="agente" ${role==='agente'?'selected':''}>Agente</option>
+            <option value="entrevistador" ${role==='entrevistador'?'selected':''}>Entrevistador</option>
+          </select></div>
+        <div id="eu-error" style="font-size:12px;color:var(--red);display:none;"></div>
+        <div style="display:flex;gap:8px;margin-top:4px;">
+          <button onclick="saveEditUser('${id}')" style="flex:1;padding:10px;background:var(--accent);border:none;border-radius:8px;color:#fff;font-size:13px;font-weight:600;cursor:pointer;">Guardar</button>
+          <button onclick="document.getElementById('edit-user-overlay').remove()" style="flex:1;padding:10px;background:var(--card2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;cursor:pointer;">Cancelar</button>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+}
+
+async function saveEditUser(id) {
+  const correo = document.getElementById('eu-correo').value.trim();
+  const pass   = document.getElementById('eu-pass').value;
+  const role   = document.getElementById('eu-role').value;
+  const errEl  = document.getElementById('eu-error');
+  errEl.style.display = 'none';
+  if (!correo) { errEl.textContent = 'El correo es requerido.'; errEl.style.display = 'block'; return; }
+  const fields = { correo, role };
+  if (pass) fields.password = pass;
+  try {
+    const r = await fetch(`${SERVER_URL}/auth/users/${id}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json', 'x-session-token': _sessionToken },
+      body: JSON.stringify(fields),
+    });
+    const data = await r.json();
+    if (!data.ok) { errEl.textContent = data.error; errEl.style.display = 'block'; return; }
+    document.getElementById('edit-user-overlay').remove();
+    showToast('✅ Usuario actualizado');
+    await loadUsersList();
+  } catch(e) { errEl.textContent = 'Error de conexión'; errEl.style.display = 'block'; }
+}
+
+// ── Impersonation ─────────────────────────────────────────────────────────────
+let _originalAdminSession = null;
+
+async function impersonateUser(userId, nombre) {
+  if (!confirm(`¿Entrar como ${nombre}?\n\nPodrás volver desde Configuraciones → Volver como Admin.`)) return;
+  try {
+    const r = await fetch(`${SERVER_URL}/auth/impersonate/${userId}`, {
+      method: 'POST', headers: { 'x-session-token': _sessionToken },
+    });
+    const data = await r.json();
+    if (!data.ok) { showToast(`❌ ${data.error}`); return; }
+    _originalAdminSession = { token: _sessionToken, name: currentUser.name, role: currentUser.role, email: currentUser.email, userId: currentUser.userId };
+    closeUsersModal();
+    _sessionToken = data.sessionId;
+    const sess = { token: data.sessionId, name: data.name, role: data.role, correo: data.correo, userId: data.userId };
+    localStorage.setItem('er_session', JSON.stringify(sess));
+    initAppWithUser(sess);
+    showToast(`👁 Viendo como ${data.name}`);
+    if (activeView === 'config') renderConfig();
+  } catch(e) { showToast('❌ Error de conexión'); }
+}
+
+function returnAsAdmin() {
+  if (!_originalAdminSession) return;
+  const s = _originalAdminSession;
+  _originalAdminSession = null;
+  _sessionToken = s.token;
+  const sess = { token: s.token, name: s.name, role: s.role, correo: s.email, userId: s.userId };
+  localStorage.setItem('er_session', JSON.stringify(sess));
+  initAppWithUser(sess);
+  showToast('✅ Volviste a tu sesión de administrador');
+  if (activeView === 'config') renderConfig();
 }
 async function createUser() {
   const nombre   = document.getElementById('nu-nombre').value.trim();

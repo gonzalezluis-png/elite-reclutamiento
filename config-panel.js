@@ -46,6 +46,18 @@ function renderConfig() {
   document.getElementById('config-view').innerHTML = `
     <div style="max-width:780px;width:100%;">
 
+      ${typeof _originalAdminSession !== 'undefined' && _originalAdminSession ? `
+      <!-- BANNER IMPERSONACIÓN -->
+      <div class="cfg-section" style="border-color:rgba(245,158,11,.4);background:rgba(245,158,11,.05);margin-bottom:20px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+          <div>
+            <div class="cfg-section-title" style="color:#f59e0b;margin-bottom:4px;">👁 Vista de otro usuario</div>
+            <p style="font-size:13px;color:var(--text3);margin:0;">Estás viendo el sistema como <strong style="color:var(--text);">${u.name}</strong>. Tus acciones afectan esta cuenta.</p>
+          </div>
+          <button onclick="returnAsAdmin()" style="padding:9px 18px;background:rgba(245,158,11,.2);border:1px solid rgba(245,158,11,.4);border-radius:8px;color:#f59e0b;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;font-family:var(--font);">⬅ Volver como Admin</button>
+        </div>
+      </div>` : ''}
+
       <!-- PERFIL -->
       <div class="cfg-section">
         <div class="cfg-section-title">👤 Mi Perfil</div>
@@ -62,24 +74,36 @@ function renderConfig() {
             <label>Nombre completo</label>
             <input id="cfg-name" value="${u.name || ''}" placeholder="Tu nombre" />
           </div>
+        </div>
+        <button class="cfg-save-btn" onclick="saveConfigProfile()">Guardar nombre</button>
+      </div>
+
+      <!-- SEGURIDAD -->
+      <div class="cfg-section">
+        <div class="cfg-section-title">🔐 Cambiar credenciales</div>
+        <p style="font-size:13px;color:var(--text3);margin-bottom:16px;line-height:1.6;">
+          Necesitas tu contraseña actual para confirmar cualquier cambio.
+        </p>
+        <div class="cfg-field-grid">
           <div class="cfg-field">
-            <label>Correo electrónico</label>
-            <input id="cfg-email" value="${u.email || ''}" placeholder="correo@empresa.com" type="email" />
+            <label>Contraseña actual <span style="color:var(--red);">*</span></label>
+            <input id="sec-current-pass" type="password" placeholder="Tu contraseña actual" autocomplete="current-password" />
           </div>
           <div class="cfg-field">
-            <label>Rol</label>
-            <select id="cfg-role">
-              <option ${u.role==='Administrador'?'selected':''}>Administrador</option>
-              <option ${u.role==='Reclutador'?'selected':''}>Reclutador</option>
-              <option ${u.role==='Supervisor'?'selected':''}>Supervisor</option>
-            </select>
+            <label>Nuevo correo electrónico</label>
+            <input id="sec-new-email" type="email" value="${u.email || ''}" placeholder="nuevo@correo.com" autocomplete="email" />
           </div>
           <div class="cfg-field">
             <label>Nueva contraseña</label>
-            <input id="cfg-pass" type="password" placeholder="Dejar vacío para no cambiar" />
+            <input id="sec-new-pass" type="password" placeholder="Dejar vacío para no cambiar" autocomplete="new-password" />
+          </div>
+          <div class="cfg-field">
+            <label>Confirmar nueva contraseña</label>
+            <input id="sec-confirm-pass" type="password" placeholder="Repite la nueva contraseña" autocomplete="new-password" />
           </div>
         </div>
-        <button class="cfg-save-btn" onclick="saveConfigProfile()">Guardar cambios</button>
+        <div id="sec-error" style="font-size:12px;color:var(--red);margin-bottom:10px;display:none;padding:8px 12px;background:rgba(248,113,113,.08);border:1px solid rgba(248,113,113,.2);border-radius:7px;"></div>
+        <button class="cfg-save-btn" onclick="saveCredentials()">Actualizar credenciales</button>
       </div>
 
       <!-- FORMULARIO DE REGISTRO WEBINAR -->
@@ -125,23 +149,66 @@ function renderConfig() {
 }
 
 function saveConfigProfile() {
-  const name  = document.getElementById('cfg-name').value.trim();
-  const email = document.getElementById('cfg-email').value.trim();
-  const role  = document.getElementById('cfg-role').value;
-  const pass  = document.getElementById('cfg-pass').value;
-  if (!name || !email) { showToast('⚠️ Nombre y correo son requeridos'); return; }
-  currentUser.name  = name;
-  currentUser.email = email;
-  currentUser.role  = role;
-  if (pass) currentUser.password = pass;
-  const idx = USERS.findIndex(u => u.email === email);
-  if (idx >= 0) USERS[idx] = { ...USERS[idx], ...currentUser };
-  localStorage.setItem('er_users', JSON.stringify(USERS));
+  const name = document.getElementById('cfg-name').value.trim();
+  if (!name) { showToast('⚠️ El nombre es requerido'); return; }
+  currentUser.name = name;
+  const sess = JSON.parse(localStorage.getItem('er_session') || '{}');
+  sess.name = name;
+  localStorage.setItem('er_session', JSON.stringify(sess));
   document.getElementById('user-name').textContent = name;
-  document.getElementById('user-role').textContent = role;
   document.getElementById('user-avatar').textContent = name[0];
-  showToast('✅ Perfil actualizado');
+  showToast('✅ Nombre actualizado');
   renderConfig();
+}
+
+async function saveCredentials() {
+  const currentPass = document.getElementById('sec-current-pass').value;
+  const newEmail    = document.getElementById('sec-new-email').value.trim();
+  const newPass     = document.getElementById('sec-new-pass').value;
+  const confirmPass = document.getElementById('sec-confirm-pass').value;
+  const errEl       = document.getElementById('sec-error');
+  errEl.style.display = 'none';
+
+  const origEmail = currentUser.email || '';
+  const emailChanged = newEmail && newEmail.toLowerCase() !== origEmail.toLowerCase();
+
+  if (!currentPass) { errEl.textContent = 'Ingresa tu contraseña actual para confirmar.'; errEl.style.display = 'block'; return; }
+  if (!emailChanged && !newPass) { errEl.textContent = 'Ingresa al menos un cambio (correo o contraseña nueva).'; errEl.style.display = 'block'; return; }
+  if (newPass && newPass !== confirmPass) { errEl.textContent = 'Las contraseñas nuevas no coinciden.'; errEl.style.display = 'block'; return; }
+  if (newPass && newPass.length < 6) { errEl.textContent = 'La contraseña nueva debe tener al menos 6 caracteres.'; errEl.style.display = 'block'; return; }
+
+  const btn = document.querySelector('#sec-error ~ button') || document.querySelector('[onclick="saveCredentials()"]');
+  if (btn) { btn.disabled = true; btn.textContent = 'Guardando…'; }
+  try {
+    const body = { current_password: currentPass };
+    if (emailChanged) body.new_correo = newEmail;
+    if (newPass)      body.new_password = newPass;
+
+    const r    = await fetch(`${SERVER_URL}/auth/me`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'x-session-token': _sessionToken },
+      body: JSON.stringify(body),
+    });
+    const data = await r.json();
+    if (!data.ok) { errEl.textContent = data.error; errEl.style.display = 'block'; return; }
+
+    if (emailChanged) {
+      currentUser.email = newEmail;
+      const sess = JSON.parse(localStorage.getItem('er_session') || '{}');
+      sess.correo = newEmail;
+      localStorage.setItem('er_session', JSON.stringify(sess));
+    }
+    showToast('✅ Credenciales actualizadas');
+    document.getElementById('sec-current-pass').value = '';
+    document.getElementById('sec-new-pass').value = '';
+    document.getElementById('sec-confirm-pass').value = '';
+    renderConfig();
+  } catch(e) {
+    errEl.textContent = 'Error de conexión. Intenta de nuevo.';
+    errEl.style.display = 'block';
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Actualizar credenciales'; }
+  }
 }
 
 
