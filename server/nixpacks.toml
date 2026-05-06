@@ -1,0 +1,15 @@
+[phases.setup]
+nixPkgs = ["nodejs_20", "chromium", "nss", "freetype", "harfbuzz", "ca-certificates", "ttf-dejavu"]
+
+[phases.install]
+cmds = ["npm ci --prefer-offline"]
+
+[phases.build]
+cmds = []
+
+[start]
+cmd = "node server.js"
+
+[variables]
+PLAYWRIGHT_BROWSERS_PATH = "/usr"
+PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD = "1"
