@@ -1099,6 +1099,25 @@ function registerMetaRoutes(app) {
     });
   });
 
+  // ── Test send — returns full Meta API response for debugging ────────────────
+  app.get('/meta/wa-test-send', async (req, res) => {
+    const to   = (req.query.to || '').replace(/\D/g, '');
+    const body = req.query.body || 'Test de Ana ✓';
+    if (!to) return res.status(400).json({ error: 'Falta ?to=número' });
+    if (!_waToken || !META_WA_PHONE_ID) return res.json({ error: 'Token o PhoneID no configurado', waToken: !!_waToken, phoneId: META_WA_PHONE_ID });
+    try {
+      const r    = await fetch(`${GRAPH_URL}/${META_WA_PHONE_ID}/messages`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${_waToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messaging_product: 'whatsapp', to, type: 'text', text: { body } }),
+      });
+      const json = await r.json();
+      res.json({ status: r.status, metaResponse: json });
+    } catch(e) {
+      res.json({ error: e.message });
+    }
+  });
+
   // ── Webhook event log (persistent, Firestore) ────────────────────────────────
   app.get('/meta/webhook/log', async (req, res) => {
     try {
