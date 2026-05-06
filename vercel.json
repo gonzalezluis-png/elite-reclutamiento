@@ -12,6 +12,8 @@
     { "src": "ai-panel.js",    "use": "@vercel/static" },
     { "src": "messaging.js",   "use": "@vercel/static" },
     { "src": "wa-sms.js",      "use": "@vercel/static" },
+    { "src": "monitor.js",     "use": "@vercel/static" },
+    { "src": "wa-inbox-view.js","use": "@vercel/static" },
     { "src": "init.js",        "use": "@vercel/static" },
     { "src": "styles.css",    "use": "@vercel/static" }
   ],
@@ -24,6 +26,8 @@
     { "src": "/ai-panel.js",    "dest": "/ai-panel.js"     },
     { "src": "/messaging.js",   "dest": "/messaging.js"    },
     { "src": "/wa-sms.js",      "dest": "/wa-sms.js"       },
+    { "src": "/monitor.js",     "dest": "/monitor.js"      },
+    { "src": "/wa-inbox-view.js","dest": "/wa-inbox-view.js"},
     { "src": "/init.js",        "dest": "/init.js"         },
     { "src": "/styles.css",    "dest": "/styles.css"    },
     { "src": "/webinar.html",  "dest": "/webinar.html"  },
