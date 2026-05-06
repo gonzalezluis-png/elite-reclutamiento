@@ -1,8 +1,5 @@
 const twilio = require('twilio');
-
-const FS_PROJECT = 'elite-reclutamiento-crm';
-const FS_KEY     = 'AIzaSyCW2t1oHb7xc2Vi6vJROGRM7E7nu-CbU3s';
-const FS_BASE    = `https://firestore.googleapis.com/v1/projects/${FS_PROJECT}/databases/(default)/documents`;
+const db = require('./db');
 
 const DAYS = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'];
 
@@ -51,12 +48,8 @@ const DEFAULT_IVR_CONFIG = {
 
 async function loadIvrConfig() {
   try {
-    const r = await fetch(`${FS_BASE}/config/ivr_config?key=${FS_KEY}`);
-    if (!r.ok) return { ...DEFAULT_IVR_CONFIG };
-    const d = await r.json();
-    if (!d.fields) return { ...DEFAULT_IVR_CONFIG };
-    const raw = d.fields.data?.stringValue;
-    return raw ? JSON.parse(raw) : { ...DEFAULT_IVR_CONFIG };
+    const cfg = await db.sbGetConfig('ivr_config');
+    return cfg || { ...DEFAULT_IVR_CONFIG };
   } catch {
     return { ...DEFAULT_IVR_CONFIG };
   }
@@ -64,11 +57,7 @@ async function loadIvrConfig() {
 
 async function saveIvrConfig(config) {
   try {
-    await fetch(`${FS_BASE}/config/ivr_config?key=${FS_KEY}&updateMask.fieldPaths=data`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ fields: { data: { stringValue: JSON.stringify(config) } } }),
-    });
+    await db.sbSetConfig('ivr_config', config);
     return true;
   } catch {
     return false;

@@ -7,6 +7,7 @@ const { chromium } = require('playwright');
 const twilio     = require('twilio');
 // nodemailer removed — usando Resend API
 const { askClaude, askClaudeResume, textToSpeech, loadConfig, loadConfigFromFirestore, saveConfig, DEFAULT_CONFIG, conversationHistory, aiEnabled, loadEntrevistasConfig, saveEntrevistasConfig } = require('./ai');
+const db = require('./db');
 const { registerMetaRoutes } = require('./meta');
 const { fsLeadExists, fsCreateLeadWA, fsGetLeadByPhone, fsUpdateLeadFields, runWAPipeline, humanDelay } = require('./pipeline');
 const { triggerEscalation, handleManagerReply, isManagerPhone, loadManagers, saveManagers, DEFAULT_MANAGERS, getTeamMessages } = require('./escalation');
@@ -383,85 +384,46 @@ app.get('/twilio/sms-inbox', async (req, res) => {
 
 // /twilio/whatsapp y /twilio/whatsapp-inbox removidos — usar /meta/wa-send y /meta/wa-inbox
 
-// ── Firestore base URL (used by /registrar-webinar self-call) ─────────────────
-const FS_PROJECT = 'elite-reclutamiento-crm';
-const FS_KEY     = 'AIzaSyCW2t1oHb7xc2Vi6vJROGRM7E7nu-CbU3s';
-const FS_BASE    = `https://firestore.googleapis.com/v1/projects/${FS_PROJECT}/databases/(default)/documents`;
-
 // ═══════════════════════════════════════════════════════════════════════════════
 //  AUTH SYSTEM
 // ═══════════════════════════════════════════════════════════════════════════════
 const { AUTH_PHONE_PENDING, normalizePhone, handleAuthWAReply, fsGetSession, fsSetSession } = require('./auth-sessions');
 
-const AUTH_FS_BASE = `https://firestore.googleapis.com/v1/projects/elite-reclutamiento-crm/databases/(default)/documents`;
-const AUTH_FS_KEY  = 'AIzaSyCW2t1oHb7xc2Vi6vJROGRM7E7nu-CbU3s';
-
 function hashPass(pass) {
   return crypto.createHash('sha256').update(String(pass)).digest('hex');
 }
 
-function docToUser(doc) {
-  const f = doc.fields || {};
-  return {
-    id:            doc.name.split('/').pop(),
-    nombre:        f.nombre?.stringValue        || '',
-    correo:        f.correo?.stringValue        || '',
-    telefono:      f.telefono?.stringValue      || '',
-    password_hash: f.password_hash?.stringValue || '',
-    role:          f.role?.stringValue          || 'agente',
-    active:        f.active?.booleanValue       !== false,
-    created_at:    f.created_at?.stringValue    || '',
-  };
-}
-
 async function dbGetUsers() {
-  const r = await fetch(`${AUTH_FS_BASE}/er_users?key=${AUTH_FS_KEY}`);
-  const d = await r.json();
-  if (!d.documents) return [];
-  return d.documents.map(docToUser);
+  return db.sbGetUsers();
 }
 async function dbFindUserByEmail(email) {
-  const all = await dbGetUsers();
-  return all.find(u => u.correo.toLowerCase() === email.toLowerCase() && u.active) || null;
+  const all = await db.sbGetUsers();
+  return all.find(u => (u.correo || '').toLowerCase() === email.toLowerCase() && u.active !== false) || null;
 }
 async function dbCreateUser(u) {
   const id = crypto.randomBytes(12).toString('hex');
-  await fetch(`${AUTH_FS_BASE}/er_users?documentId=${id}&key=${AUTH_FS_KEY}`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ fields: {
-      nombre:        { stringValue: u.nombre },
-      correo:        { stringValue: (u.correo || '').toLowerCase() },
-      telefono:      { stringValue: u.telefono || '' },
-      password_hash: { stringValue: hashPass(u.password) },
-      role:          { stringValue: u.role || 'agente' },
-      active:        { booleanValue: true },
-      created_at:    { stringValue: new Date().toISOString() },
-    }}),
+  await db.sbSaveUser(id, {
+    nombre:        u.nombre,
+    correo:        (u.correo || '').toLowerCase(),
+    telefono:      u.telefono || '',
+    password_hash: hashPass(u.password),
+    role:          u.role || 'agente',
+    active:        true,
+    created_at:    new Date().toISOString(),
   });
   return id;
 }
 async function dbUpdateUser(id, fields) {
-  const fsFields = {};
-  const paths    = [];
+  const updates = {};
   for (const [k, v] of Object.entries(fields)) {
-    if (k === 'password') {
-      fsFields.password_hash = { stringValue: hashPass(String(v)) };
-      paths.push('password_hash');
-    } else if (typeof v === 'boolean') {
-      fsFields[k] = { booleanValue: v }; paths.push(k);
-    } else {
-      fsFields[k] = { stringValue: String(v) }; paths.push(k);
-    }
+    if (k === 'password') updates.password_hash = hashPass(String(v));
+    else updates[k] = v;
   }
-  if (!paths.length) return;
-  const mask = paths.map(k => `updateMask.fieldPaths=${encodeURIComponent(k)}`).join('&');
-  await fetch(`${AUTH_FS_BASE}/er_users/${id}?${mask}&key=${AUTH_FS_KEY}`, {
-    method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ fields: fsFields }),
-  });
+  if (!Object.keys(updates).length) return;
+  await db.sbUpdateUser(id, updates);
 }
 async function dbDeleteUser(id) {
-  await fetch(`${AUTH_FS_BASE}/er_users/${id}?key=${AUTH_FS_KEY}`, { method: 'DELETE' });
+  await db.sbDeleteUser(id);
 }
 
 // ── Seed developer on startup ─────────────────────────────────────────────────
@@ -805,22 +767,16 @@ app.post('/ai/pause', async (req, res) => {
           const { sendWhatsApp: _resumeWA } = require('./meta');
           const { humanDelay, runWAPipeline, toE164 } = require('./pipeline');
 
-          // Reconstruct history from Firestore if memory is empty (e.g. after server restart)
+          // Reconstruct history from Supabase if memory is empty (e.g. after server restart)
           if (!conversationHistory.has(convKey) || !conversationHistory.get(convKey).length) {
-            const FS_BASE_R = `https://firestore.googleapis.com/v1/projects/elite-reclutamiento-crm/databases/(default)/documents`;
-            const FS_KEY_R  = 'AIzaSyCW2t1oHb7xc2Vi6vJROGRM7E7nu-CbU3s';
             try {
-              const sub  = await fetch(`${FS_BASE_R}/wa_messages/${cleanPhone}/msgs?key=${FS_KEY_R}&pageSize=200`).then(r => r.json()).catch(() => ({}));
-              const docs = (sub.documents || []).map(d => {
-                const f = d.fields || {};
-                return { dir: f.direction?.stringValue, text: f.text?.stringValue || '', ts: Number(f.ts?.integerValue || 0) };
-              }).filter(m => m.text && (m.dir === 'in' || m.dir === 'out')).sort((a,b) => a.ts - b.ts);
+              const msgs = await db.sbGetWAMessages(cleanPhone, 200);
+              const docs = msgs.filter(m => m.text && (m.direction === 'in' || m.direction === 'out')).sort((a,b) => a.ts - b.ts);
 
-              // Merge consecutive same-direction, strip leading outbound
               const merged = [];
               for (const m of docs.slice(-24)) {
-                if (merged.length && merged[merged.length-1].dir === m.dir) merged[merged.length-1].text += '\n' + m.text;
-                else merged.push({...m});
+                if (merged.length && merged[merged.length-1].dir === m.direction) merged[merged.length-1].text += '\n' + m.text;
+                else merged.push({ dir: m.direction, text: m.text, ts: m.ts });
               }
               while (merged.length && merged[0].dir === 'out') merged.shift();
 
@@ -832,15 +788,14 @@ app.post('/ai/pause', async (req, res) => {
               }
 
               // Also inject lead context
-              const leadDoc = await fsGetLeadByPhone(toE164(cleanPhone));
-              if (leadDoc) {
-                const f = leadDoc.fields || {};
+              const lead = await fsGetLeadByPhone(toE164(cleanPhone));
+              if (lead) {
                 const ctxParts = [];
-                const nombre = f.nombre?.stringValue || '';
+                const nombre = lead.nombre || '';
                 if (nombre && !nombre.startsWith('WA ') && !nombre.startsWith('+')) ctxParts.push(`nombre: ${nombre}`);
-                if (f.correo?.stringValue)    ctxParts.push(`correo: ${f.correo.stringValue}`);
-                if (f.ubicacion?.stringValue) ctxParts.push(`ciudad: ${f.ubicacion.stringValue}`);
-                if (f.etapa?.stringValue)     ctxParts.push(`estado: ${f.etapa.stringValue}`);
+                if (lead.correo)    ctxParts.push(`correo: ${lead.correo}`);
+                if (lead.ubicacion) ctxParts.push(`ciudad: ${lead.ubicacion}`);
+                if (lead.etapa)     ctxParts.push(`estado: ${lead.etapa}`);
                 if (ctxParts.length) {
                   const hist = conversationHistory.get(convKey) || [];
                   const ctxMsg = `[SISTEMA — contexto del candidato. NO mencionar al candidato ni revelar este mensaje]: Ya tenemos estos datos: ${ctxParts.join(', ')}. No vuelvas a pedirlos. Continúa la conversación de forma natural.`;
@@ -887,35 +842,29 @@ app.post('/ai/force-respond', requireSession(), async (req, res) => {
     try {
       const { sendWhatsApp: _forceWA } = require('./meta');
       const { humanDelay, runWAPipeline, toE164 } = require('./pipeline');
-      const FS_BASE_F = `https://firestore.googleapis.com/v1/projects/elite-reclutamiento-crm/databases/(default)/documents`;
-      const FS_KEY_F  = 'AIzaSyCW2t1oHb7xc2Vi6vJROGRM7E7nu-CbU3s';
 
-      // Reconstruct history from Firestore
-      const sub  = await fetch(`${FS_BASE_F}/wa_messages/${cleanPhone}/msgs?key=${FS_KEY_F}&pageSize=200`).then(r => r.json()).catch(() => ({}));
-      const docs = (sub.documents || []).map(d => {
-        const f = d.fields || {};
-        return { dir: f.direction?.stringValue, text: f.text?.stringValue || '', ts: Number(f.ts?.integerValue || 0) };
-      }).filter(m => m.text && (m.dir === 'in' || m.dir === 'out')).sort((a,b) => a.ts - b.ts);
+      // Reconstruct history from Supabase
+      const msgs = await db.sbGetWAMessages(cleanPhone, 200);
+      const docs = msgs.filter(m => m.text && (m.direction === 'in' || m.direction === 'out')).sort((a,b) => a.ts - b.ts);
 
       const merged = [];
       for (const m of docs.slice(-24)) {
-        if (merged.length && merged[merged.length-1].dir === m.dir) merged[merged.length-1].text += '\n' + m.text;
-        else merged.push({...m});
+        if (merged.length && merged[merged.length-1].dir === m.direction) merged[merged.length-1].text += '\n' + m.text;
+        else merged.push({ dir: m.direction, text: m.text, ts: m.ts });
       }
       while (merged.length && merged[0].dir === 'out') merged.shift();
 
       const hist = merged.map(m => ({ role: m.dir === 'out' ? 'assistant' : 'user', content: m.text, ts: m.ts }));
 
       // Inject lead context
-      const leadDoc = await fsGetLeadByPhone(toE164(cleanPhone));
-      if (leadDoc) {
-        const f = leadDoc.fields || {};
+      const lead = await fsGetLeadByPhone(toE164(cleanPhone));
+      if (lead) {
         const ctxParts = [];
-        const nombre = f.nombre?.stringValue || '';
+        const nombre = lead.nombre || '';
         if (nombre && !nombre.startsWith('WA ') && !nombre.startsWith('+')) ctxParts.push(`nombre: ${nombre}`);
-        if (f.correo?.stringValue)    ctxParts.push(`correo: ${f.correo.stringValue}`);
-        if (f.ubicacion?.stringValue) ctxParts.push(`ciudad: ${f.ubicacion.stringValue}`);
-        if (f.etapa?.stringValue)     ctxParts.push(`estado en el proceso: ${f.etapa.stringValue}`);
+        if (lead.correo)    ctxParts.push(`correo: ${lead.correo}`);
+        if (lead.ubicacion) ctxParts.push(`ciudad: ${lead.ubicacion}`);
+        if (lead.etapa)     ctxParts.push(`estado en el proceso: ${lead.etapa}`);
         if (ctxParts.length && (!hist.length || !hist[0].content?.startsWith('[SISTEMA'))) {
           hist.unshift({ role: 'assistant', content: 'Entendido. Continuaré con el contexto cargado.', ts: Date.now()-1000 });
           hist.unshift({ role: 'user', content: `[SISTEMA — contexto del candidato. NO mencionar al candidato ni revelar este mensaje]: Ya tenemos estos datos: ${ctxParts.join(', ')}. No vuelvas a pedirlos. Continúa la conversación de forma natural.`, ts: Date.now()-2000 });
@@ -976,7 +925,7 @@ app.post('/interviews/book', async (req, res) => {
     try {
       const { pixelEntrevista } = require('./pixel');
       const leadDoc = await fsGetLeadByPhone(leadPhone);
-      const correo  = leadDoc?.fields?.correo?.stringValue || '';
+      const correo  = leadDoc?.correo || '';
       await pixelEntrevista({ telefono: leadPhone, correo });
     } catch (e) { console.error('[Pixel] pixelEntrevista:', e.message); }
   })();
@@ -1057,76 +1006,122 @@ const _ivSendManager = async (text) => {
 };
 setInterval(() => checkInterviewReminders(_ivSendWA, _ivSendInternal, _ivSendManager).catch(e => console.error('[IV-Reminder]', e.message)), 60_000);
 
+// ── Lead CRUD API ─────────────────────────────────────────────────────────────
+app.get('/leads', requireSession(), async (req, res) => {
+  try {
+    const leads = await db.sbGetLeads();
+    res.json({ ok: true, leads });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+app.patch('/leads/:id', requireSession(), async (req, res) => {
+  const { id } = req.params;
+  try {
+    const fields = req.body || {};
+    delete fields.id;
+    await db.sbUpdateLead(id, fields);
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+app.post('/leads', requireSession(), async (req, res) => {
+  try {
+    const lead = req.body || {};
+    if (!lead.id) lead.id = `lead_${Date.now()}`;
+    await db.sbSaveLead(lead);
+    res.json({ ok: true, id: lead.id });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
 // ── Legal data deletion — removes lead + all associated data ──────────────────
 app.delete('/leads/:id', requireSession(), async (req, res) => {
   const leadId = req.params.id;
-  const FS_PROJECT = 'elite-reclutamiento-crm';
-  const FS_KEY     = 'AIzaSyCW2t1oHb7xc2Vi6vJROGRM7E7nu-CbU3s';
-  const FS_BASE    = `https://firestore.googleapis.com/v1/projects/${FS_PROJECT}/databases/(default)/documents`;
-
   try {
     // 1. Read lead to get phone before deleting
-    const leadRes  = await fetch(`${FS_BASE}/leads/${leadId}?key=${FS_KEY}`);
-    const leadData = await leadRes.json();
-    const phone    = leadData?.fields?.telefono?.stringValue || '';
+    const lead  = await db.sbGetLead(leadId);
+    const phone = lead?.telefono || '';
 
-    // 2. Delete Firestore lead document
-    await fetch(`${FS_BASE}/leads/${leadId}?key=${FS_KEY}`, { method: 'DELETE' });
+    // 2. Delete lead
+    await db.sbDeleteLead(leadId);
 
-    // 3. Delete all conversation history keys that match this phone
+    // 3. Delete conversation history keys
     const deleted = { lead: leadId, history: [], escalations: [] };
     if (phone) {
       const bare = phone.replace(/^whatsapp:\+?/, '').replace(/^\+/, '');
-      const keysToTry = [
-        phone,
-        `+${bare}`,
-        bare,
-        `whatsapp:+${bare}`,
-        `whatsapp:${bare}`,
-        `wa_meta:${bare}`,
-        `wa_meta:+${bare}`,
-      ];
-      for (const k of keysToTry) {
-        if (conversationHistory.has(k)) {
-          conversationHistory.delete(k);
-          deleted.history.push(k);
-        }
+      for (const k of [phone, `+${bare}`, bare, `whatsapp:+${bare}`, `whatsapp:${bare}`, `wa_meta:${bare}`, `wa_meta:+${bare}`]) {
+        if (conversationHistory.has(k)) { conversationHistory.delete(k); deleted.history.push(k); }
       }
     }
 
-    // 4. Delete escalation records for this lead
-    const escRes  = await fetch(`${FS_BASE}/escalations?key=${FS_KEY}&pageSize=200`);
-    const escData = await escRes.json();
-    const escDocs = escData?.documents || [];
+    // 4. Delete escalation records
+    const escs = await db.sbGetEscalations();
     await Promise.all(
-      escDocs
-        .filter(d => {
-          const lp = d.fields?.leadPhone?.stringValue || '';
-          return lp.replace(/^\+/, '') === phone.replace(/^\+/, '') || d.fields?.leadId?.stringValue === leadId;
-        })
-        .map(async d => {
-          const docId = d.name.split('/').pop();
-          await fetch(`${FS_BASE}/escalations/${docId}?key=${FS_KEY}`, { method: 'DELETE' });
-          deleted.escalations.push(docId);
-        })
+      escs.filter(r => r.lead_phone?.replace(/^\+/,'') === phone.replace(/^\+/,'') || r.data?.leadId === leadId)
+        .map(async r => { await db.sbDeleteEscalation(r.id); deleted.escalations.push(r.id); })
     );
 
-    // 5. Delete wa_messages subcollection (Meta WA message history)
-    if (phone) {
-      const bare = phone.replace(/[^0-9]/g, '');
-      const _waDocs = await fetch(`${FS_BASE}/wa_messages/${bare}/msgs?key=${FS_KEY}&pageSize=200`).then(r => r.json()).catch(() => ({}));
-      await Promise.all((_waDocs.documents || []).map(d =>
-        fetch(`${d.name}?key=${FS_KEY}`, { method: 'DELETE' }).catch(() => {})
-      ));
-      await fetch(`${FS_BASE}/wa_messages/${bare}?key=${FS_KEY}`, { method: 'DELETE' }).catch(() => {});
-    }
+    // 5. Delete wa_messages
+    if (phone) await db.sbDeleteWAMessages(phone);
 
-    const ip = req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'desconocida';
+    const ip  = req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'desconocida';
     const who = req.authSession?.name || req.authSession?.userId || 'desconocido';
-    console.log(`[Data Deletion] Lead ${leadId} eliminado por ${who} (IP: ${ip}). Historial: [${deleted.history.join(', ')}]. Escalaciones: [${deleted.escalations.join(', ')}]`);
+    console.log(`[Data Deletion] Lead ${leadId} eliminado por ${who} (IP: ${ip})`);
     res.json({ ok: true, deleted });
   } catch (e) {
     console.error('[Data Deletion] Error:', e.message);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// ── Public webinar registration (no auth — public form) ──────────────────────
+app.post('/webinar/register', async (req, res) => {
+  const { leadId, nombre, telefono, correo, now } = req.body;
+  if (!leadId || !nombre || !telefono || !correo) {
+    return res.status(400).json({ ok: false, error: 'Campos requeridos: leadId, nombre, telefono, correo' });
+  }
+  const createdAt = now || new Date().toISOString();
+  const WEBINAR_URL = process.env.WEBINAR_URL || 'https://crm.grupoelitework.com/webinar.html';
+  try {
+    await db.sbSaveLead({
+      id: leadId, nombre, telefono, correo,
+      fuente:      'Registro Webinar',
+      etapa:       'Inscrito en Webinar',
+      pipeline_id: 'en-webinar',
+      estado:      'abierto',
+      valor:       0,
+      propietario: 'Ana (IA)',
+      link_webinar: WEBINAR_URL,
+      created_at:  createdAt,
+      notas: [], tareas: [], pagos: [], etiquetas: [],
+      historial: [{ icono:'📝', accion:'Lead registrado vía formulario público del webinar', fecha: createdAt, usuario:'Formulario Web' }],
+    });
+    res.json({ ok: true, leadId });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// ── Public webinar tracking (no auth — candidates use this) ──────────────────
+app.post('/webinar/track/:leadId', async (req, res) => {
+  const { leadId } = req.params;
+  const ALLOWED = ['webinar_visto_pct','webinar_tiempo_visto','webinar_pausas',
+    'webinar_completado','webinar_ultima_sesion','webinar_ultimo_evento',
+    'quiere_entrevista','quiere_entrevista_fecha','vio_webinar'];
+  const fields = {};
+  for (const key of ALLOWED) {
+    if (req.body[key] !== undefined) fields[key] = req.body[key];
+  }
+  if (!Object.keys(fields).length) return res.json({ ok: true });
+  try {
+    await db.sbUpdateLead(leadId, fields);
+    res.json({ ok: true });
+  } catch (e) {
     res.status(500).json({ ok: false, error: e.message });
   }
 });

@@ -654,17 +654,15 @@ async function _acBookSlot(slot) {
       usuario: currentUser?.nombre || 'Admin',
     }]);
 
-    const fields = {
-      pipeline_id:    toFsVal('entrevistas-generales'),
-      etapa:          toFsVal('En Entrevista'),
-      webinar_accion: toFsVal('en-entrevista'),
-      historial:      toFsVal(hist),
-    };
-    const mask = Object.keys(fields).join('&updateMask.fieldPaths=');
-    await fetch(`${FS_BASE}/leads/${_acLead.id}?key=${FS_KEY}&updateMask.fieldPaths=${mask}`, {
+    await fetch(`${SERVER_URL}/leads/${_acLead.id}`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ fields }),
+      headers: _leadHeaders(),
+      body: JSON.stringify({
+        pipeline_id:    'entrevistas-generales',
+        etapa:          'En Entrevista',
+        webinar_accion: 'en-entrevista',
+        historial:      hist,
+      }),
     });
 
     // Update local state

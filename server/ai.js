@@ -2,12 +2,8 @@ const Anthropic = require('@anthropic-ai/sdk');
 const fs   = require('fs');
 const path = require('path');
 
-const anthropic  = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-const FS_PROJECT = 'elite-reclutamiento-crm';
-const FS_KEY     = 'AIzaSyCW2t1oHb7xc2Vi6vJROGRM7E7nu-CbU3s';
-const FS_BASE    = `https://firestore.googleapis.com/v1/projects/${FS_PROJECT}/databases/(default)/documents`;
-const CONFIG_DOC             = `${FS_BASE}/config/ai_config?key=${FS_KEY}`;
-const CONFIG_ENTREVISTAS_DOC = `${FS_BASE}/config/ai_entrevistas_config?key=${FS_KEY}`;
+const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+const db = require('./db');
 
 // Per-phone conversation history: phone → [{role, content, ts}]
 const conversationHistory = new Map();
@@ -158,68 +154,18 @@ Si el candidato dice que el correo no es el correcto, pídele el correo actualiz
 - No hablar de temas que no sean relacionados con la oportunidad de trabajo`
 };
 
-// ── Config load/save (Firestore-backed, in-memory cache) ─────────────────────
+// ── Config load/save (Supabase-backed, in-memory cache) ──────────────────────
 let _configCache = null;
-
-function fsConfigVal(v) {
-  if (v === null || v === undefined) return { nullValue: null };
-  if (typeof v === 'boolean') return { booleanValue: v };
-  if (typeof v === 'number')  return { doubleValue: v };
-  if (typeof v === 'string')  return { stringValue: v };
-  if (Array.isArray(v))       return { arrayValue: { values: v.map(fsConfigVal) } };
-  if (typeof v === 'object')  return { mapValue: { fields: Object.fromEntries(Object.entries(v).map(([k, x]) => [k, fsConfigVal(x)])) } };
-  return { stringValue: String(v) };
-}
-
-function fsConfigParse(fields) {
-  if (!fields) return {};
-  const out = {};
-  for (const [k, v] of Object.entries(fields)) {
-    if (v.stringValue  !== undefined) out[k] = v.stringValue;
-    else if (v.booleanValue !== undefined) out[k] = v.booleanValue;
-    else if (v.doubleValue  !== undefined) out[k] = v.doubleValue;
-    else if (v.integerValue !== undefined) out[k] = Number(v.integerValue);
-    else if (v.nullValue    !== undefined) out[k] = null;
-    else if (v.arrayValue) out[k] = (v.arrayValue.values || []).map(i => fsConfigParse(i.mapValue?.fields || { _: i })?._  ?? fsConfigParseSingle(i));
-    else if (v.mapValue)   out[k] = fsConfigParse(v.mapValue.fields || {});
-  }
-  return out;
-}
-
-function fsConfigParseSingle(v) {
-  if (v.stringValue  !== undefined) return v.stringValue;
-  if (v.booleanValue !== undefined) return v.booleanValue;
-  if (v.doubleValue  !== undefined) return v.doubleValue;
-  if (v.integerValue !== undefined) return Number(v.integerValue);
-  if (v.nullValue    !== undefined) return null;
-  if (v.mapValue)    return fsConfigParse(v.mapValue.fields || {});
-  if (v.arrayValue)  return (v.arrayValue.values || []).map(fsConfigParseSingle);
-  return null;
-}
 
 async function loadConfigFromFirestore() {
   try {
-    const res  = await fetch(CONFIG_DOC);
-    const data = await res.json();
-    if (data.fields) {
-      const cfg = fsConfigParse(data.fields);
-      if (data.fields.qa?.arrayValue?.values) {
-        cfg.qa = data.fields.qa.arrayValue.values.map(v => fsConfigParse(v.mapValue?.fields || {}));
-      }
-      if (data.fields.cases?.arrayValue?.values) {
-        cfg.cases = data.fields.cases.arrayValue.values.map(v => fsConfigParse(v.mapValue?.fields || {}));
-      }
-      if (data.fields.triggers?.arrayValue?.values) {
-        cfg.triggers = data.fields.triggers.arrayValue.values.map(v => fsConfigParse(v.mapValue?.fields || {}));
-      }
-      return { ...DEFAULT_CONFIG, ...cfg };
-    }
+    const cfg = await db.sbGetConfig('ai_config');
+    if (cfg) return { ...DEFAULT_CONFIG, ...cfg };
   } catch {}
   return { ...DEFAULT_CONFIG };
 }
 
 function loadConfig() {
-  // Return cache synchronously; refresh async in background
   if (!_configCache) _configCache = { ...DEFAULT_CONFIG };
   loadConfigFromFirestore().then(cfg => { _configCache = cfg; }).catch(() => {});
   return _configCache;
@@ -228,82 +174,19 @@ function loadConfig() {
 async function saveConfig(config) {
   try {
     _configCache = config;
-    const fields = {
-      general:   fsConfigVal(config.general  || ''),
-      webinar:   fsConfigVal(config.webinar  || ''),
-      forbidden: fsConfigVal(config.forbidden || ''),
-      qa: {
-        arrayValue: {
-          values: (config.qa || []).map(item => ({
-            mapValue: { fields: {
-              id:       fsConfigVal(item.id       || ''),
-              question: fsConfigVal(item.question || ''),
-              answer:   fsConfigVal(item.answer   || ''),
-            }}
-          }))
-        }
-      },
-      cases: {
-        arrayValue: {
-          values: (config.cases || []).map(item => ({
-            mapValue: { fields: {
-              id:        fsConfigVal(item.id        || ''),
-              situation: fsConfigVal(item.situation || ''),
-              response:  fsConfigVal(item.response  || ''),
-            }}
-          }))
-        }
-      },
-      triggers: {
-        arrayValue: {
-          values: (config.triggers || []).map(item => ({
-            mapValue: { fields: {
-              id:          fsConfigVal(item.id          || ''),
-              escKey:      fsConfigVal(item.escKey      || ''),
-              icon:        fsConfigVal(item.icon        || ''),
-              title:       fsConfigVal(item.title       || ''),
-              description: fsConfigVal(item.description || ''),
-            }}
-          }))
-        }
-      },
-    };
-    const res = await fetch(CONFIG_DOC, {
-      method:  'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ fields }),
-    });
-    return res.ok;
+    await db.sbSetConfig('ai_config', config);
+    return true;
   } catch { return false; }
 }
 
-// ── Entrevistas config (separate Firestore doc) ───────────────────────────────
+// ── Entrevistas config ────────────────────────────────────────────────────────
 const DEFAULT_ENTREVISTAS_CONFIG = { general:'', qa:[], forbidden:'', cases:[], triggers:[] };
 let _entrevistasCache = null;
 
-function _parseArrayField(fields, key, subFields) {
-  if (!fields[key]?.arrayValue?.values) return [];
-  return fields[key].arrayValue.values.map(v => {
-    const f = v.mapValue?.fields || {};
-    return Object.fromEntries(subFields.map(sf => [sf, f[sf]?.stringValue || '']));
-  });
-}
-
 async function loadEntrevistasConfig() {
   try {
-    const res  = await fetch(CONFIG_ENTREVISTAS_DOC);
-    const data = await res.json();
-    if (data.fields) {
-      const cfg = {
-        general:   data.fields.general?.stringValue   || '',
-        forbidden: data.fields.forbidden?.stringValue || '',
-        qa:       _parseArrayField(data.fields, 'qa',       ['id','question','answer']),
-        cases:    _parseArrayField(data.fields, 'cases',    ['id','situation','response']),
-        triggers: _parseArrayField(data.fields, 'triggers', ['id','escKey','icon','title','description']),
-      };
-      _entrevistasCache = cfg;
-      return cfg;
-    }
+    const cfg = await db.sbGetConfig('ai_entrevistas_config');
+    if (cfg) { _entrevistasCache = cfg; return cfg; }
   } catch {}
   return { ...DEFAULT_ENTREVISTAS_CONFIG };
 }
@@ -311,23 +194,8 @@ async function loadEntrevistasConfig() {
 async function saveEntrevistasConfig(config) {
   try {
     _entrevistasCache = config;
-    const mkArr = (items, subFields) => ({
-      arrayValue: { values: items.map(item => ({
-        mapValue: { fields: Object.fromEntries(subFields.map(sf => [sf, fsConfigVal(item[sf] || '')])) }
-      }))}
-    });
-    const fields = {
-      general:   fsConfigVal(config.general   || ''),
-      forbidden: fsConfigVal(config.forbidden || ''),
-      qa:       mkArr(config.qa       || [], ['id','question','answer']),
-      cases:    mkArr(config.cases    || [], ['id','situation','response']),
-      triggers: mkArr(config.triggers || [], ['id','escKey','icon','title','description']),
-    };
-    const res = await fetch(CONFIG_ENTREVISTAS_DOC, {
-      method: 'PATCH', headers: { 'Content-Type':'application/json' },
-      body: JSON.stringify({ fields }),
-    });
-    return res.ok;
+    await db.sbSetConfig('ai_entrevistas_config', config);
+    return true;
   } catch { return false; }
 }
 

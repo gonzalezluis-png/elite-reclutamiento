@@ -1,9 +1,5 @@
-const FS_PROJECT = 'elite-reclutamiento-crm';
-const FS_KEY     = 'AIzaSyCW2t1oHb7xc2Vi6vJROGRM7E7nu-CbU3s';
-const FS_BASE    = `https://firestore.googleapis.com/v1/projects/${FS_PROJECT}/databases/(default)/documents`;
-const CONFIG_DOC = `${FS_BASE}/config/interview_config?key=${FS_KEY}`;
-
-const { sendWhatsAppTemplate, sendTemplateOrFallback, TEMPLATES } = require('./templates');
+const db = require('./db');
+const { sendTemplateOrFallback } = require('./templates');
 
 // ── Defaults ──────────────────────────────────────────────────────────────────
 const DEFAULT_INTERVIEW_CONFIG = {
@@ -13,25 +9,23 @@ const DEFAULT_INTERVIEW_CONFIG = {
   },
   zoomLink: 'https://zoom.us/j/XXXXXXXXXX',
   schedule: {
-    // days: array of weekday numbers 1=Mon…5=Fri
     days:      [1, 2, 3, 4, 5],
-    startHour: 9,    // 9:00 AM
-    endHour:   18,   // 6:00 PM
-    // overrides: [{ date:'YYYY-MM-DD', startHour, endHour, enabled:bool }]
+    startHour: 9,
+    endHour:   18,
     overrides: [],
   },
   rules: {
-    minHoursAhead: 3,   // minimum hours from now
-    maxDaysOut:    3,   // max days after webinar
-    maxOptions:    3,   // max slot options to offer
-    slotDuration:  60,  // minutes per interview
+    minHoursAhead: 3,
+    maxDaysOut:    3,
+    maxOptions:    3,
+    slotDuration:  60,
   },
   reminders: [
     {
       id:      'r1',
       label:   'Recordatorio mañana',
-      trigger: 'morning_of',    // 'morning_of' | 'hours_before' | 'minutes_after'
-      value:   8,               // 8:00 AM for morning_of; N hours/minutes for others
+      trigger: 'morning_of',
+      value:   8,
       message: 'Hola {nombre}, te recordamos que hoy tienes tu entrevista a las {hora} vía Zoom. ¡Te esperamos!',
     },
     {
@@ -52,71 +46,42 @@ const DEFAULT_INTERVIEW_CONFIG = {
     },
   ],
   confirmation: {
-    hoursAfterBooking: 0,   // 0 = immediate
+    hoursAfterBooking: 0,
     message: '✅ Tu entrevista ha sido agendada para el {fecha} a las {hora}.\n\nTe enviaremos el link de Zoom el día de la entrevista.\n\n¡Nos vemos pronto!',
   },
 };
 
-// ── Firestore helpers ─────────────────────────────────────────────────────────
-function fsVal(v) {
-  if (v === null || v === undefined) return { nullValue: null };
-  if (typeof v === 'boolean') return { booleanValue: v };
-  if (typeof v === 'number')  return { doubleValue: v };
-  if (typeof v === 'string')  return { stringValue: v };
-  if (Array.isArray(v))       return { arrayValue: { values: v.map(fsVal) } };
-  if (typeof v === 'object')  return { mapValue: { fields: Object.fromEntries(Object.entries(v).map(([k, x]) => [k, fsVal(x)])) } };
-  return { nullValue: null };
+// ── Row ↔ JS object ───────────────────────────────────────────────────────────
+function rowToInterview(r) {
+  return { id: r.id, ...r.data };
 }
 
-function fsParse(fields) {
-  const out = {};
-  for (const [k, v] of Object.entries(fields || {})) {
-    if (v.stringValue  !== undefined) out[k] = v.stringValue;
-    else if (v.booleanValue !== undefined) out[k] = v.booleanValue;
-    else if (v.doubleValue  !== undefined) out[k] = v.doubleValue;
-    else if (v.integerValue !== undefined) out[k] = Number(v.integerValue);
-    else if (v.nullValue    !== undefined) out[k] = null;
-    else if (v.arrayValue)  out[k] = (v.arrayValue.values || []).map(i => i.mapValue ? fsParse(i.mapValue.fields || {}) : fsParseSingle(i));
-    else if (v.mapValue)    out[k] = fsParse(v.mapValue.fields || {});
-  }
-  return out;
-}
-
-function fsParseSingle(v) {
-  if (v.stringValue  !== undefined) return v.stringValue;
-  if (v.booleanValue !== undefined) return v.booleanValue;
-  if (v.doubleValue  !== undefined) return v.doubleValue;
-  if (v.integerValue !== undefined) return Number(v.integerValue);
-  if (v.nullValue    !== undefined) return null;
-  if (v.mapValue)    return fsParse(v.mapValue.fields || {});
-  if (v.arrayValue)  return (v.arrayValue.values || []).map(fsParseSingle);
-  return null;
+function interviewToRow(doc) {
+  return {
+    id:         doc.id,
+    lead_phone: (doc.leadPhone || '').replace(/\D/g, ''),
+    lead_name:  doc.leadName  || '',
+    slot_iso:   doc.slotIso   || null,
+    status:     doc.status    || 'scheduled',
+    zoom_link:  doc.zoomLink  || '',
+    conv_key:   doc.convKey   || '',
+    data:       doc,
+  };
 }
 
 // ── Config load/save ──────────────────────────────────────────────────────────
-let _configCache = null;
-
 async function loadInterviewConfig() {
   try {
-    const res  = await fetch(CONFIG_DOC);
-    const data = await res.json();
-    if (data.fields) {
-      const cfg = fsParse(data.fields);
-      return deepMerge(DEFAULT_INTERVIEW_CONFIG, cfg);
-    }
+    const cfg = await db.sbGetConfig('interview_config');
+    if (cfg) return deepMerge(DEFAULT_INTERVIEW_CONFIG, cfg);
   } catch {}
   return { ...DEFAULT_INTERVIEW_CONFIG };
 }
 
 async function saveInterviewConfig(cfg) {
-  _configCache = cfg;
   try {
-    const res = await fetch(CONFIG_DOC, {
-      method:  'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ fields: fsVal(cfg).mapValue.fields }),
-    });
-    return res.ok;
+    await db.sbSetConfig('interview_config', cfg);
+    return true;
   } catch { return false; }
 }
 
@@ -141,7 +106,7 @@ async function getAvailableSlots(cfg, fromDate) {
   const earliest = new Date(now.getTime() + minMs);
   const booked   = await getBookedSlots();
   const SLOTS_PER_DAY = 3;
-  const MAX_LOOK = 14; // days to scan
+  const MAX_LOOK = 14;
 
   function getSlotsForDay(date) {
     const weekday  = date.getDay();
@@ -150,7 +115,6 @@ async function getAvailableSlots(cfg, fromDate) {
     if (!enabled) return [];
     const startH = override ? override.startHour : (sched.startHour ?? 9);
     const endH   = override ? override.endHour   : (sched.endHour   ?? 18);
-    // Collect all available hours for the day
     const allHours = [];
     const dateStr = toDateStr(date);
     for (let h = startH; h < endH; h++) {
@@ -161,12 +125,10 @@ async function getAvailableSlots(cfg, fromDate) {
       allHours.push(h);
     }
     if (!allHours.length) return [];
-    // Pick SLOTS_PER_DAY spread across the day (not consecutive)
     const picked = [];
     if (allHours.length <= SLOTS_PER_DAY) {
       picked.push(...allHours);
     } else {
-      // Divide day into thirds and pick one random hour from each third
       const third = Math.floor(allHours.length / SLOTS_PER_DAY);
       for (let i = 0; i < SLOTS_PER_DAY; i++) {
         const segStart = i * third;
@@ -182,7 +144,6 @@ async function getAvailableSlots(cfg, fromDate) {
     });
   }
 
-  // Day 1: today (or first available day)
   let day1Slots = [], day1Offset = -1;
   for (let offset = 0; offset < MAX_LOOK; offset++) {
     const date = new Date(now);
@@ -192,7 +153,6 @@ async function getAvailableSlots(cfg, fromDate) {
     if (s.length) { day1Slots = s; day1Offset = offset; break; }
   }
 
-  // Day 2: next available day after day1
   let day2Slots = [];
   for (let offset = day1Offset + 1; offset < MAX_LOOK; offset++) {
     const date = new Date(now);
@@ -207,14 +167,13 @@ async function getAvailableSlots(cfg, fromDate) {
 
 async function getBookedSlots() {
   try {
-    const res  = await fetch(`${FS_BASE}/interviews?key=${FS_KEY}&pageSize=200`);
-    const data = await res.json();
+    const rows = await db.sbGetInterviews();
     const set  = new Set();
-    for (const doc of data.documents || []) {
-      const f = doc.fields || {};
-      const iso = f.slotIso?.stringValue;
-      if (iso && f.status?.stringValue !== 'cancelled') {
-        const d = new Date(iso);
+    for (const r of rows) {
+      const iso    = r.slot_iso || r.data?.slotIso;
+      const status = r.status   || r.data?.status;
+      if (iso && status !== 'cancelled') {
+        const d     = new Date(iso);
         const etHour = parseInt(new Intl.DateTimeFormat('en-US', {
           timeZone: TEAM_TZ, hour: 'numeric', hour12: false,
         }).format(d));
@@ -225,11 +184,9 @@ async function getBookedSlots() {
   } catch { return new Set(); }
 }
 
-const TEAM_TZ = 'America/New_York'; // equipo en Florida (Eastern Time)
+const TEAM_TZ = 'America/New_York';
 
-// Convierte una hora en ET (hh:00) en un Date UTC correcto
 function makeETDate(dateStr, hour) {
-  // Crea un Date provisional en UTC y ajusta para que la hora local en ET sea la correcta
   const provisional = new Date(`${dateStr}T${String(hour).padStart(2,'0')}:00:00Z`);
   const etHour = parseInt(new Intl.DateTimeFormat('en-US', {
     timeZone: TEAM_TZ, hour: 'numeric', hour12: false,
@@ -238,7 +195,6 @@ function makeETDate(dateStr, hour) {
   return new Date(provisional.getTime() - diff * 3_600_000);
 }
 
-// Fecha YYYY-MM-DD en ET
 function toDateStr(d) {
   return new Intl.DateTimeFormat('en-CA', { timeZone: TEAM_TZ }).format(d);
 }
@@ -249,7 +205,6 @@ function formatSlotLabel(d, candidateTZ) {
     weekday: 'long', day: 'numeric', month: 'short',
     hour: 'numeric', minute: '2-digit', hour12: true,
   }).format(d);
-  // Capitalizar primera letra
   const label = fmtET.charAt(0).toUpperCase() + fmtET.slice(1) + ' ET';
   if (candidateTZ && candidateTZ !== TEAM_TZ) {
     const localTime = new Intl.DateTimeFormat('es-MX', {
@@ -260,9 +215,7 @@ function formatSlotLabel(d, candidateTZ) {
   return label;
 }
 
-// Mapeo estado → IANA timezone (principales estados de candidatos)
 const STATE_TZ_MAP = {
-  // Eastern
   'florida': 'America/New_York', 'fl': 'America/New_York',
   'nueva york': 'America/New_York', 'new york': 'America/New_York', 'ny': 'America/New_York',
   'nueva jersey': 'America/New_York', 'new jersey': 'America/New_York', 'nj': 'America/New_York',
@@ -274,7 +227,6 @@ const STATE_TZ_MAP = {
   'ohio': 'America/New_York', 'oh': 'America/New_York',
   'michigan': 'America/New_York', 'mi': 'America/New_York',
   'massachusetts': 'America/New_York', 'ma': 'America/New_York',
-  // Central
   'texas': 'America/Chicago', 'tx': 'America/Chicago',
   'illinois': 'America/Chicago', 'il': 'America/Chicago',
   'tennessee': 'America/Chicago', 'tn': 'America/Chicago',
@@ -291,26 +243,22 @@ const STATE_TZ_MAP = {
   'nebraska': 'America/Chicago', 'ne': 'America/Chicago',
   'dakota del norte': 'America/Chicago', 'north dakota': 'America/Chicago', 'nd': 'America/Chicago',
   'dakota del sur': 'America/Chicago', 'south dakota': 'America/Chicago', 'sd': 'America/Chicago',
-  // Mountain
   'colorado': 'America/Denver', 'co': 'America/Denver',
   'utah': 'America/Denver', 'ut': 'America/Denver',
   'wyoming': 'America/Denver', 'wy': 'America/Denver',
   'montana': 'America/Denver', 'mt': 'America/Denver',
   'idaho': 'America/Denver', 'id': 'America/Denver',
   'nuevo mexico': 'America/Denver', 'new mexico': 'America/Denver', 'nm': 'America/Denver',
-  // Pacific
   'california': 'America/Los_Angeles', 'ca': 'America/Los_Angeles',
   'oregon': 'America/Los_Angeles', 'or': 'America/Los_Angeles',
   'washington': 'America/Los_Angeles', 'wa': 'America/Los_Angeles',
   'nevada': 'America/Los_Angeles', 'nv': 'America/Los_Angeles',
-  // Arizona (sin DST)
   'arizona': 'America/Phoenix', 'az': 'America/Phoenix',
 };
 
 function getCandidateTZ(location) {
   if (!location) return null;
   const loc = location.toLowerCase().trim();
-  // El Paso es Mountain aunque Texas es Central
   if (loc.includes('el paso')) return 'America/Denver';
   for (const [key, tz] of Object.entries(STATE_TZ_MAP)) {
     if (loc.includes(key)) return tz;
@@ -320,10 +268,9 @@ function getCandidateTZ(location) {
 
 // ── Book interview ────────────────────────────────────────────────────────────
 async function bookInterview({ leadPhone, leadName, slotIso, convKey }) {
-  const id   = 'int_' + Date.now();
-  const cfg  = await loadInterviewConfig();
-  const slot = new Date(slotIso);
-  const doc  = {
+  const id  = 'int_' + Date.now();
+  const cfg = await loadInterviewConfig();
+  const doc = {
     id, leadPhone, leadName, slotIso, convKey,
     interviewer: cfg.interviewer.name,
     zoomLink:    cfg.zoomLink,
@@ -331,19 +278,14 @@ async function bookInterview({ leadPhone, leadName, slotIso, convKey }) {
     createdAt:   new Date().toISOString(),
     reminders:   {},
   };
-  await fetch(`${FS_BASE}/interviews/${id}?key=${FS_KEY}`, {
-    method:  'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body:    JSON.stringify({ fields: fsVal(doc).mapValue.fields }),
-  });
+  await db.sbSaveInterview(id, interviewToRow(doc));
 
-  // Build fecha/hora strings for templates
+  const slot = new Date(slotIso);
   const { fecha, hora } = _fmtSlot(slot);
   const _cleanName = (!leadName || leadName.startsWith('WA ') || leadName.startsWith('+')) ? '' : leadName;
-  const firstName = _cleanName.split(' ')[0] || 'Candidato';
+  const firstName  = _cleanName.split(' ')[0] || 'Candidato';
   const phoneClean = (leadPhone || '').replace(/^\+/, '');
 
-  // Confirmation to candidate via Meta 214
   const confFallback = `¡Hola ${firstName}! 🎉\n\nTu entrevista con Grupo Élite Work ha sido confirmada.\n\n📅 Fecha: ${fecha}\n🕐 Hora: ${hora}\n🔗 Enlace Zoom: ${cfg.zoomLink}\n\n¡Te esperamos!`;
   const { sendWhatsApp: _metaConfirmWA } = require('./meta');
   sendTemplateOrFallback(phoneClean, 'confirmacion_entrevista', [firstName, fecha, hora, cfg.zoomLink], confFallback, _metaConfirmWA).catch(() => {});
@@ -359,7 +301,6 @@ function _fmtSlot(d) {
   }).formatToParts(d);
   const get = t => parts.find(p => p.type === t)?.value || '';
   const weekday = get('weekday'); const day = get('day'); const month = get('month');
-  const hour = get('hour'); const dayperiod = get('dayPeriod')?.toUpperCase() || '';
   const h   = parseInt(new Intl.DateTimeFormat('en-US', { timeZone: TEAM_TZ, hour: 'numeric', hour12: false }).format(d));
   const h12 = h % 12 || 12;
   const ampm = h >= 12 ? 'PM' : 'AM';
@@ -370,13 +311,20 @@ function _fmtSlot(d) {
   };
 }
 
-// ── List interviews ───────────────────────────────────────────────────────────
+// ── CRUD ──────────────────────────────────────────────────────────────────────
 async function listInterviews() {
   try {
-    const res  = await fetch(`${FS_BASE}/interviews?key=${FS_KEY}&pageSize=500`);
-    const data = await res.json();
-    return (data.documents || []).map(d => fsParse(d.fields || {}));
+    const rows = await db.sbGetInterviews();
+    return rows.map(rowToInterview);
   } catch { return []; }
+}
+
+async function getInterview(id) {
+  try {
+    const rows = await db.sbGetInterviews();
+    const r    = rows.find(x => x.id === id);
+    return r ? rowToInterview(r) : null;
+  } catch { return null; }
 }
 
 async function updateInterview(id, updates) {
@@ -384,38 +332,24 @@ async function updateInterview(id, updates) {
   if (!existing) return false;
   const merged = { ...existing, ...updates };
   try {
-    const res = await fetch(`${FS_BASE}/interviews/${id}?key=${FS_KEY}`, {
-      method:  'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ fields: fsVal(merged).mapValue.fields }),
-    });
-    return res.ok;
+    await db.sbSaveInterview(id, interviewToRow(merged));
+    return true;
   } catch { return false; }
 }
 
-async function getInterview(id) {
-  try {
-    const res  = await fetch(`${FS_BASE}/interviews/${id}?key=${FS_KEY}`);
-    const data = await res.json();
-    return data.fields ? fsParse(data.fields) : null;
-  } catch { return null; }
-}
-
 // ── Reminder checker (called every minute by server) ─────────────────────────
-// sendWA      = Meta 214 — messages to candidates
-// sendInternal = Twilio 817 — messages to managers/interviewers (internal)
 async function checkInterviewReminders(sendWA, sendInternal, sendManager) {
-  const cfg         = await loadInterviewConfig();
-  const interviews  = await listInterviews();
-  const now         = new Date();
+  const cfg        = await loadInterviewConfig();
+  const interviews = await listInterviews();
+  const now        = new Date();
 
   for (const iv of interviews) {
     if (iv.status === 'cancelled' || iv.status === 'done') continue;
-    const slotTime = new Date(iv.slotIso);
+    const slotTime  = new Date(iv.slotIso);
     const reminders = iv.reminders || {};
 
     for (const rem of cfg.reminders || []) {
-      if (reminders[rem.id]) continue; // already sent
+      if (reminders[rem.id]) continue;
 
       let shouldSend = false;
       if (rem.trigger === 'morning_of') {
@@ -437,39 +371,31 @@ async function checkInterviewReminders(sendWA, sendInternal, sendManager) {
       const { fecha, hora } = _fmtSlot(slotTime);
 
       if (rem.notifyManager || rem.notifyInterviewer) {
-        // Notify interviewer about no-show
         if (rem.notifyInterviewer && cfg.interviewer?.phone && sendInternal) {
           const ivPhone    = cfg.interviewer.phone.replace(/^\+/, '');
           const ivFallback = `⚠️ No-show: *${iv.leadName || 'candidato'}* no confirmó asistencia para la entrevista de las ${hora}.\n📞 ${iv.leadPhone || ''}\n🔗 ${iv.zoomLink}`;
           await sendInternal(ivPhone, ivFallback).catch(() => {});
         }
-        // Notify manager about no-show
         if (rem.notifyManager && sendManager) {
-          const mgrMsg = fillTemplate(rem.message, iv, slotTime);
-          await sendManager(mgrMsg).catch(() => {});
+          await sendManager(fillTemplate(rem.message, iv, slotTime)).catch(() => {});
         }
       } else {
-        // Notify candidate via Meta 214
         const phone = (iv.leadPhone || '').replace(/^\+/, '');
         if (phone) {
           let tplKey    = 'recordatorio_dia_antes';
           let tplParams = [firstName, fecha, hora, iv.zoomLink || ''];
-
           if (rem.trigger === 'hours_before') {
             tplKey    = 'recordatorio_horas_antes';
             tplParams = [firstName, String(rem.value), iv.zoomLink || ''];
           }
-
           await sendTemplateOrFallback(phone, tplKey, tplParams, msg, sendWA).catch(() => {});
         }
       }
 
-      // Mark reminder as sent
       reminders[rem.id] = new Date().toISOString();
       await updateInterview(iv.id, { reminders });
     }
 
-    // Send Zoom link at exact slot time → candidate via Meta 214
     if (!reminders['zoom_sent']) {
       const diffMin = (now - slotTime) / (1000 * 60);
       if (diffMin >= 0 && diffMin < 5) {
@@ -497,11 +423,11 @@ function fillTemplate(template, iv, slotTime) {
   const hora  = `${h12}:00 ${ampm}`;
   const fecha = `${days[slotTime.getDay()]} ${slotTime.getDate()} de ${months[slotTime.getMonth()]}`;
   return template
-    .replace(/\{nombre\}/g,       iv.leadName  || 'Candidato')
-    .replace(/\{hora\}/g,         hora)
-    .replace(/\{fecha\}/g,        fecha)
+    .replace(/\{nombre\}/g,        iv.leadName    || 'Candidato')
+    .replace(/\{hora\}/g,          hora)
+    .replace(/\{fecha\}/g,         fecha)
     .replace(/\{entrevistador\}/g, iv.interviewer || '')
-    .replace(/\{zoom\}/g,         iv.zoomLink   || '');
+    .replace(/\{zoom\}/g,          iv.zoomLink    || '');
 }
 
 module.exports = {

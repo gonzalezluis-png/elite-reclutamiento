@@ -1,10 +1,12 @@
 const crypto = require('crypto');
+const db = require('./db');
 const { handleAuthWAReply } = require('./auth-sessions');
 const { askClaude, conversationHistory } = require('./ai');
 const { fsLeadExists, fsCreateLeadWA, fsGetLeadByPhone, fsUpdateLeadFields, runWAPipeline, humanDelay, fsAppendLeadMetaWa, toE164 } = require('./pipeline');
 const { triggerEscalation, cancelEscalation, handleManagerReply, checkTimeouts, isManagerPhone, logTeamMessage, loadManagers } = require('./escalation');
 const { pixelLead } = require('./pixel');
 const { loadInterviewConfig, getAvailableSlots, bookInterview, listInterviews, updateInterview, getCandidateTZ, formatSlotLabel, TEAM_TZ } = require('./interviews');
+
 // ── WhatsApp business hours config ───────────────────────────────────────────
 const WA_DEFAULT_HOURS = {
   timezone: 'America/Chicago',
@@ -19,19 +21,13 @@ const WA_DEFAULT_HOURS = {
 
 async function loadWAHours() {
   try {
-    const r = await fetch(`${FS_BASE}/config/wa_hours?key=${FS_KEY}`);
-    if (!r.ok) return WA_DEFAULT_HOURS;
-    const d = await r.json();
-    return d.fields?.data?.stringValue ? JSON.parse(d.fields.data.stringValue) : WA_DEFAULT_HOURS;
+    const cfg = await db.sbGetConfig('wa_hours');
+    return cfg || WA_DEFAULT_HOURS;
   } catch { return WA_DEFAULT_HOURS; }
 }
 
 async function saveWAHours(cfg) {
-  await fetch(`${FS_BASE}/config/wa_hours?key=${FS_KEY}&updateMask.fieldPaths=data`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ fields: { data: { stringValue: JSON.stringify(cfg) } } }),
-  });
+  await db.sbSetConfig('wa_hours', cfg);
 }
 
 async function isWABusinessHours() {
@@ -65,53 +61,44 @@ const META_VERIFY_TOKEN      = process.env.META_VERIFY_TOKEN      || 'grupoelite
 
 // App 1 — GrupoElite Bot (Instagram + Messenger)
 const META_APP_SECRET_IG     = process.env.META_APP_SECRET_IG     || '6f59669c43e93f238457c5b8e5680bd0';
-const META_PAGE_ACCESS_TOKEN = process.env.META_PAGE_ACCESS_TOKEN || ''; // Messenger page token
-const META_IG_ACCESS_TOKEN   = process.env.META_IG_ACCESS_TOKEN   || ''; // Instagram token
+const META_PAGE_ACCESS_TOKEN = process.env.META_PAGE_ACCESS_TOKEN || '';
+const META_IG_ACCESS_TOKEN   = process.env.META_IG_ACCESS_TOKEN   || '';
 
 // App 2 — WhatsApp
 const META_APP_SECRET_WA = process.env.META_APP_SECRET_WA || '80dc2555ece1fd87afb133222ff2b5eb';
 const META_APP_ID        = process.env.META_APP_ID        || '1447919720444811';
 const META_WA_PHONE_ID   = process.env.META_WA_PHONE_ID   || '';
 
-const GRAPH_URL  = 'https://graph.facebook.com/v21.0';
-const FS_PROJECT = 'elite-reclutamiento-crm';
-const FS_KEY     = 'AIzaSyCW2t1oHb7xc2Vi6vJROGRM7E7nu-CbU3s';
-const FS_BASE    = `https://firestore.googleapis.com/v1/projects/${FS_PROJECT}/databases/(default)/documents`;
+const GRAPH_URL = 'https://graph.facebook.com/v21.0';
 
-// ── Token management — auto-refresh before expiry ────────────────────────────
+// ── Token management ─────────────────────────────────────────────────────────
 let _waToken = process.env.META_WA_TOKEN || '';
 
-async function _loadTokenFromFS() {
+async function _loadTokenFromSB() {
   try {
-    const res  = await fetch(`${FS_BASE}/config/wa_token?key=${FS_KEY}`);
-    const doc  = await res.json();
-    if (!doc.fields) return;
-    const token   = doc.fields.token?.stringValue;
-    const expires = doc.fields.expires_at?.integerValue || doc.fields.expires_at?.doubleValue;
-    if (token && expires && Date.now() < Number(expires) * 1000) {
+    const cfg = await db.sbGetConfig('wa_token');
+    if (!cfg) return;
+    const { token, expires_at } = cfg;
+    if (token && expires_at && Date.now() < Number(expires_at) * 1000) {
       _waToken = token;
-      console.log('[Meta WA] Token cargado desde Firestore — expira:', new Date(Number(expires) * 1000).toLocaleDateString());
+      console.log('[Meta WA] Token cargado desde Supabase — expira:', new Date(Number(expires_at) * 1000).toLocaleDateString());
     }
-  } catch (e) { console.warn('[Meta WA] No se pudo cargar token desde FS:', e.message); }
+  } catch (e) { console.warn('[Meta WA] No se pudo cargar token desde SB:', e.message); }
 }
 
-async function _saveTokenToFS(token, expiresIn) {
-  const expiresAt = Math.floor(Date.now() / 1000) + expiresIn;
-  await fetch(`${FS_BASE}/config/wa_token?key=${FS_KEY}&updateMask.fieldPaths=token&updateMask.fieldPaths=expires_at`, {
-    method:  'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body:    JSON.stringify({ fields: { token: { stringValue: token }, expires_at: { integerValue: String(expiresAt) } } }),
-  });
+async function _saveTokenToSB(token, expiresIn) {
+  const expires_at = Math.floor(Date.now() / 1000) + expiresIn;
+  await db.sbSetConfig('wa_token', { token, expires_at });
 }
 
 async function _refreshToken() {
   if (!META_APP_ID || !META_APP_SECRET_WA || !_waToken) return;
   try {
-    const res  = await fetch(`${GRAPH_URL.replace('v21.0','v21.0')}/oauth/access_token?grant_type=fb_exchange_token&client_id=${META_APP_ID}&client_secret=${META_APP_SECRET_WA}&fb_exchange_token=${_waToken}`);
+    const res  = await fetch(`${GRAPH_URL}/oauth/access_token?grant_type=fb_exchange_token&client_id=${META_APP_ID}&client_secret=${META_APP_SECRET_WA}&fb_exchange_token=${_waToken}`);
     const data = await res.json();
     if (data.access_token) {
       _waToken = data.access_token;
-      await _saveTokenToFS(data.access_token, data.expires_in || 5184000);
+      await _saveTokenToSB(data.access_token, data.expires_in || 5184000);
       console.log('[Meta WA] Token renovado automáticamente ✓');
     } else {
       console.error('[Meta WA] Error renovando token:', JSON.stringify(data));
@@ -121,25 +108,25 @@ async function _refreshToken() {
 
 async function _checkTokenExpiry() {
   try {
-    const res  = await fetch(`${FS_BASE}/config/wa_token?key=${FS_KEY}`);
-    const doc  = await res.json();
-    const expires = Number(doc.fields?.expires_at?.integerValue || 0);
+    const cfg       = await db.sbGetConfig('wa_token');
+    const expires_at = Number(cfg?.expires_at || 0);
     const sevenDays = 7 * 24 * 60 * 60;
-    if (expires && (expires - Math.floor(Date.now() / 1000)) < sevenDays) {
+    if (expires_at && (expires_at - Math.floor(Date.now() / 1000)) < sevenDays) {
       console.log('[Meta WA] Token expira pronto — renovando…');
       await _refreshToken();
     }
   } catch (e) { console.warn('[Meta WA] Error verificando expiración:', e.message); }
 }
 
-// Load token on startup and check expiry every 24 hours
-_loadTokenFromFS().then(() => _checkTokenExpiry());
+// Load token on startup; env var takes priority
+if (!_waToken) _loadTokenFromSB().then(() => _checkTokenExpiry());
+else _checkTokenExpiry();
 setInterval(_checkTokenExpiry, 24 * 60 * 60 * 1000);
 
 // ── Signature verification ────────────────────────────────────────────────────
 function verifySignature(req, appSecret) {
   const sig = req.headers['x-hub-signature-256'];
-  if (!sig || !appSecret) return true; // skip in dev if secret not set
+  if (!sig || !appSecret) return true;
   const payload = req.rawBody || Buffer.from(JSON.stringify(req.body));
   const expected = 'sha256=' + crypto
     .createHmac('sha256', appSecret)
@@ -150,31 +137,17 @@ function verifySignature(req, appSecret) {
   } catch { return false; }
 }
 
-// In-memory index: wamid → {phone, logId} for status updates (lost on restart, acceptable since statuses arrive within minutes)
+// In-memory index: wamid → {phone, logId}
 const _wamidIndex = new Map();
 
-// ── Meta WA message log (Firestore) ──────────────────────────────────────────
-// Each message stored as a separate document to avoid read-write race conditions
-async function fsLogWAMessage(phone, direction, text, extra = {}) {
+// ── Log WA message to Supabase ───────────────────────────────────────────────
+async function _logWAMessage(phone, direction, text, extra = {}) {
   try {
     const clean = phone.replace(/^wa_meta:/, '').replace(/^\+/, '');
-    const ts    = Date.now();
-    const msgId = `${ts}_${Math.random().toString(36).slice(2, 7)}`;
-    const sid   = `meta_${ts}`;
-    const docUrl = `${FS_BASE}/wa_messages/${clean}/msgs/${msgId}?key=${FS_KEY}`;
-    const fields = {
-      direction: { stringValue: direction },
-      text:      { stringValue: text || '' },
-      ts:        { integerValue: String(ts) },
-    };
-    if (extra.status) fields.status = { stringValue: extra.status };
-    if (extra.msgId)  fields.wamid  = { stringValue: extra.msgId };
-    await fetch(docUrl, {
-      method:  'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ fields }),
-    });
-    // Mirror message into the lead document so fsLoadLeads returns it pre-populated
+    const logId = await db.sbLogWAMessage(clean, direction, text, extra);
+    // Mirror into lead's metaWa for UI
+    const ts  = Date.now();
+    const sid = `meta_${ts}`;
     const metaMsg = {
       sid,
       body:      text || '',
@@ -184,31 +157,39 @@ async function fsLogWAMessage(phone, direction, text, extra = {}) {
     };
     if (extra.status) metaMsg.status = extra.status;
     fsAppendLeadMetaWa(clean, metaMsg).catch(() => {});
-    return msgId;
+    return logId;
   } catch { return null; }
 }
 
-// Outbound dedup: prevent sending the same text to the same number within 30 s
+// ── Webhook event log ─────────────────────────────────────────────────────────
+async function _logWebhookEvent(type, phone, preview, raw) {
+  try {
+    await db.sbLogWebhook({
+      ts:      new Date().toISOString(),
+      type,
+      phone:   phone || '',
+      preview: (preview || '').slice(0, 200),
+      raw:     (raw   || '').slice(0, 800),
+    });
+  } catch {}
+}
+
 // ── Whisper transcription ─────────────────────────────────────────────────────
 async function _transcribeAudio(mediaId) {
   if (!OPENAI_API_KEY || !_waToken) return null;
   try {
-    // 1. Get download URL from Meta
     const metaRes = await fetch(`https://graph.facebook.com/v19.0/${mediaId}`, {
       headers: { Authorization: `Bearer ${_waToken}` },
     });
     const metaJson = await metaRes.json();
     if (!metaJson.url) return null;
 
-    // 2. Download the audio file
     const audioRes = await fetch(metaJson.url, {
       headers: { Authorization: `Bearer ${_waToken}` },
     });
     if (!audioRes.ok) return null;
     const audioBuffer = Buffer.from(await audioRes.arrayBuffer());
 
-    // 3. Send to Whisper
-    const { FormData, Blob } = await import('node:buffer').catch(() => require('buffer'));
     const form = new (require('form-data'))();
     form.append('file', audioBuffer, { filename: 'audio.ogg', contentType: metaJson.mime_type || 'audio/ogg' });
     form.append('model', 'whisper-1');
@@ -227,9 +208,9 @@ async function _transcribeAudio(mediaId) {
   }
 }
 
-const _sentDedup = new Map(); // `${to}:${text}` → timestamp
+const _sentDedup = new Map();
 function _isDupSend(to, text) {
-  const key = `${to}:${text}`;
+  const key  = `${to}:${text}`;
   const last = _sentDedup.get(key) || 0;
   if (Date.now() - last < 30_000) return true;
   _sentDedup.set(key, Date.now());
@@ -239,7 +220,6 @@ function _isDupSend(to, text) {
 
 // ── Send WhatsApp message via Meta Cloud API ──────────────────────────────────
 async function sendWhatsApp(to, text) {
-  // Strip any prefix (wa_meta:, whatsapp:, +)
   const cleanTo = to.replace(/^wa_meta:/, '').replace(/^whatsapp:/, '').replace(/^\+/, '');
   if (!_waToken || !META_WA_PHONE_ID) {
     console.warn('[Meta WA] Token o Phone ID no configurados');
@@ -249,7 +229,7 @@ async function sendWhatsApp(to, text) {
     console.warn(`[Meta WA] Envío duplicado ignorado → ${cleanTo}`);
     return false;
   }
-  const logId = await fsLogWAMessage(cleanTo, 'out', text);
+  const logId = await _logWAMessage(cleanTo, 'out', text);
   const parts = splitMessage(text);
   let allOk = true;
   for (const part of parts) {
@@ -274,28 +254,15 @@ async function sendWhatsApp(to, text) {
         console.log('[Meta WA] Token expirado — renovando…');
         await _refreshToken();
       } else if (json.error.code === 131047) {
-        console.warn(`[Meta WA] Ventana 24h cerrada para ${cleanTo} — se necesita plantilla para recontactar`);
+        console.warn(`[Meta WA] Ventana 24h cerrada para ${cleanTo}`);
       }
       if (logId) {
-        const clean = cleanTo.replace(/^\+/, '');
-        fetch(`${FS_BASE}/wa_messages/${clean}/msgs/${logId}?key=${FS_KEY}&updateMask.fieldPaths=status&updateMask.fieldPaths=error_code`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ fields: {
-            status:     { stringValue: 'failed' },
-            error_code: { integerValue: String(json.error.code || 0) },
-          }}),
-        }).catch(() => {});
+        db.sbUpdateWAMessage(logId, { status: 'failed', error_code: json.error.code || 0 }).catch(() => {});
       }
     } else if (json.messages?.[0]?.id && logId) {
-      // Save wamid → logId mapping for status updates (delivered/read)
       const wamid = json.messages[0].id;
       _wamidIndex.set(wamid, { phone: cleanTo, logId });
-      fetch(`${FS_BASE}/wa_messages/${cleanTo}/msgs/${logId}?key=${FS_KEY}&updateMask.fieldPaths=wamid&updateMask.fieldPaths=status`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fields: { wamid: { stringValue: wamid }, status: { stringValue: 'sent' } } }),
-      }).catch(() => {});
+      db.sbUpdateWAMessage(logId, { wamid, status: 'sent' }).catch(() => {});
     }
   }
   return allOk;
@@ -308,14 +275,8 @@ async function sendInstagram(recipientId, text) {
   for (const part of parts) {
     await fetch(`${GRAPH_URL}/me/messages`, {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${META_IG_ACCESS_TOKEN}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        recipient: { id: recipientId },
-        message: { text: part },
-      }),
+      headers: { 'Authorization': `Bearer ${META_IG_ACCESS_TOKEN}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ recipient: { id: recipientId }, message: { text: part } }),
     });
   }
 }
@@ -327,14 +288,8 @@ async function sendMessenger(recipientId, text) {
   for (const part of parts) {
     await fetch(`${GRAPH_URL}/me/messages`, {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${META_PAGE_ACCESS_TOKEN}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        recipient: { id: recipientId },
-        message: { text: part },
-      }),
+      headers: { 'Authorization': `Bearer ${META_PAGE_ACCESS_TOKEN}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ recipient: { id: recipientId }, message: { text: part } }),
     });
   }
 }
@@ -355,18 +310,15 @@ function splitMessage(text, maxLen = 1000) {
   return parts;
 }
 
-// ── Wrapper: send WA to manager (phone stored with +, Meta needs digits only) ─
 function sendWAToManager(phone, text) {
   return sendWhatsApp(phone.replace(/^\+/, ''), text);
 }
 
-// ── Escalation timeout checker (every 60s) ────────────────────────────────────
 setInterval(() => checkTimeouts(sendWAToManager).catch(e => console.error('[ESC-Timer]', e.message)), 60_000);
 
 // ── Register routes ───────────────────────────────────────────────────────────
 function registerMetaRoutes(app) {
 
-  // ── Webhook verification (GET) — all three paths ─────────────────────────
   function verifyWebhook(req, res) {
     const mode      = req.query['hub.mode'];
     const token     = req.query['hub.verify_token'];
@@ -378,16 +330,16 @@ function registerMetaRoutes(app) {
     console.warn('[Meta] Verify token incorrecto:', token);
     res.sendStatus(403);
   }
-  app.get('/meta/webhook',             verifyWebhook);
-  app.get('/meta/webhook/whatsapp',    verifyWebhook);
-  app.get('/meta/webhook/ig-messenger',verifyWebhook);
+  app.get('/meta/webhook',              verifyWebhook);
+  app.get('/meta/webhook/whatsapp',     verifyWebhook);
+  app.get('/meta/webhook/ig-messenger', verifyWebhook);
 
-  // Dedup: track processed message IDs to ignore Meta retries
   const _processedMsgIds = new Set();
-  // Debounce: buffer rapid messages per phone before responding
-  const _msgBuffer   = new Map(); // phone → [text, ...]
-  const _msgTimers   = new Map(); // phone → timeoutId
-  const _DEBOUNCE_MS = 3000;      // wait 3 s after last message before replying
+  const _msgBuffer   = new Map();
+  const _msgTimers   = new Map();
+  const _DEBOUNCE_MS = 3000;
+
+  const DIAS_FULL = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
 
   async function _processBufferedMessages(from, referralInfo, profileName, inboxNumber) {
     const texts = _msgBuffer.get(from) || [];
@@ -397,17 +349,17 @@ function registerMetaRoutes(app) {
 
     const combinedText = texts.join('\n');
     console.log(`[Meta WA] ← ${from} (${texts.length} msg): ${combinedText}`);
-    fsLogWAMessage(from, 'in', combinedText).catch(() => {});
+    _logWAMessage(from, 'in', combinedText).catch(() => {});
 
     try {
-      // ── Interviewer CONFIRMAR/REAGENDAR reply ────────────────────────────────
+      // ── Interviewer CONFIRMAR/REAGENDAR reply ────────────────────────────
       const _ivCfg = await loadInterviewConfig().catch(() => null);
       if (_ivCfg?.interviewer?.phone) {
         const _ivPhone = _ivCfg.interviewer.phone.replace(/[^0-9]/g, '');
         if (from.replace(/[^0-9]/g, '') === _ivPhone) {
           const _msg = combinedText.trim().toUpperCase();
           if (_msg.includes('CONFIRMAR') || _msg.includes('REAGENDAR')) {
-            const all = await listInterviews().catch(() => []);
+            const all     = await listInterviews().catch(() => []);
             const pending = all.filter(iv => iv.status === 'scheduled').sort((a, b) => new Date(a.slotIso) - new Date(b.slotIso));
             if (pending.length) {
               const iv = pending[0];
@@ -448,18 +400,18 @@ function registerMetaRoutes(app) {
         await fsCreateLeadWA(`wa_meta:${from}`);
         pixelLead({ telefono: from, correo: '' }).catch(() => {});
       }
+
       // Save WhatsApp profile name and inbox number to lead
       if (profileName || inboxNumber) {
         const _pLead = await fsGetLeadByPhone(from).catch(() => null);
         if (_pLead) {
-          const _pId     = _pLead.name.split('/').pop();
-          const _pNombre = _pLead.fields?.nombre?.stringValue || '';
+          const _pNombre = _pLead.nombre || '';
           const updates  = {};
           if (profileName && (!_pNombre || _pNombre.startsWith('WA ') || _pNombre.startsWith('+'))) {
             updates.nombre = profileName;
           }
           if (inboxNumber) updates.wa_inbox_number = inboxNumber;
-          if (Object.keys(updates).length) fsUpdateLeadFields(_pId, updates).catch(() => {});
+          if (Object.keys(updates).length) fsUpdateLeadFields(_pLead.id, updates).catch(() => {});
         }
       }
 
@@ -467,27 +419,25 @@ function registerMetaRoutes(app) {
       if (referralInfo?.source_type === 'ad') {
         const adLead = await fsGetLeadByPhone(from);
         if (adLead) {
-          const adLeadId = adLead.name.split('/').pop();
-          await fsUpdateLeadFields(adLeadId, {
+          await fsUpdateLeadFields(adLead.id, {
             fuente:    'Meta / Facebook',
             ad_nombre: referralInfo.headline  || '',
             ad_clid:   referralInfo.ctwa_clid || '',
           }).catch(() => {});
-          console.log(`[Meta WA] Lead ${adLeadId} etiquetado como Meta Ads`);
+          console.log(`[Meta WA] Lead ${adLead.id} etiquetado como Meta Ads`);
         }
       }
 
       const leadData = await fsGetLeadByPhone(from);
       const convKey  = `wa_meta:${from}`;
+      const _leadId  = leadData?.id;
 
-      // Mark lead as having an unread message (candidate waiting for reply)
-      const _leadId = leadData?.name?.split('/').pop();
       if (_leadId) {
         fsUpdateLeadFields(_leadId, { unread_msg: true, last_msg_ts: Date.now() }).catch(() => {});
       }
 
-      // If IA is paused: store message in history (for context on resume) but don't reply
-      if (leadData?.fields?.ia_paused?.booleanValue === true) {
+      // If IA is paused: store message in history but don't reply
+      if (leadData?.ia_paused === true) {
         if (!conversationHistory.has(convKey)) conversationHistory.set(convKey, []);
         conversationHistory.get(convKey).push({ role: 'user', content: combinedText, ts: Date.now() });
         console.log(`[Meta WA] IA pausada para ${from} — mensaje guardado en historial, sin respuesta`);
@@ -496,15 +446,14 @@ function registerMetaRoutes(app) {
 
       const _wasEmptyOnRestart = !conversationHistory.has(convKey) || conversationHistory.get(convKey).length === 0;
 
-      // Inject / refresh context from Firestore (on restart: full injection; mid-session: update pinned message)
+      // Inject / refresh context from Supabase
       if (leadData) {
-        const f = leadData.fields || {};
         const ctxParts = [];
-        const _ctxNombre     = f.nombre?.stringValue    || '';
-        const _ctxCorreo     = f.correo?.stringValue     || '';
-        const _ctxUbicacion  = f.ubicacion?.stringValue  || '';
-        const _ctxEtapa      = f.etapa?.stringValue      || '';
-        const _ctxPipelineId = f.pipeline_id?.stringValue || '';
+        const _ctxNombre     = leadData.nombre      || '';
+        const _ctxCorreo     = leadData.correo      || '';
+        const _ctxUbicacion  = leadData.ubicacion   || '';
+        const _ctxEtapa      = leadData.etapa       || '';
+        const _ctxPipelineId = leadData.pipeline_id || '';
         if (_ctxNombre && !_ctxNombre.startsWith('WA ') && !_ctxNombre.startsWith('+')) ctxParts.push(`nombre: ${_ctxNombre}`);
         if (_ctxCorreo)     ctxParts.push(`correo: ${_ctxCorreo}`);
         if (_ctxUbicacion)  ctxParts.push(`ciudad: ${_ctxUbicacion}`);
@@ -525,55 +474,38 @@ function registerMetaRoutes(app) {
         }
       }
 
-      // Reconstruct history from Firestore BEFORE business-hours check so returning contacts
-      // are never mistaken for new contacts after a server restart
+      // Reconstruct history from Supabase on restart
       if (_wasEmptyOnRestart) {
         try {
-          const _waSubcol = await fetch(`${FS_BASE}/wa_messages/${from}/msgs?key=${FS_KEY}&pageSize=200`).then(r => r.json()).catch(() => ({}));
-          const _waLegacy = await fetch(`${FS_BASE}/wa_messages/${from}?key=${FS_KEY}`).then(r => r.json()).catch(() => ({}));
-          const _legacyMsgs = (_waLegacy.fields?.messages?.arrayValue?.values || []).map(v => {
-            const mf = v.mapValue?.fields || {};
-            return { dir: mf.direction?.stringValue, text: mf.text?.stringValue || '', ts: Number(mf.ts?.integerValue || 0) };
-          });
-          const _newMsgs = (_waSubcol.documents || []).map(d => {
-            const mf = d.fields || {};
-            return { dir: mf.direction?.stringValue, text: mf.text?.stringValue || '', ts: Number(mf.ts?.integerValue || 0) };
-          });
-          const _allStored = [..._legacyMsgs, ..._newMsgs]
-            .sort((a, b) => a.ts - b.ts)
-            .filter(m => m.text && (m.dir === 'in' || m.dir === 'out'));
-
-          const _prevStored = _allStored.slice(0, -1).slice(-24);
-
-          const _merged = [];
+          const _allStored   = await db.sbGetWAMessages(from, 200);
+          const _prevStored  = _allStored.slice(0, -1).slice(-24);
+          const _merged      = [];
           for (const m of _prevStored) {
-            if (_merged.length && _merged[_merged.length - 1].dir === m.dir) {
+            if (_merged.length && _merged[_merged.length - 1].direction === m.direction) {
               _merged[_merged.length - 1].text += '\n' + m.text;
             } else {
               _merged.push({ ...m });
             }
           }
-
           if (_merged.length) {
             if (!conversationHistory.has(convKey)) conversationHistory.set(convKey, []);
             const _hist = conversationHistory.get(convKey);
             for (const m of _merged) {
-              const _role = m.dir === 'out' ? 'assistant' : 'user';
+              const _role = m.direction === 'out' ? 'assistant' : 'user';
               if (_hist.length && _hist[_hist.length - 1].role === _role) {
                 _hist[_hist.length - 1].content += '\n' + m.text;
               } else {
                 _hist.push({ role: _role, content: m.text, ts: m.ts });
               }
             }
-            console.log(`[Meta WA] Historial reconstruido desde Firestore para ${from}: ${_merged.length} msgs`);
+            console.log(`[Meta WA] Historial reconstruido desde Supabase para ${from}: ${_merged.length} msgs`);
           }
         } catch (_e) {
           console.warn(`[Meta WA] No se pudo reconstruir historial para ${from}:`, _e.message);
         }
       }
 
-      // ── Horario de atención ───────────────────────────────────────────────────
-      // Solo aplica al PRIMER contacto real (lead recién creado, sin historial previo)
+      // ── Horario de atención ─────────────────────────────────────────────────
       const _histNow    = conversationHistory.get(convKey) || [];
       const _isFirstMsg = _isFirstEverContact && _histNow.filter(m => m.role === 'user').length === 0;
       const _inHours    = await isWABusinessHours();
@@ -587,22 +519,23 @@ function registerMetaRoutes(app) {
         return;
       }
 
-      // ── Interview: slot selection state machine ──────────────────────────
-      const _ivState = leadData?.fields?.interview_state?.stringValue;
+      // ── Interview: slot selection state machine ─────────────────────────────
+      const _ivState = leadData?.interview_state;
       if (_ivState === 'awaiting_slot' && combinedText?.trim()) {
         let ivData = {};
         try {
-          const _raw = JSON.parse(leadData.fields?.pending_slots?.stringValue || '{}');
+          const _raw = typeof leadData.pending_slots === 'string'
+            ? JSON.parse(leadData.pending_slots || '{}')
+            : (leadData.pending_slots || {});
           ivData = Array.isArray(_raw) ? { slots: _raw, offeringDay: 1 } : _raw;
         } catch {}
         const allSlots    = ivData.slots || [];
         const offeringDay = ivData.offeringDay || 1;
-        const leadId      = leadData?.name?.split('/').pop();
-        const nombre      = leadData?.fields?.nombre?.stringValue || '';
+        const leadId      = leadData?.id;
+        const nombre      = leadData?.nombre || '';
         const _validName  = !nombre || nombre.startsWith('WA ') || nombre.startsWith('+') ? '' : nombre;
         const firstName   = _validName.split(' ')[0] || '';
         const fmtH        = h => h === 0 ? '12am' : h === 12 ? '12pm' : h < 12 ? `${h}am` : `${h-12}pm`;
-        const DIAS_FULL   = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
 
         const dayDates   = [...new Set(allSlots.map(s => new Date(s.iso).toISOString().slice(0,10)))];
         const currentDay = dayDates[offeringDay - 1];
@@ -626,26 +559,23 @@ function registerMetaRoutes(app) {
           const choiceIdx = parseInt(decision) - 1;
 
           if (!isNaN(choiceIdx) && choiceIdx >= 0 && choiceIdx < daySlots.length) {
-            // Candidate chose a slot → book it
             const chosen = daySlots[choiceIdx];
             console.log(`[Interview] ${from} eligió: ${chosen.iso}`);
             try {
               await bookInterview({ leadPhone: from, leadName: nombre, slotIso: chosen.iso, convKey });
               if (leadId) await fsUpdateLeadFields(leadId, { interview_state: 'booked', pending_slots: '', quiere_entrevista: false, webinar_accion: 'en-entrevista' });
-              // Inject booking context so Ana knows the interview is scheduled
               const hist = conversationHistory.get(convKey) || [];
               const d = new Date(chosen.iso);
               const dias = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
               const meses = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
               const fechaStr = `${dias[d.getDay()]} ${d.getDate()} de ${meses[d.getMonth()]}`;
-              const horaStr = (() => { const h = d.getHours(); return `${h%12||12}:00 ${h>=12?'PM':'AM'}`; })();
+              const horaStr  = (() => { const h = d.getHours(); return `${h%12||12}:00 ${h>=12?'PM':'AM'}`; })();
               hist.push({ role: 'assistant', content: `[SISTEMA] La entrevista quedó agendada para el ${fechaStr} a las ${horaStr}. Ya le envié la confirmación al candidato con el enlace Zoom. El proceso de agendamiento está completo.`, ts: Date.now() });
             } catch (e) { console.error('[Interview] Error booking:', e.message); }
             return;
 
           } else if (decision === 'NO') {
             if (offeringDay === 1 && dayDates.length > 1) {
-              // Offer day 2
               const day2Slots = allSlots.filter(s => new Date(s.iso).toISOString().slice(0,10) === dayDates[1]);
               const d2   = new Date(day2Slots[0].iso);
               const t2   = day2Slots.map(s => fmtH(new Date(s.iso).getHours()));
@@ -655,7 +585,6 @@ function registerMetaRoutes(app) {
               await sendWhatsApp(from, msg2);
               if (leadId) await fsUpdateLeadFields(leadId, { pending_slots: JSON.stringify({ slots: allSlots, offeringDay: 2 }) });
             } else {
-              // Both days rejected → escalate
               const escMsg = `Entendido, ${firstName}. Voy a pedirle a un encargado que te contacte para encontrar un horario que te funcione. 🙏`;
               await humanDelay(escMsg);
               await sendWhatsApp(from, escMsg);
@@ -664,32 +593,26 @@ function registerMetaRoutes(app) {
             }
             return;
           }
-          // '?' → fall through so Ana asks for clarification
         }
       }
 
-      // First-ever contact: short delay before Ana responds (looks human, survives server restarts)
+      // First-ever contact: short delay before Ana responds
       if (_isFirstEverContact) {
         console.log(`[Meta WA] Primer contacto de ${from} — Ana esperará 30s antes de responder`);
         await new Promise(resolve => setTimeout(resolve, 30 * 1000));
-        // Re-check ia_paused in case team took over during the wait
         const _freshLead = await fsGetLeadByPhone(from).catch(() => null);
-        if (_freshLead?.fields?.ia_paused?.booleanValue === true) {
+        if (_freshLead?.ia_paused === true) {
           console.log(`[Meta WA] IA pausada durante la espera de ${from} — sin respuesta`);
           return;
         }
-        // Re-read Firestore messages so Ana sees anything sent manually during the wait
+        // Re-read messages sent manually during the wait
         try {
-          const _waitSubcol = await fetch(`${FS_BASE}/wa_messages/${from}/msgs?key=${FS_KEY}&pageSize=200`).then(r => r.json()).catch(() => ({}));
-          const _waitMsgs = (_waitSubcol.documents || []).map(d => {
-            const mf = d.fields || {};
-            return { dir: mf.direction?.stringValue, text: mf.text?.stringValue || '', ts: Number(mf.ts?.integerValue || 0) };
-          }).filter(m => m.text && (m.dir === 'in' || m.dir === 'out')).sort((a, b) => a.ts - b.ts);
-          const _waitHist = conversationHistory.get(convKey) || [];
+          const _waitMsgs    = await db.sbGetWAMessages(from, 200);
+          const _waitHist    = conversationHistory.get(convKey) || [];
           const _lastKnownTs = _waitHist.length ? Math.max(..._waitHist.map(m => m.ts || 0)) : 0;
           for (const m of _waitMsgs) {
             if (m.ts > _lastKnownTs) {
-              const _role = m.dir === 'out' ? 'assistant' : 'user';
+              const _role = m.direction === 'out' ? 'assistant' : 'user';
               if (_waitHist.length && _waitHist[_waitHist.length - 1].role === _role) {
                 _waitHist[_waitHist.length - 1].content += '\n' + m.text;
               } else {
@@ -707,7 +630,7 @@ function registerMetaRoutes(app) {
       const reply    = rawReply.replace(/\[ESC:[^\]]*\]\n?/g, '').replace(/\[AGENDAR\]\n?/g, '').trim();
 
       if (escMatch) {
-        const leadName = leadData?.fields?.nombre?.stringValue || '';
+        const leadName = leadData?.nombre || '';
         if (escMatch[1] === 'resolved') {
           cancelEscalation(from, leadName, sendWAToManager).catch(e => console.error('[ESC-cancel]', e.message));
         } else {
@@ -719,7 +642,6 @@ function registerMetaRoutes(app) {
       await humanDelay(reply);
       await sendWhatsApp(from, reply);
 
-      // Clear unread flag now that Ana has responded
       if (_leadId) {
         fsUpdateLeadFields(_leadId, { unread_msg: false, last_msg_ts: Date.now() }).catch(() => {});
       }
@@ -727,12 +649,12 @@ function registerMetaRoutes(app) {
       if (agendar) {
         (async () => {
           try {
-            const cfg   = await loadInterviewConfig();
-            const slots = await getAvailableSlots(cfg);
-            const nombre = leadData?.fields?.nombre?.stringValue || '';
+            const cfg       = await loadInterviewConfig();
+            const slots     = await getAvailableSlots(cfg);
+            const nombre    = leadData?.nombre || '';
             const _realName = !nombre || nombre.startsWith('WA ') || nombre.startsWith('+') ? '' : nombre;
-            const first  = _realName.split(' ')[0] || '';
-            const ubicacion = leadData?.fields?.ubicacion?.stringValue || '';
+            const first     = _realName.split(' ')[0] || '';
+            const ubicacion = leadData?.ubicacion || '';
             const candidateTZ = getCandidateTZ(ubicacion);
 
             if (!slots.length) {
@@ -742,33 +664,31 @@ function registerMetaRoutes(app) {
               return;
             }
 
-            // Agrupar slots por día (en ET)
             const dayDates = [...new Set(slots.map(s =>
               new Intl.DateTimeFormat('en-CA', { timeZone: TEAM_TZ }).format(new Date(s.iso))
             ))];
             const day1Slots = slots.filter(s =>
               new Intl.DateTimeFormat('en-CA', { timeZone: TEAM_TZ }).format(new Date(s.iso)) === dayDates[0]
             );
-            const d1 = new Date(day1Slots[0].iso);
+            const d1      = new Date(day1Slots[0].iso);
             const dayName = new Intl.DateTimeFormat('es-MX', { timeZone: TEAM_TZ, weekday: 'long' }).format(d1);
 
-            // Formato de horas en ET (+ hora local del candidato si es distinta)
             const fmtSlotTime = (isoStr) => {
-              const d = new Date(isoStr);
-              const etH = parseInt(new Intl.DateTimeFormat('en-US', { timeZone: TEAM_TZ, hour: 'numeric', hour12: false }).format(d));
-              const h12 = etH % 12 || 12;
+              const d    = new Date(isoStr);
+              const etH  = parseInt(new Intl.DateTimeFormat('en-US', { timeZone: TEAM_TZ, hour: 'numeric', hour12: false }).format(d));
+              const h12  = etH % 12 || 12;
               const ampm = etH >= 12 ? 'PM' : 'AM';
-              let label = `${h12}:00 ${ampm} ET`;
+              let label  = `${h12}:00 ${ampm} ET`;
               if (candidateTZ && candidateTZ !== TEAM_TZ) {
-                const locH = parseInt(new Intl.DateTimeFormat('en-US', { timeZone: candidateTZ, hour: 'numeric', hour12: false }).format(d));
-                const lh12 = locH % 12 || 12;
+                const locH  = parseInt(new Intl.DateTimeFormat('en-US', { timeZone: candidateTZ, hour: 'numeric', hour12: false }).format(d));
+                const lh12  = locH % 12 || 12;
                 const lampm = locH >= 12 ? 'PM' : 'AM';
                 label += ` (${lh12}:00 ${lampm} tu hora)`;
               }
               return label;
             };
 
-            const t1 = day1Slots.map(s => fmtSlotTime(s.iso));
+            const t1    = day1Slots.map(s => fmtSlotTime(s.iso));
             const tList = t1.length === 1 ? `a las ${t1[0]}` : t1.length === 2 ? `a las ${t1[0]} o a las ${t1[1]}` : `a las ${t1[0]}, ${t1[1]} o ${t1[2]}`;
             const slotsMsg = `${first ? '¡'+first+'! ' : ''}😊 Para tu entrevista, el ${dayName} tengo disponible ${tList}. ¿Alguna te funciona?`;
 
@@ -777,8 +697,7 @@ function registerMetaRoutes(app) {
 
             const doc = await fsGetLeadByPhone(from);
             if (doc) {
-              const lid = doc.name.split('/').pop();
-              await fsUpdateLeadFields(lid, {
+              await fsUpdateLeadFields(doc.id, {
                 quiere_entrevista: true,
                 interview_state:   'awaiting_slot',
                 pending_slots:     JSON.stringify({ slots, offeringDay: 1 }),
@@ -801,51 +720,31 @@ function registerMetaRoutes(app) {
     }
   }
 
-  // ── Persistent webhook event log ────────────────────────────────────────────
-  async function _fsLogWebhookEvent(type, phone, preview, raw) {
-    try {
-      const id  = `${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
-      await fetch(`${FS_BASE}/webhook_log/${id}?key=${FS_KEY}`, {
-        method:  'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ fields: {
-          ts:      { stringValue: new Date().toISOString() },
-          type:    { stringValue: type },
-          phone:   { stringValue: phone || '' },
-          preview: { stringValue: (preview || '').slice(0, 200) },
-          raw:     { stringValue: (raw || '').slice(0, 800) },
-        }}),
-      });
-    } catch {}
-  }
-
   // ── WhatsApp webhook (POST) ───────────────────────────────────────────────
   const _webhookLog = [];
   app.post('/meta/webhook/whatsapp', async (req, res) => {
-    res.sendStatus(200); // respond immediately to Meta
+    res.sendStatus(200);
 
-    const _sigOk = verifySignature(req, META_APP_SECRET_WA);
+    const _sigOk   = verifySignature(req, META_APP_SECRET_WA);
     const _rawBody = JSON.stringify(req.body);
 
-    // Log every incoming event for in-memory diagnostic
     _webhookLog.unshift({ ts: new Date().toISOString(), sigOk: _sigOk, body: _rawBody.slice(0, 500) });
     if (_webhookLog.length > 20) _webhookLog.pop();
 
-    // Parse event type and phone for persistent log
     const _entry  = req.body.entry?.[0];
     const _value  = _entry?.changes?.[0]?.value;
     const _msg    = _value?.messages?.[0];
     const _status = _value?.statuses?.[0];
     if (_msg) {
-      _fsLogWebhookEvent('message', _msg.from, `[${_msg.type}] ${_msg.text?.body || ''}`, _rawBody).catch(() => {});
+      _logWebhookEvent('message', _msg.from, `[${_msg.type}] ${_msg.text?.body || ''}`, _rawBody).catch(() => {});
     } else if (_status) {
-      _fsLogWebhookEvent('status', _status.recipient_id, `status:${_status.status} err:${_status.errors?.[0]?.code || ''}`, _rawBody).catch(() => {});
+      _logWebhookEvent('status', _status.recipient_id, `status:${_status.status} err:${_status.errors?.[0]?.code || ''}`, _rawBody).catch(() => {});
     } else if (_value) {
-      _fsLogWebhookEvent('other', '', _rawBody.slice(0, 100), _rawBody).catch(() => {});
+      _logWebhookEvent('other', '', _rawBody.slice(0, 100), _rawBody).catch(() => {});
     }
 
     if (!_sigOk) {
-      console.warn('[Meta WA] Firma inválida — evento rechazado (ver /meta/webhook/diagnostic)');
+      console.warn('[Meta WA] Firma inválida — evento rechazado');
       return;
     }
 
@@ -854,7 +753,7 @@ function registerMetaRoutes(app) {
       const changes = entry?.changes?.[0];
       const value   = changes?.value;
 
-      // ── Status updates (delivered / read) ────────────────────────────────
+      // ── Status updates ──────────────────────────────────────────────────
       if (value?.statuses?.length) {
         for (const st of value.statuses) {
           const { id: wamid, status, recipient_id } = st;
@@ -862,11 +761,7 @@ function registerMetaRoutes(app) {
           const entry = _wamidIndex.get(wamid);
           if (entry) {
             const { phone, logId } = entry;
-            fetch(`${FS_BASE}/wa_messages/${phone}/msgs/${logId}?key=${FS_KEY}&updateMask.fieldPaths=status`, {
-              method: 'PATCH',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ fields: { status: { stringValue: status } } }),
-            }).catch(() => {});
+            db.sbUpdateWAMessage(logId, { status }).catch(() => {});
             console.log(`[Meta WA] Status ${status} → ${phone} (${wamid})`);
           }
         }
@@ -878,7 +773,6 @@ function registerMetaRoutes(app) {
       const msg  = value.messages[0];
       const from = msg.from;
 
-      // Extract text from multiple message types
       let text = null;
       switch (msg.type) {
         case 'text':
@@ -906,7 +800,6 @@ function registerMetaRoutes(app) {
           break;
         }
         case 'interactive':
-          // Button reply or list reply
           text = msg.interactive?.button_reply?.title
               || msg.interactive?.list_reply?.title
               || null;
@@ -916,7 +809,6 @@ function registerMetaRoutes(app) {
           break;
         case 'sticker':
         case 'reaction':
-          // Silently ignore stickers and emoji reactions
           return;
         default:
           console.log(`[Meta WA] Tipo de mensaje no soportado: ${msg.type} de ${from}`);
@@ -924,7 +816,6 @@ function registerMetaRoutes(app) {
       }
       if (!text) return;
 
-      // Skip duplicate deliveries (Meta retries on timeout)
       if (msg.id && _processedMsgIds.has(msg.id)) {
         console.log(`[Meta WA] Mensaje duplicado ignorado: ${msg.id}`);
         return;
@@ -934,14 +825,11 @@ function registerMetaRoutes(app) {
         setTimeout(() => _processedMsgIds.delete(msg.id), 10 * 60 * 1000);
       }
 
-      // Auth 2FA intercept (fast path — no debounce needed)
       if (await handleAuthWAReply(from, text)) return;
 
-      // Capture WhatsApp profile name and inbox number
       const _profileName  = value?.contacts?.[0]?.profile?.name || null;
       const _inboxDisplay = value?.metadata?.display_phone_number || null;
 
-      // Buffer message and (re)start debounce timer
       if (!_msgBuffer.has(from)) _msgBuffer.set(from, []);
       _msgBuffer.get(from).push(text);
 
@@ -967,7 +855,6 @@ function registerMetaRoutes(app) {
       const entry = req.body.entry?.[0];
       if (!entry) return;
 
-      // ── Instagram DM ──────────────────────────────────────────────────────
       if (req.body.object === 'instagram') {
         const messaging = entry.messaging?.[0];
         if (!messaging) return;
@@ -982,14 +869,13 @@ function registerMetaRoutes(app) {
         return;
       }
 
-      // ── Messenger ─────────────────────────────────────────────────────────
       if (req.body.object === 'page') {
         const messaging = entry.messaging?.[0];
         if (!messaging) return;
         const senderId = messaging.sender?.id;
         const text     = messaging.message?.text;
         if (!text || !senderId) return;
-        if (messaging.message?.is_echo) return; // ignore own messages
+        if (messaging.message?.is_echo) return;
 
         console.log(`[Meta MS] ← ${senderId}: ${text}`);
         const reply = await askClaude(`ms_meta:${senderId}`, text, 'text');
@@ -1002,93 +888,41 @@ function registerMetaRoutes(app) {
     }
   });
 
-  // ── Meta WA inbox (messages stored in Firestore) ─────────────────────────
+  // ── Meta WA inbox ─────────────────────────────────────────────────────────
   app.get('/meta/wa-inbox', async (req, res) => {
     const phone = (req.query.phone || '').replace(/^\+/, '').replace(/\D/g, '');
     if (!phone) return res.status(400).json({ ok: false });
     try {
-      // Read subcollection (new format — one doc per message, sorted by ID which is timestamp-based)
-      const newData = await fetch(`${FS_BASE}/wa_messages/${phone}/msgs?key=${FS_KEY}&pageSize=200`).then(r => r.json()).catch(() => ({}));
-      const newMsgs = (newData.documents || []).map(d => {
-        const f = d.fields || {};
-        return {
-          ts:         Number(f.ts?.integerValue || 0),
-          body:       f.text?.stringValue || '',
-          dir:        f.direction?.stringValue,
-          status:     f.status?.stringValue || '',
-          error_code: Number(f.error_code?.integerValue || 0),
-        };
-      });
-
-      // Also read legacy array format (old messages before the migration)
-      const oldData = await fetch(`${FS_BASE}/wa_messages/${phone}?key=${FS_KEY}`).then(r => r.json()).catch(() => ({}));
-      const oldMsgs = (oldData.fields?.messages?.arrayValue?.values || []).map(v => {
-        const f = v.mapValue?.fields || {};
-        return { ts: Number(f.ts?.integerValue || 0), body: f.text?.stringValue || '', dir: f.direction?.stringValue, status: '', error_code: 0 };
-      });
-
-      const all = [...oldMsgs, ...newMsgs]
-        .filter(m => m.body && m.dir)
-        .sort((a, b) => a.ts - b.ts)
+      const rows = await db.sbGetWAMessages(phone, 200);
+      const messages = rows
+        .filter(m => m.text && m.direction)
         .map(m => ({
           sid:        `meta_${m.ts}`,
-          body:       m.body,
-          direction:  m.dir === 'out' ? 'outbound' : 'inbound',
+          body:       m.text,
+          direction:  m.direction === 'out' ? 'outbound' : 'inbound',
           dateSent:   new Date(m.ts).toISOString(),
-          status:     m.status || undefined,
+          status:     m.status     || undefined,
           error_code: m.error_code || undefined,
         }));
-
-      console.log(`[wa-inbox] ${phone} → ${newMsgs.length} subcol + ${oldMsgs.length} legacy = ${all.length} msgs`);
-      res.json({ ok: true, messages: all });
+      console.log(`[wa-inbox] ${phone} → ${messages.length} msgs`);
+      res.json({ ok: true, messages });
     } catch(e) {
       console.error(`[wa-inbox] Error para ${req.query.phone}:`, e.message);
       res.json({ ok: true, messages: [] });
     }
   });
 
-  // ── All WA contacts with messages (for messaging sidebar sync) ───────────────
+  // ── All WA contacts ───────────────────────────────────────────────────────
   app.get('/meta/wa-contacts', async (req, res) => {
     try {
-      // List all phone docs in wa_messages collection
-      const listData = await fetch(`${FS_BASE}/wa_messages?key=${FS_KEY}&pageSize=300`).then(r => r.json()).catch(() => ({}));
-      const phones = (listData.documents || []).map(d => d.name.split('/').pop());
-
-      const results = await Promise.all(phones.map(async phone => {
-        try {
-          const newData = await fetch(`${FS_BASE}/wa_messages/${phone}/msgs?key=${FS_KEY}&pageSize=200`).then(r => r.json()).catch(() => ({}));
-          const newMsgs = (newData.documents || []).map(d => {
-            const f = d.fields || {};
-            return { ts: Number(f.ts?.integerValue || 0), body: f.text?.stringValue || '', dir: f.direction?.stringValue, status: f.status?.stringValue || '', error_code: Number(f.error_code?.integerValue || 0) };
-          });
-          const oldData = await fetch(`${FS_BASE}/wa_messages/${phone}?key=${FS_KEY}`).then(r => r.json()).catch(() => ({}));
-          const oldMsgs = (oldData.fields?.messages?.arrayValue?.values || []).map(v => {
-            const f = v.mapValue?.fields || {};
-            return { ts: Number(f.ts?.integerValue || 0), body: f.text?.stringValue || '', dir: f.direction?.stringValue, status: '', error_code: 0 };
-          });
-          const msgs = [...oldMsgs, ...newMsgs]
-            .filter(m => m.body && m.dir)
-            .sort((a, b) => a.ts - b.ts)
-            .map(m => ({
-              sid:        `meta_${m.ts}`,
-              body:       m.body,
-              direction:  m.dir === 'out' ? 'outbound' : 'inbound',
-              dateSent:   new Date(m.ts).toISOString(),
-              status:     m.status || undefined,
-              error_code: m.error_code || undefined,
-              ch:         'wa',
-            }));
-          return { phone, messages: msgs };
-        } catch { return { phone, messages: [] }; }
-      }));
-
-      res.json({ ok: true, contacts: results.filter(c => c.messages.length > 0) });
+      const contacts = await db.sbGetAllWAContacts();
+      res.json({ ok: true, contacts });
     } catch(e) {
       res.json({ ok: true, contacts: [] });
     }
   });
 
-  // ── Webhook diagnostic (in-memory last 20) ──────────────────────────────────
+  // ── Webhook diagnostic ────────────────────────────────────────────────────
   app.get('/meta/webhook/diagnostic', (req, res) => {
     res.json({
       ok:         true,
@@ -1099,19 +933,19 @@ function registerMetaRoutes(app) {
     });
   });
 
-  // ── Reload WA token from Firestore (or set directly via ?token=) ───────────
+  // ── Reload WA token (from Supabase or directly via ?token=) ──────────────
   app.get('/meta/reload-token', async (req, res) => {
     const before = _waToken ? _waToken.slice(-8) : 'none';
     if (req.query.token) {
       _waToken = req.query.token.trim();
     } else {
-      await _loadTokenFromFS();
+      await _loadTokenFromSB();
     }
-    const after  = _waToken ? _waToken.slice(-8) : 'none';
+    const after = _waToken ? _waToken.slice(-8) : 'none';
     res.json({ before, after, changed: before !== after, tokenPresent: !!_waToken });
   });
 
-  // ── Test send — returns full Meta API response for debugging ────────────────
+  // ── Test send ─────────────────────────────────────────────────────────────
   app.get('/meta/wa-test-send', async (req, res) => {
     const to   = (req.query.to || '').replace(/\D/g, '');
     const body = req.query.body || 'Test de Ana ✓';
@@ -1130,37 +964,24 @@ function registerMetaRoutes(app) {
     }
   });
 
-  // ── Webhook event log (persistent, Firestore) ────────────────────────────────
+  // ── Webhook event log ─────────────────────────────────────────────────────
   app.get('/meta/webhook/log', async (req, res) => {
     try {
-      const limit = Math.min(Number(req.query.limit) || 100, 500);
-      const data  = await fetch(`${FS_BASE}/webhook_log?key=${FS_KEY}&pageSize=${limit}`).then(r => r.json());
-      const events = (data.documents || []).map(d => {
-        const f = d.fields || {};
-        return {
-          ts:      f.ts?.stringValue,
-          type:    f.type?.stringValue,
-          phone:   f.phone?.stringValue,
-          preview: f.preview?.stringValue,
-        };
-      }).sort((a, b) => (b.ts || '').localeCompare(a.ts || ''));
-      const messages = events.filter(e => e.type === 'message');
-      const statuses = events.filter(e => e.type === 'status');
-      res.json({
-        ok:             true,
-        total:          events.length,
-        totalMessages:  messages.length,
-        totalStatuses:  statuses.length,
-        events,
-      });
+      const limit  = Math.min(Number(req.query.limit) || 100, 500);
+      const events = await db.sbGetWebhookLog(limit);
+      const mapped = events
+        .map(e => ({ ts: e.ts, type: e.type, phone: e.phone, preview: e.preview }))
+        .sort((a, b) => (b.ts || '').localeCompare(a.ts || ''));
+      const messages = mapped.filter(e => e.type === 'message');
+      const statuses = mapped.filter(e => e.type === 'status');
+      res.json({ ok: true, total: mapped.length, totalMessages: messages.length, totalStatuses: statuses.length, events: mapped });
     } catch (e) {
       res.status(500).json({ ok: false, error: e.message });
     }
   });
 
-  // ── Data deletion callback (requerido por Meta) ───────────────────────────
+  // ── Data deletion callback (required by Meta) ─────────────────────────────
   app.post('/meta/data-deletion', (req, res) => {
-    const signedRequest = req.body.signed_request;
     const confirmationCode = `del_${Date.now()}`;
     console.log(`[Meta] Solicitud de eliminación de datos recibida: ${confirmationCode}`);
     res.json({
@@ -1173,7 +994,7 @@ function registerMetaRoutes(app) {
     res.json({ status: 'deleted', code: req.query.code });
   });
 
-  // ── WhatsApp hours API ──────────────────────────────────────────────────────
+  // ── WhatsApp hours API ────────────────────────────────────────────────────
   app.get('/wa/hours', async (req, res) => {
     const cfg = await loadWAHours();
     res.json({ ok: true, hours: cfg });
@@ -1190,7 +1011,7 @@ function registerMetaRoutes(app) {
     }
   });
 
-  // ── Manual send via Meta Cloud API (for CRM manual replies on Meta WA leads) ──
+  // ── Manual send (for CRM manual replies on Meta WA leads) ────────────────
   app.post('/meta/wa-send', async (req, res) => {
     const { to, body, leadId } = req.body;
     if (!to || !body) return res.status(400).json({ ok: false, error: 'to y body requeridos' });

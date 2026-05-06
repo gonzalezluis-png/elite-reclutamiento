@@ -1,48 +1,17 @@
 //  UTILS
 // ════════════════════════════════════════════
-// ════════════════════════════════════════════
-//  FIRESTORE
-// ════════════════════════════════════════════
-const FS_PROJECT = 'elite-reclutamiento-crm';
-const FS_KEY     = 'AIzaSyCW2t1oHb7xc2Vi6vJROGRM7E7nu-CbU3s';
-const FS_BASE    = `https://firestore.googleapis.com/v1/projects/${FS_PROJECT}/databases/(default)/documents`;
 
-function toFsVal(v) {
-  if (v === null || v === undefined) return {nullValue: null};
-  if (typeof v === 'boolean')  return {booleanValue: v};
-  if (typeof v === 'number')   return Number.isInteger(v) ? {integerValue: String(v)} : {doubleValue: v};
-  if (typeof v === 'string')   return {stringValue: v};
-  if (Array.isArray(v))        return {arrayValue: {values: v.map(toFsVal)}};
-  if (typeof v === 'object')   return {mapValue: {fields: Object.fromEntries(Object.entries(v).map(([k,x]) => [k, toFsVal(x)]))}};
-  return {stringValue: String(v)};
-}
-function fromFsVal(fv) {
-  if (!fv) return null;
-  if ('nullValue'      in fv) return null;
-  if ('booleanValue'   in fv) return fv.booleanValue;
-  if ('integerValue'   in fv) return parseInt(fv.integerValue);
-  if ('doubleValue'    in fv) return fv.doubleValue;
-  if ('stringValue'    in fv) return fv.stringValue;
-  if ('timestampValue' in fv) return fv.timestampValue;
-  if ('arrayValue'     in fv) return (fv.arrayValue.values || []).map(fromFsVal);
-  if ('mapValue'       in fv) return Object.fromEntries(Object.entries(fv.mapValue.fields || {}).map(([k,v]) => [k, fromFsVal(v)]));
-  return null;
-}
-function toFsDoc(obj) {
-  const {id, ...fields} = obj;
-  return {fields: Object.fromEntries(Object.entries(fields).map(([k,v]) => [k, toFsVal(v)]))};
-}
-function fromFsDoc(doc) {
-  const obj = Object.fromEntries(Object.entries(doc.fields || {}).map(([k,v]) => [k, fromFsVal(v)]));
-  obj.id = doc.name.split('/').pop();
-  return obj;
+function _leadHeaders() {
+  const h = { 'Content-Type': 'application/json' };
+  if (typeof _sessionToken !== 'undefined' && _sessionToken) h['x-session-token'] = _sessionToken;
+  return h;
 }
 
 async function fsLoadLeads() {
   try {
-    const res  = await fetch(`${FS_BASE}/leads?key=${FS_KEY}&pageSize=500`);
+    const res  = await fetch(`${SERVER_URL}/leads`, { headers: _leadHeaders() });
     const data = await res.json();
-    return (data.documents || []).map(fromFsDoc);
+    return data.leads || [];
   } catch(e) { return []; }
 }
 
@@ -54,11 +23,10 @@ async function dismissLlamada(leadId) {
   renderKanban();
   renderSidebar();
   try {
-    const fields = { quiere_entrevista: { booleanValue: false } };
-    await fetch(`${FS_BASE}/leads/${leadId}?key=${FS_KEY}&updateMask.fieldPaths=quiere_entrevista`, {
+    await fetch(`${SERVER_URL}/leads/${leadId}`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ fields }),
+      headers: _leadHeaders(),
+      body: JSON.stringify({ quiere_entrevista: false }),
     });
   } catch(e) {}
 }
@@ -71,11 +39,10 @@ async function dismissSinManager(leadId) {
   renderKanban();
   renderSidebar();
   try {
-    const fields = { sin_manager: { booleanValue: false } };
-    await fetch(`${FS_BASE}/leads/${leadId}?key=${FS_KEY}&updateMask.fieldPaths=sin_manager`, {
+    await fetch(`${SERVER_URL}/leads/${leadId}`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ fields }),
+      headers: _leadHeaders(),
+      body: JSON.stringify({ sin_manager: false }),
     });
   } catch(e) {}
 }
@@ -87,32 +54,30 @@ async function dismissUnread(leadId) {
   renderKanban();
   renderSidebar();
   try {
-    const fields = { unread_msg: { booleanValue: false } };
-    await fetch(`${FS_BASE}/leads/${leadId}?key=${FS_KEY}&updateMask.fieldPaths=unread_msg`, {
+    await fetch(`${SERVER_URL}/leads/${leadId}`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ fields }),
+      headers: _leadHeaders(),
+      body: JSON.stringify({ unread_msg: false }),
     });
   } catch(e) {}
 }
 
 async function fsSaveLead(lead) {
   try {
-    const doc = toFsDoc(lead);
-    const res = await fetch(`${FS_BASE}/leads/${lead.id}?key=${FS_KEY}`, {
+    const { id, ...fields } = lead;
+    const res = await fetch(`${SERVER_URL}/leads/${id}`, {
       method: 'PATCH',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify(doc)
+      headers: _leadHeaders(),
+      body: JSON.stringify(fields),
     });
     if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      console.warn('Firestore save error:', res.status, err);
-      showToast(`❌ Error al guardar en Firestore (${res.status})`);
+      console.warn('Lead save error:', res.status);
+      showToast(`❌ Error al guardar (${res.status})`);
       return false;
     }
     return true;
   } catch(e) {
-    console.warn('Firestore save failed', e);
+    console.warn('Lead save failed', e);
     showToast('❌ Error de red al guardar');
     return false;
   }
@@ -124,7 +89,7 @@ function fsSaveAll() {
 
 async function fsDeleteLead(id) {
   try {
-    await fetch(`${FS_BASE}/leads/${id}?key=${FS_KEY}`, {method: 'DELETE'});
+    await fetch(`${SERVER_URL}/leads/${id}`, { method: 'DELETE', headers: _leadHeaders() });
   } catch(e) {}
 }
 

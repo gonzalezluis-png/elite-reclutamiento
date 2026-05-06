@@ -1,47 +1,38 @@
-// Auth session store — persisted in Firestore so Railway restarts don't wipe sessions
-const FS_BASE = 'https://firestore.googleapis.com/v1/projects/elite-reclutamiento-crm/databases/(default)/documents';
-const FS_KEY  = 'AIzaSyCW2t1oHb7xc2Vi6vJROGRM7E7nu-CbU3s';
+// Auth session store — persisted in Supabase so Railway restarts don't wipe sessions
+const db = require('./db');
 
 function normalizePhone(p) { return (p || '').replace(/\D/g, ''); }
 
 async function fsGetSession(id) {
   try {
-    const r = await fetch(`${FS_BASE}/er_sessions/${id}?key=${FS_KEY}`);
-    if (!r.ok) return null;
-    const doc = await r.json();
-    if (!doc.fields) return null;
-    const f = doc.fields;
+    const s = await db.sbGetSession(id);
+    if (!s) return null;
     return {
-      userId:   f.userId?.stringValue   || '',
-      name:     f.name?.stringValue     || '',
-      role:     f.role?.stringValue     || '',
-      phone:    f.phone?.stringValue    || '',
-      verified: f.verified?.booleanValue === true,
-      expires:  Number(f.expires?.integerValue || 0),
+      userId:   s.user_id  || '',
+      name:     s.name     || '',
+      role:     s.role     || '',
+      phone:    s.phone    || '',
+      verified: s.verified === true,
+      expires:  Number(s.expires || 0),
     };
   } catch { return null; }
 }
 
 async function fsSetSession(id, s) {
-  await fetch(`${FS_BASE}/er_sessions/${id}?key=${FS_KEY}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ fields: {
-      userId:   { stringValue: s.userId   || '' },
-      name:     { stringValue: s.name     || '' },
-      role:     { stringValue: s.role     || '' },
-      phone:    { stringValue: s.phone    || '' },
-      verified: { booleanValue: !!s.verified },
-      expires:  { integerValue: String(s.expires || 0) },
-    }}),
+  await db.sbSaveSession(id, {
+    user_id:  s.userId   || '',
+    name:     s.name     || '',
+    role:     s.role     || '',
+    phone:    s.phone    || '',
+    verified: !!s.verified,
+    expires:  s.expires  || 0,
   });
 }
 
 async function fsDeleteSession(id) {
-  await fetch(`${FS_BASE}/er_sessions/${id}?key=${FS_KEY}`, { method: 'DELETE' });
+  await db.sbDeleteSession(id);
 }
 
-// In-memory phone→sessionId index (rebuilt on lookup, fast path)
 const AUTH_PHONE_PENDING = new Map();
 
 async function handleAuthWAReply(rawPhone, body) {

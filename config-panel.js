@@ -283,39 +283,24 @@ async function submitRegistroWebinar() {
     const WURL   = 'https://crm.grupoelitework.com/webinar.html';
     const personalUrl = `${WURL}?id=${leadId}&nombre=${encodeURIComponent(nombre)}&correo=${encodeURIComponent(correo)}`;
 
-    function fsV(v) {
-      if (v === null || v === undefined) return { nullValue: null };
-      if (typeof v === 'boolean') return { booleanValue: v };
-      if (typeof v === 'number')  return { doubleValue: v };
-      if (typeof v === 'string')  return { stringValue: v };
-      if (Array.isArray(v))       return { arrayValue: { values: v.map(fsV) } };
-      if (typeof v === 'object')  return { mapValue: { fields: Object.fromEntries(Object.entries(v).map(([k,x])=>[k,fsV(x)])) } };
-      return { stringValue: String(v) };
-    }
-
-    const FS_PROJECT = 'elite-reclutamiento-crm';
-    const FS_KEY     = 'AIzaSyCW2t1oHb7xc2Vi6vJROGRM7E7nu-CbU3s';
-    const FS_BASE    = `https://firestore.googleapis.com/v1/projects/${FS_PROJECT}/databases/(default)/documents`;
-
-    await fetch(`${FS_BASE}/leads/${leadId}?key=${FS_KEY}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ fields: {
-        nombre:       fsV(nombre),
-        telefono:     fsV(telefono),
-        correo:       fsV(correo),
-        fuente:       fsV('Registro Manual Webinar'),
-        etapa:        fsV('Inscrito en Webinar'),
-        pipeline_id:  fsV('en-webinar'),
-        estado:       fsV('abierto'),
-        valor:        fsV(0),
-        propietario:  fsV(currentUser?.nombre || 'Admin'),
-        link_webinar: fsV(personalUrl),
-        webinar_email_enviado: fsV(now),
-        created_at:   fsV(now),
-        notas: fsV([]), tareas: fsV([]), pagos: fsV([]), etiquetas: fsV([]),
-        historial: fsV([{ icono:'📝', accion:`Inscrito manualmente en el webinar por ${currentUser?.nombre||'Admin'}`, fecha:now, usuario:currentUser?.nombre||'Admin' }]),
-      }}),
+    await fetch(`${SERVER_URL}/leads`, {
+      method: 'POST',
+      headers: _leadHeaders(),
+      body: JSON.stringify({
+        id:           leadId,
+        nombre,       telefono,    correo,
+        fuente:       'Registro Manual Webinar',
+        etapa:        'Inscrito en Webinar',
+        pipeline_id:  'en-webinar',
+        estado:       'abierto',
+        valor:        0,
+        propietario:  currentUser?.nombre || 'Admin',
+        link_webinar: personalUrl,
+        webinar_email_enviado: now,
+        created_at:   now,
+        notas: [], tareas: [], pagos: [], etiquetas: [],
+        historial: [{ icono:'📝', accion:`Inscrito manualmente en el webinar por ${currentUser?.nombre||'Admin'}`, fecha:now, usuario:currentUser?.nombre||'Admin' }],
+      }),
     });
 
     // Enviar correo con link personalizado
@@ -392,23 +377,9 @@ async function mlEnviarWebinar() {
   btn.innerHTML = '⏳ Enviando…';
 
   try {
-    const FS_PROJECT = 'elite-reclutamiento-crm';
-    const FS_KEY     = 'AIzaSyCW2t1oHb7xc2Vi6vJROGRM7E7nu-CbU3s';
-    const FS_BASE    = `https://firestore.googleapis.com/v1/projects/${FS_PROJECT}/databases/(default)/documents`;
-    const WURL       = 'https://crm.grupoelitework.com/webinar.html';
-
+    const WURL = 'https://crm.grupoelitework.com/webinar.html';
     const personalUrl = `${WURL}?id=${lead.id}&nombre=${encodeURIComponent(nombre)}&correo=${encodeURIComponent(correo)}`;
     const now         = new Date().toISOString();
-
-    function fsV(v) {
-      if (v === null || v === undefined) return { nullValue: null };
-      if (typeof v === 'boolean') return { booleanValue: v };
-      if (typeof v === 'number')  return { doubleValue: v };
-      if (typeof v === 'string')  return { stringValue: v };
-      if (Array.isArray(v))       return { arrayValue: { values: v.map(fsV) } };
-      if (typeof v === 'object')  return { mapValue: { fields: Object.fromEntries(Object.entries(v).map(([k,x])=>[k,fsV(x)])) } };
-      return { stringValue: String(v) };
-    }
 
     // Build new historial entry
     const hist = (lead.historial || []).concat([{
@@ -418,18 +389,15 @@ async function mlEnviarWebinar() {
       usuario: currentUser?.nombre || 'Admin',
     }]);
 
-    const fields = {
-      pipeline_id:  fsV('en-webinar'),
-      etapa:        fsV('Inscrito en Webinar'),
-      link_webinar: fsV(personalUrl),
-      historial:    fsV(hist),
-    };
-    const mask = Object.keys(fields).join('&updateMask.fieldPaths=');
-
-    await fetch(`${FS_BASE}/leads/${lead.id}?key=${FS_KEY}&updateMask.fieldPaths=${mask}`, {
+    await fetch(`${SERVER_URL}/leads/${lead.id}`, {
       method:  'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ fields }),
+      headers: _leadHeaders(),
+      body:    JSON.stringify({
+        pipeline_id:  'en-webinar',
+        etapa:        'Inscrito en Webinar',
+        link_webinar: personalUrl,
+        historial:    hist,
+      }),
     });
 
     // Also send the email via the server

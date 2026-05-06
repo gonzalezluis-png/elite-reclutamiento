@@ -1,23 +1,18 @@
 // Shared WA pipeline: lead management, webinar detection, Playwright registration
 
-// nodemailer removed — using Resend API
 const Anthropic  = require('@anthropic-ai/sdk');
 const { pixelWebinar } = require('./pixel');
-
-const FS_PROJECT = 'elite-reclutamiento-crm';
-const FS_KEY     = 'AIzaSyCW2t1oHb7xc2Vi6vJROGRM7E7nu-CbU3s';
-const FS_BASE    = `https://firestore.googleapis.com/v1/projects/${FS_PROJECT}/databases/(default)/documents`;
+const db = require('./db');
 
 // Phones that already received a webinar invite this session
 const webinarInviteSent = new Set();
 
 // ── Human-like typing delay ───────────────────────────────────────────────────
-// ~50 ms per character, min 2 s, max 40 s, with ±25 % random jitter
 function humanDelay(text) {
-  const len  = (text || '').length;
-  const base = 2000 + len * 50;              // 2 s + 50 ms/char
-  const ms   = Math.min(base, 40000);        // cap at 40 s
-  const jitter = ms * (0.75 + Math.random() * 0.5); // ±25 %
+  const len    = (text || '').length;
+  const base   = 2000 + len * 50;
+  const ms     = Math.min(base, 40000);
+  const jitter = ms * (0.75 + Math.random() * 0.5);
   return new Promise(resolve => setTimeout(resolve, Math.round(jitter)));
 }
 
@@ -29,99 +24,32 @@ function toE164(raw) {
   return digits ? `+${digits}` : raw;
 }
 
-// Extract the raw phone number from any key format
 function rawPhone(from) {
   return from.replace(/^wa_meta:/, '').replace(/^whatsapp:/, '');
 }
 
-// ── Phone → leadId in-memory cache (avoids full leads scan per message) ───────
-const _phoneLeadCache = new Map(); // E164 → leadId
+// ── Phone → leadId in-memory cache ───────────────────────────────────────────
+const _phoneLeadCache = new Map();
 
 function _cachePhone(phone, leadId) {
   _phoneLeadCache.set(toE164(rawPhone(phone)), leadId);
 }
 
-// ── Firestore helpers ─────────────────────────────────────────────────────────
-function fsVal(v) {
-  if (v === null || v === undefined) return { nullValue: null };
-  if (typeof v === 'boolean') return { booleanValue: v };
-  if (typeof v === 'number')  return Number.isInteger(v) ? { integerValue: String(v) } : { doubleValue: v };
-  if (typeof v === 'string')  return { stringValue: v };
-  if (Array.isArray(v))       return { arrayValue: { values: v.map(fsVal) } };
-  if (typeof v === 'object')  return { mapValue: { fields: Object.fromEntries(Object.entries(v).map(([k, x]) => [k, fsVal(x)])) } };
-  return { stringValue: String(v) };
-}
-
+// ── Lead operations (Supabase) ────────────────────────────────────────────────
 async function fsUpdateLeadFields(leadId, fields) {
-  const mask = Object.keys(fields).join('&updateMask.fieldPaths=');
-  const body = { fields: Object.fromEntries(Object.entries(fields).map(([k, v]) => [k, fsVal(v)])) };
-  await fetch(`${FS_BASE}/leads/${leadId}?key=${FS_KEY}&updateMask.fieldPaths=${mask}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
+  await db.sbUpdateLead(leadId, fields);
 }
 
 async function fsGetLeadByPhone(phone) {
-  try {
-    const normalized = toE164(rawPhone(phone));
-    // Check cache first
-    const cachedId = _phoneLeadCache.get(normalized);
-    if (cachedId) {
-      const doc = await fetch(`${FS_BASE}/leads/${cachedId}?key=${FS_KEY}`).then(r => r.json()).catch(() => null);
-      if (doc && doc.fields) return doc;
-    }
-    // Fallback: scan all leads
-    const data = await fetch(`${FS_BASE}/leads?key=${FS_KEY}&pageSize=500`).then(r => r.json());
-    const found = (data.documents || []).find(doc => {
-      const tel = doc.fields?.telefono?.stringValue || '';
-      return toE164(tel) === normalized;
-    }) || null;
-    if (found) _cachePhone(phone, found.name.split('/').pop());
-    return found;
-  } catch { return null; }
-}
-
-// Append a message to lead's metaWa array in Firestore (fire-and-forget)
-async function fsAppendLeadMetaWa(phone, message) {
-  try {
-    const normalized = toE164(rawPhone(phone));
-    let leadId = _phoneLeadCache.get(normalized);
-    if (!leadId) {
-      const doc = await fsGetLeadByPhone(phone);
-      if (!doc) return;
-      leadId = doc.name.split('/').pop();
-    }
-    // Read current metaWa, append, write back
-    const docRes = await fetch(`${FS_BASE}/leads/${leadId}?key=${FS_KEY}&mask.fieldPaths=metaWa`).then(r => r.json()).catch(() => ({}));
-    const existing = (docRes.fields?.metaWa?.arrayValue?.values || []).map(v => {
-      const f = v.mapValue?.fields || {};
-      return {
-        sid:        f.sid?.stringValue       || '',
-        body:       f.body?.stringValue      || '',
-        direction:  f.direction?.stringValue || '',
-        dateSent:   f.dateSent?.stringValue  || '',
-        status:     f.status?.stringValue    || '',
-        error_code: Number(f.error_code?.integerValue || 0) || undefined,
-        ch:         f.ch?.stringValue        || 'wa',
-      };
-    });
-    // Update status if sid already exists, otherwise append
-    const idx = existing.findIndex(m => m.sid === message.sid);
-    if (idx >= 0) {
-      if (message.status) existing[idx].status = message.status;
-      if (message.error_code) existing[idx].error_code = message.error_code;
-    } else {
-      existing.push(message);
-    }
-    await fetch(`${FS_BASE}/leads/${leadId}?key=${FS_KEY}&updateMask.fieldPaths=metaWa`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ fields: { metaWa: fsVal(existing) } }),
-    });
-  } catch(e) {
-    console.warn('[metaWa sync]', e.message);
+  const normalized = toE164(rawPhone(phone));
+  const cachedId   = _phoneLeadCache.get(normalized);
+  if (cachedId) {
+    const lead = await db.sbGetLead(cachedId);
+    if (lead) return lead;
   }
+  const lead = await db.sbGetLeadByPhone(phone);
+  if (lead) _cachePhone(phone, lead.id);
+  return lead;
 }
 
 async function fsLeadExists(phone) {
@@ -133,40 +61,59 @@ async function fsCreateLeadWA(from) {
   const id    = 'lead-wa-' + Date.now();
   _cachePhone(phone, id);
   const now   = new Date().toISOString();
-  const doc   = {
-    fields: {
-      nombre:      fsVal(`WA ${phone}`),
-      telefono:    fsVal(toE164(phone)),
-      fuente:      fsVal('WhatsApp'),
-      etapa:       fsVal('New Lead'),
-      pipeline_id: fsVal('postulados-whatsapp-meta'),
-      estado:      fsVal('abierto'),
-      valor:       fsVal(0),
-      propietario: fsVal('Ana (IA)'),
-      created_at:  fsVal(now),
-      notas:       fsVal([]),
-      tareas:      fsVal([]),
-      pagos:       fsVal([]),
-      etiquetas:   fsVal([]),
-      historial:   fsVal([{ icono: '📱', accion: 'Lead creado automáticamente por WhatsApp entrante', fecha: now, usuario: 'Ana (IA)' }]),
-    }
+  const lead  = {
+    id,
+    nombre:      `WA ${phone}`,
+    telefono:    toE164(phone),
+    fuente:      'WhatsApp',
+    etapa:       'New Lead',
+    pipeline_id: 'postulados-whatsapp-meta',
+    estado:      'abierto',
+    valor:       0,
+    propietario: 'Ana (IA)',
+    created_at:  now,
+    notas:       [],
+    tareas:      [],
+    pagos:       [],
+    etiquetas:   [],
+    historial:   [{ icono: '📱', accion: 'Lead creado automáticamente por WhatsApp entrante', fecha: now, usuario: 'Ana (IA)' }],
+    metaWa:      [],
   };
   try {
-    await fetch(`${FS_BASE}/leads/${id}?key=${FS_KEY}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(doc),
-    });
+    await db.sbSaveLead(lead);
     console.log(`[WA-AI] Lead auto-creado: ${id} para ${phone}`);
   } catch (e) {
     console.error('[WA-AI] Error creando lead:', e.message);
   }
 }
 
+async function fsAppendLeadMetaWa(phone, message) {
+  try {
+    const normalized = toE164(rawPhone(phone));
+    let leadId = _phoneLeadCache.get(normalized);
+    if (!leadId) {
+      const lead = await fsGetLeadByPhone(phone);
+      if (!lead) return;
+      leadId = lead.id;
+    }
+    const lead     = await db.sbGetLead(leadId);
+    const existing = Array.isArray(lead?.metaWa) ? [...lead.metaWa] : [];
+    const idx      = existing.findIndex(m => m.sid === message.sid);
+    if (idx >= 0) {
+      if (message.status)     existing[idx].status     = message.status;
+      if (message.error_code) existing[idx].error_code = message.error_code;
+    } else {
+      existing.push(message);
+    }
+    await db.sbUpdateLead(leadId, { metaWa: existing });
+  } catch(e) {
+    console.warn('[metaWa sync]', e.message);
+  }
+}
+
 // ── AI: extract lead data from conversation ───────────────────────────────────
 async function extractAndUpdateLead(from, history) {
   try {
-    // Filter out [SISTEMA] injected context messages — they're not real candidate messages
     const messages = history
       .filter(m => !m.content?.startsWith('[SISTEMA'))
       .slice(-14)
@@ -190,16 +137,12 @@ Campos a extraer:
 - webinar_intent: true si mostró interés en ver el webinar o dio correo para el link. false si lo rechazó. null si no aplica.
 - vio_webinar: true si confirmó que ya vio el webinar. false si dijo que no. null si no se sabe.
 Si no hay información clara para un campo, pon null. SOLO JSON, nada más.`,
-      messages: [
-        ...messages,
-        { role: 'assistant', content: '{' },
-      ],
+      messages: [...messages, { role: 'assistant', content: '{' }],
     });
 
     let extracted;
     try {
       if (!extraction.content?.[0]?.text) return;
-      // The prefill starts with '{', so the model's reply is the rest — prepend it back
       let raw = ('{' + extraction.content[0].text).trim()
         .replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
       const match = raw.match(/\{[\s\S]*\}/);
@@ -214,53 +157,45 @@ Si no hay información clara para un campo, pon null. SOLO JSON, nada más.`,
     if (!Object.values(extracted).some(v => v !== null)) return;
 
     const phone = rawPhone(from);
-    const doc   = await fsGetLeadByPhone(phone);
-    if (!doc) { console.error(`[AI-Extract] Lead no encontrado para ${phone}`); return; }
+    const lead  = await fsGetLeadByPhone(phone);
+    if (!lead) { console.error(`[AI-Extract] Lead no encontrado para ${phone}`); return; }
 
-    const leadId   = doc.name.split('/').pop();
-    const existing = doc.fields || {};
-    const updates  = {};
-
-    const existingNombre = existing.nombre?.stringValue || '';
-    const isAutoName = !existingNombre || existingNombre.startsWith('WA ') || existingNombre.startsWith('+');
-    if (extracted.nombre         && isAutoName)                               updates.nombre          = extracted.nombre;
-    if (extracted.correo         && !existing.correo?.stringValue)            updates.correo          = extracted.correo;
-    if (extracted.ubicacion      && !existing.ubicacion?.stringValue)         updates.ubicacion       = extracted.ubicacion;
-    if (extracted.disponibilidad && !existing.disponibilidad?.stringValue)    updates.disponibilidad  = extracted.disponibilidad;
-    if (extracted.tiene_experiencia !== null && extracted.tiene_experiencia !== undefined && existing.tiene_experiencia?.booleanValue !== true)
-                                                                              updates.tiene_experiencia = extracted.tiene_experiencia;
-    if (extracted.tiene_papeles !== null && extracted.tiene_papeles !== undefined && existing.tiene_papeles?.booleanValue !== true)
-                                                                              updates.tiene_papeles   = extracted.tiene_papeles;
-    if (extracted.mayor_edad !== null && extracted.mayor_edad !== undefined && existing.mayor_edad?.booleanValue !== true)
-                                                                              updates.mayor_edad      = extracted.mayor_edad;
-    if (extracted.vio_webinar === true && existing.vio_webinar?.booleanValue !== true)
-                                                                              updates.vio_webinar     = true;
+    const updates = {};
+    const isAutoName = !lead.nombre || lead.nombre.startsWith('WA ') || lead.nombre.startsWith('+');
+    if (extracted.nombre         && isAutoName)          updates.nombre          = extracted.nombre;
+    if (extracted.correo         && !lead.correo)        updates.correo          = extracted.correo;
+    if (extracted.ubicacion      && !lead.ubicacion)     updates.ubicacion       = extracted.ubicacion;
+    if (extracted.disponibilidad && !lead.disponibilidad) updates.disponibilidad = extracted.disponibilidad;
+    if (extracted.tiene_experiencia !== null && extracted.tiene_experiencia !== undefined && lead.tiene_experiencia !== true)
+                                                         updates.tiene_experiencia = extracted.tiene_experiencia;
+    if (extracted.tiene_papeles !== null && extracted.tiene_papeles !== undefined && lead.tiene_papeles !== true)
+                                                         updates.tiene_papeles   = extracted.tiene_papeles;
+    if (extracted.mayor_edad !== null && extracted.mayor_edad !== undefined && lead.mayor_edad !== true)
+                                                         updates.mayor_edad      = extracted.mayor_edad;
+    if (extracted.vio_webinar === true && lead.vio_webinar !== true)
+                                                         updates.vio_webinar     = true;
 
     if (!Object.keys(updates).length) return null;
-    await fsUpdateLeadFields(leadId, updates);
-    console.log(`[AI-Extract] Lead ${leadId} actualizado:`, updates);
+    await fsUpdateLeadFields(lead.id, updates);
+    console.log(`[AI-Extract] Lead ${lead.id} actualizado:`, updates);
 
-    // Determinar si hay intención de webinar (flag existente O recién detectado)
-    const correoFinal      = updates.correo || existing.correo?.stringValue || '';
-    const nombreFinal      = updates.nombre || existing.nombre?.stringValue || '';
-    const pipelineId       = existing.pipeline_id?.stringValue || '';
-    const intentExistente  = existing.webinar_intent?.booleanValue || false;
-    const intentNuevo      = extracted.webinar_intent === true;
-    const hayIntent        = intentExistente || intentNuevo;
-    const nombreValido     = nombreFinal && !nombreFinal.startsWith('WA ') && !nombreFinal.startsWith('+');
+    const correoFinal     = updates.correo || lead.correo || '';
+    const nombreFinal     = updates.nombre || lead.nombre || '';
+    const pipelineId      = lead.pipeline_id || '';
+    const intentExistente = lead.webinar_intent || false;
+    const intentNuevo     = extracted.webinar_intent === true;
+    const hayIntent       = intentExistente || intentNuevo;
+    const nombreValido    = nombreFinal && !nombreFinal.startsWith('WA ') && !nombreFinal.startsWith('+');
+    const displayName     = nombreValido ? nombreFinal : 'Candidato';
 
-    const displayName = nombreValido ? nombreFinal : 'Candidato';
     if (hayIntent && correoFinal && pipelineId !== 'en-webinar') {
-      console.log(`[AI-Extract] Intención + correo detectados — registrando en webinar: ${leadId} (nombre: ${displayName})`);
-      await fsUpdateLeadFields(leadId, { webinar_intent: false });
+      console.log(`[AI-Extract] Intención + correo — registrando en webinar: ${lead.id}`);
+      await fsUpdateLeadFields(lead.id, { webinar_intent: false });
       const WEBINAR_URL = process.env.WEBINAR_URL || 'https://crm.grupoelitework.com/webinar.html';
-      await moveLeadToWebinar(leadId, displayName, correoFinal, WEBINAR_URL);
-    } else if (intentNuevo && !correoFinal) {
-      // Tiene intención pero aún no tiene correo — guardar flag para cuando llegue
-      if (!intentExistente) {
-        await fsUpdateLeadFields(leadId, { webinar_intent: true });
-        console.log(`[AI-Extract] Intención webinar guardada para ${leadId} — esperando correo`);
-      }
+      await moveLeadToWebinar(lead.id, displayName, correoFinal, WEBINAR_URL);
+    } else if (intentNuevo && !correoFinal && !intentExistente) {
+      await fsUpdateLeadFields(lead.id, { webinar_intent: true });
+      console.log(`[AI-Extract] Intención webinar guardada para ${lead.id} — esperando correo`);
     }
     return null;
   } catch (e) {
@@ -287,22 +222,13 @@ async function detectWebinarIntent(history) {
 // ── Email: send webinar invitation ────────────────────────────────────────────
 async function sendWebinarEmail(correo, nombre, webinarUrl) {
   const RESEND_API_KEY = process.env.RESEND_API_KEY;
-  if (!RESEND_API_KEY) {
-    console.error('[Email] RESEND_API_KEY no configurado');
-    return false;
-  }
-  if (!correo) {
-    console.warn('[Email] No se proporcionó correo destinatario');
-    return false;
-  }
+  if (!RESEND_API_KEY) { console.error('[Email] RESEND_API_KEY no configurado'); return false; }
+  if (!correo)         { console.warn('[Email] No se proporcionó correo'); return false; }
   const FROM_EMAIL = process.env.EMAIL_FROM || 'webinar@grupoelitework.com';
   try {
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${RESEND_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Authorization': `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         from: `Grupo Elite Work LLC <${FROM_EMAIL}>`,
         to:   [correo],
@@ -314,32 +240,18 @@ async function sendWebinarEmail(correo, nombre, webinarUrl) {
             <p style="color:#94a3b8;margin:8px 0 0;">Oportunidad de Carrera — Globe Life Insurance</p>
           </div>
           <h2 style="color:#1e293b;">¡Hola${nombre ? ', ' + nombre : ''}! 👋</h2>
-          <p style="color:#475569;line-height:1.6;">Nos da mucho gusto que estés interesado/a en nuestra oportunidad. Te compartimos tu acceso personal al <strong>webinar informativo virtual</strong> donde aprenderás todo sobre cómo construir una carrera exitosa como agente de seguros de vida.</p>
-          <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:20px;margin:20px 0;">
-            <h3 style="color:#1e293b;margin:0 0 12px;">¿Qué verás en el webinar?</h3>
-            <ul style="color:#475569;line-height:1.8;padding-left:20px;">
-              <li>Cómo funciona el modelo de trabajo remoto</li>
-              <li>Estructura de comisiones y potencial de ingresos</li>
-              <li>Proceso para obtener tu licencia estatal</li>
-              <li>Preguntas y respuestas frecuentes</li>
-            </ul>
-          </div>
+          <p style="color:#475569;line-height:1.6;">Te compartimos tu acceso personal al <strong>webinar informativo virtual</strong>.</p>
           <div style="text-align:center;margin:28px 0;">
             <a href="${webinarUrl}" style="background:linear-gradient(135deg,#0073ea,#0059b3);color:#fff;text-decoration:none;padding:14px 32px;border-radius:8px;font-size:16px;font-weight:700;display:inline-block;">
               🎥 Ver Webinar Ahora
             </a>
           </div>
-          <p style="color:#64748b;font-size:13px;text-align:center;">Este link es personal y único para ti. Si tienes preguntas, responde a este correo o escríbenos por WhatsApp.</p>
-          <hr style="border:none;border-top:1px solid #e2e8f0;margin:20px 0;">
           <p style="color:#94a3b8;font-size:11px;text-align:center;">Grupo Elite Work LLC — Globe Life Insurance</p>
         </div>`,
       }),
     });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      console.error('[Email] Resend error:', JSON.stringify(data));
-      return false;
-    }
+    if (!res.ok) { console.error('[Email] Resend error:', JSON.stringify(data)); return false; }
     console.log(`[Email] Enviado a ${correo} (id: ${data.id})`);
     return true;
   } catch (e) {
@@ -348,13 +260,10 @@ async function sendWebinarEmail(correo, nombre, webinarUrl) {
   }
 }
 
-// ── Move lead to webinar: generate personalized link, save, send email ────────
-// Returns the personalized webinar URL
+// ── Move lead to webinar ──────────────────────────────────────────────────────
 async function moveLeadToWebinar(leadId, nombre, correo, baseWebinarUrl) {
   try {
-    const now = new Date().toISOString();
-
-    // Build personalized URL so webinar.html can track this specific viewer
+    const now         = new Date().toISOString();
     const personalUrl = `${baseWebinarUrl}?id=${leadId}&nombre=${encodeURIComponent(nombre)}&correo=${encodeURIComponent(correo)}`;
 
     await fsUpdateLeadFields(leadId, {
@@ -363,22 +272,14 @@ async function moveLeadToWebinar(leadId, nombre, correo, baseWebinarUrl) {
       link_webinar: personalUrl,
     });
 
-    // Append historial entry
-    const doc  = await fetch(`${FS_BASE}/leads/${leadId}?key=${FS_KEY}`).then(r => r.json());
-    const hist = (doc.fields?.historial?.arrayValue?.values || []).map(v => ({
-      icono:   v.mapValue?.fields?.icono?.stringValue   || '📋',
-      accion:  v.mapValue?.fields?.accion?.stringValue  || '',
-      fecha:   v.mapValue?.fields?.fecha?.stringValue   || now,
-      usuario: v.mapValue?.fields?.usuario?.stringValue || '',
-    }));
+    const lead = await db.sbGetLead(leadId);
+    const hist = Array.isArray(lead?.historial) ? [...lead.historial] : [];
     hist.push({ icono: '🎥', accion: 'Inscrito en Webinar — link personalizado generado y enviado por correo', fecha: now, usuario: 'Ana (IA)' });
     await fsUpdateLeadFields(leadId, { historial: hist });
 
-    // Send email with personalized link
     await sendWebinarEmail(correo, nombre, personalUrl);
 
-    // Pixel event — lead calificado (audiencia "interesada" para Meta Ads)
-    const telefono = doc.fields?.telefono?.stringValue || '';
+    const telefono = lead?.telefono || '';
     pixelWebinar({ id: leadId, telefono, correo }).catch(e => console.error('[Pixel] pixelWebinar:', e.message));
 
     console.log(`[Webinar] Lead ${leadId} → en-webinar | link: ${personalUrl}`);
@@ -390,51 +291,36 @@ async function moveLeadToWebinar(leadId, nombre, correo, baseWebinarUrl) {
 }
 
 // ── Full background WA pipeline ───────────────────────────────────────────────
-// from:   conversationHistory key ("wa_meta:521..." or "whatsapp:+1...")
-// sendFn: async (to, text) — channel-specific send function (NOT used for link)
-// opts:   { WEBINAR_URL }
 async function runWAPipeline(from, historyMap, sendFn, opts) {
   const { WEBINAR_URL } = opts;
   const history = historyMap.get(from) || [];
 
   try {
-    // Always try to extract/update lead data from the conversation
     await extractAndUpdateLead(from, history);
 
-    // Get lead doc to check current state
     const phone = rawPhone(from);
-    const doc   = await fsGetLeadByPhone(phone);
-    if (!doc) return;
+    const lead  = await fsGetLeadByPhone(phone);
+    if (!lead) return;
 
-    const f           = doc.fields || {};
-    const pipelineId  = f.pipeline_id?.stringValue || '';
-    const nombre      = f.nombre?.stringValue || '';
-    const correo      = f.correo?.stringValue || '';
-    const leadId      = doc.name.split('/').pop();
+    if (lead.pipeline_id === 'en-webinar' || webinarInviteSent.has(from)) return;
 
-    // extractAndUpdateLead ya maneja intención + correo en una sola pasada.
-    // Este bloque actúa como red de seguridad para casos que el extractor no capturó.
-    if (pipelineId === 'en-webinar' || webinarInviteSent.has(from)) return;
-
-    const webinarIntent = f.webinar_intent?.booleanValue || false;
-
-    // Solo llamar detectWebinarIntent si el extractor no encontró intención
-    const wantsWebinar = webinarIntent || await detectWebinarIntent(history);
+    const webinarIntent = lead.webinar_intent || false;
+    const wantsWebinar  = webinarIntent || await detectWebinarIntent(history);
 
     if (wantsWebinar) {
-      const nombreValido = nombre && !nombre.startsWith('WA ') && !nombre.startsWith('+');
-      if (!correo || !nombreValido) {
+      const nombreValido = lead.nombre && !lead.nombre.startsWith('WA ') && !lead.nombre.startsWith('+');
+      if (!lead.correo || !nombreValido) {
         if (!webinarIntent) {
-          await fsUpdateLeadFields(leadId, { webinar_intent: true });
-          console.log(`[Pipeline] Intención webinar guardada para ${from} — esperando correo o nombre`);
+          await fsUpdateLeadFields(lead.id, { webinar_intent: true });
+          console.log(`[Pipeline] Intención webinar guardada para ${from} — esperando correo`);
         }
         return;
       }
       webinarInviteSent.add(from);
-      await fsUpdateLeadFields(leadId, { webinar_intent: false });
-      await moveLeadToWebinar(leadId, nombre, correo, WEBINAR_URL);
-      const firstName = nombre.split(' ')[0] || '';
-      const waMsg = `📧 ${firstName ? '¡'+firstName+'! ' : ''}Te acabo de enviar el enlace del webinar a tu correo *${correo}*. Revísalo (también la carpeta de spam). 😊`;
+      await fsUpdateLeadFields(lead.id, { webinar_intent: false });
+      await moveLeadToWebinar(lead.id, lead.nombre, lead.correo, WEBINAR_URL);
+      const firstName = lead.nombre.split(' ')[0] || '';
+      const waMsg = `📧 ${firstName ? '¡'+firstName+'! ' : ''}Te acabo de enviar el enlace del webinar a tu correo *${lead.correo}*. Revísalo (también la carpeta de spam). 😊`;
       await humanDelay(waMsg);
       await sendFn(rawPhone(from), waMsg).catch(() => {});
     }
@@ -447,7 +333,6 @@ module.exports = {
   humanDelay,
   toE164,
   rawPhone,
-  fsVal,
   fsUpdateLeadFields,
   fsGetLeadByPhone,
   fsLeadExists,

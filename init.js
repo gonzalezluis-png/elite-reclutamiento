@@ -43,7 +43,7 @@ function postLoginInit() {
         await fsSaveAll();
       }
     } catch(e) {
-      showToast('⚠️ Sin conexión a Firestore — usando datos locales');
+      showToast('⚠️ Sin conexión al servidor — usando datos locales');
     }
   })();
 

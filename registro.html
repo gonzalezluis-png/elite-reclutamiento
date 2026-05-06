@@ -175,19 +175,7 @@ input.error { border-color: var(--red); }
 <p class="page-footer">© 2026 Grupo Elite Work LLC · Todos los derechos reservados</p>
 
 <script>
-const FS_PROJECT = 'elite-reclutamiento-crm';
-const FS_KEY     = 'AIzaSyCW2t1oHb7xc2Vi6vJROGRM7E7nu-CbU3s';
-const FS_BASE    = `https://firestore.googleapis.com/v1/projects/${FS_PROJECT}/databases/(default)/documents`;
-
-function fsVal(v) {
-  if (v === null || v === undefined) return { nullValue: null };
-  if (typeof v === 'boolean') return { booleanValue: v };
-  if (typeof v === 'number')  return { doubleValue: v };
-  if (typeof v === 'string')  return { stringValue: v };
-  if (Array.isArray(v))       return { arrayValue: { values: v.map(fsVal) } };
-  if (typeof v === 'object')  return { mapValue: { fields: Object.fromEntries(Object.entries(v).map(([k,x]) => [k, fsVal(x)])) } };
-  return { stringValue: String(v) };
-}
+const SERVER_URL = 'https://elite-reclutamiento-production.up.railway.app';
 
 async function submitForm(e) {
   e.preventDefault();
@@ -220,38 +208,11 @@ async function submitForm(e) {
   try {
     const leadId = 'lead-reg-' + Date.now();
     const now    = new Date().toISOString();
-    const WEBINAR_URL = 'https://crm.grupoelitework.com/webinar.html';
 
-    const doc = {
-      fields: {
-        nombre:       fsVal(nombre),
-        telefono:     fsVal(telefono),
-        correo:       fsVal(correo),
-        fuente:       fsVal('Registro Webinar'),
-        etapa:        fsVal('Inscrito en Webinar'),
-        pipeline_id:  fsVal('en-webinar'),
-        estado:       fsVal('abierto'),
-        valor:        fsVal(0),
-        propietario:  fsVal('Ana (IA)'),
-        link_webinar: fsVal(WEBINAR_URL),
-        created_at:   fsVal(now),
-        notas:        fsVal([]),
-        tareas:       fsVal([]),
-        pagos:        fsVal([]),
-        etiquetas:    fsVal([]),
-        historial:    fsVal([{
-          icono:   '📝',
-          accion:  'Lead registrado manualmente en el webinar vía formulario público',
-          fecha:   now,
-          usuario: 'Formulario Web',
-        }]),
-      }
-    };
-
-    const res = await fetch(`${FS_BASE}/leads/${leadId}?key=${FS_KEY}`, {
-      method: 'PATCH',
+    const res = await fetch(`${SERVER_URL}/webinar/register`, {
+      method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(doc),
+      body: JSON.stringify({ leadId, nombre, telefono, correo, now }),
     });
 
     if (!res.ok) throw new Error('Error guardando datos');
@@ -260,7 +221,6 @@ async function submitForm(e) {
     const webinarUrl = `webinar.html?id=${leadId}&nombre=${encodeURIComponent(nombre)}&correo=${encodeURIComponent(correo)}`;
 
     // Enviar correo con link personalizado
-    const SERVER_URL  = 'https://elite-reclutamiento-production.up.railway.app';
     const personalUrl = `${location.origin}/${webinarUrl}`;
     fetch(`${SERVER_URL}/send-webinar-email`, {
       method: 'POST',

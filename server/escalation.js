@@ -1,29 +1,22 @@
 // ── Escalation chain system ───────────────────────────────────────────────────
-// Detects trigger situations from Ana's responses and routes alerts through
-// a 3-level manager chain via WhatsApp, with timeout-based auto-escalation.
-
 const { sendTemplateOrFallback, TEMPLATES } = require('./templates');
-
-const FS_PROJECT = 'elite-reclutamiento-crm';
-const FS_KEY     = 'AIzaSyCW2t1oHb7xc2Vi6vJROGRM7E7nu-CbU3s';
-const FS_BASE    = `https://firestore.googleapis.com/v1/projects/${FS_PROJECT}/databases/(default)/documents`;
+const db = require('./db');
 
 const DEFAULT_MANAGERS = [
-  { level: 1, phone: '+17863060642',  name: 'Luis (Admin)' },
-  { level: 2, phone: '+14695285231',  name: 'Encargado 2' },
-  { level: 3, phone: '+17863060642',  name: 'Luis (Admin)'  },
+  { level: 1, phone: '+17863060642', name: 'Luis (Admin)' },
+  { level: 2, phone: '+14695285231', name: 'Encargado 2'  },
+  { level: 3, phone: '+17863060642', name: 'Luis (Admin)' },
 ];
 
 const REASON_LABELS = {
-  'link-no-llega':   '🔗 Link no llegó después de varios intentos',
-  'pide-llamada':    '📞 Candidato solicita llamada telefónica',
-  'groseria':        '🚨 Lenguaje ofensivo / agresivo',
-  'fuera-de-alcance':'❓ Pregunta fuera del alcance de Ana',
-  'tiene-licencia':  '📋 Candidato ya tiene licencia de seguros',
-  'sin-documentos':  '⚠️ Sin documentos legales para trabajar en EE.UU.',
+  'link-no-llega':    '🔗 Link no llegó después de varios intentos',
+  'pide-llamada':     '📞 Candidato solicita llamada telefónica',
+  'groseria':         '🚨 Lenguaje ofensivo / agresivo',
+  'fuera-de-alcance': '❓ Pregunta fuera del alcance de Ana',
+  'tiene-licencia':   '📋 Candidato ya tiene licencia de seguros',
+  'sin-documentos':   '⚠️ Sin documentos legales para trabajar en EE.UU.',
 };
 
-// Timeouts por nivel y ronda (ms) — cada ronda da más tiempo
 const TIMEOUTS = {
   1: { 1:  5*60*1000, 2: 20*60*1000, 3:  60*60*1000 },
   2: { 1: 10*60*1000, 2: 30*60*1000, 3:  90*60*1000 },
@@ -31,66 +24,17 @@ const TIMEOUTS = {
 };
 const MAX_ROUNDS = 3;
 
-// ── Firestore helpers ─────────────────────────────────────────────────────────
-function fsVal(v) {
-  if (v === null || v === undefined) return { nullValue: null };
-  if (typeof v === 'boolean') return { booleanValue: v };
-  if (typeof v === 'number')  return { doubleValue: v };
-  if (typeof v === 'string')  return { stringValue: v };
-  if (Array.isArray(v))       return { arrayValue: { values: v.map(fsVal) } };
-  if (typeof v === 'object')  return { mapValue: { fields: Object.fromEntries(Object.entries(v).map(([k, x]) => [k, fsVal(x)])) } };
-  return { stringValue: String(v) };
-}
-
-function fsRead(fields = {}) {
-  const out = {};
-  for (const [k, v] of Object.entries(fields)) {
-    if      (v.stringValue  !== undefined) out[k] = v.stringValue;
-    else if (v.booleanValue !== undefined) out[k] = v.booleanValue;
-    else if (v.doubleValue  !== undefined) out[k] = v.doubleValue;
-    else if (v.integerValue !== undefined) out[k] = Number(v.integerValue);
-    else if (v.nullValue    !== undefined) out[k] = null;
-    else if (v.arrayValue)  out[k] = (v.arrayValue.values || []).map(i => fsRead(i.mapValue?.fields || {}));
-    else if (v.mapValue)    out[k] = fsRead(v.mapValue.fields || {});
-  }
-  return out;
-}
-
-async function fsPatch(path, data) {
-  const mask = Object.keys(data).map(k => `updateMask.fieldPaths=${encodeURIComponent(k)}`).join('&');
-  await fetch(`${FS_BASE}/${path}?key=${FS_KEY}&${mask}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ fields: Object.fromEntries(Object.entries(data).map(([k, v]) => [k, fsVal(v)])) }),
-  });
-}
-
-async function fsCreate(path, data) {
-  await fetch(`${FS_BASE}/${path}?key=${FS_KEY}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ fields: Object.fromEntries(Object.entries(data).map(([k, v]) => [k, fsVal(v)])) }),
-  });
-}
-
-// ── Team message log ──────────────────────────────────────────────────────────
+// ── Team messages ─────────────────────────────────────────────────────────────
 async function logTeamMessage(phone, name, direction, text) {
-  const id = 'tmsg_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
   try {
-    await fsCreate(`team_messages/${id}`, {
-      phone, name, direction, text,
-      ts: new Date().toISOString(),
-    });
+    await db.sbLogTeamMessage({ phone, name, direction, text, ts: new Date().toISOString() });
   } catch (e) { console.error('[TeamLog]', e.message); }
 }
 
 async function getTeamMessages() {
   try {
-    const res  = await fetch(`${FS_BASE}/team_messages?key=${FS_KEY}&pageSize=500`);
-    const data = await res.json();
-    return (data.documents || [])
-      .map(d => ({ id: d.name.split('/').pop(), ...fsRead(d.fields) }))
-      .sort((a, b) => (a.ts < b.ts ? -1 : 1));
+    const rows = await db.sbGetTeamMessages(500);
+    return rows.sort((a, b) => (a.ts < b.ts ? -1 : 1));
   } catch { return []; }
 }
 
@@ -99,12 +43,8 @@ let _managersCache = null;
 
 async function loadManagers() {
   try {
-    const res  = await fetch(`${FS_BASE}/config/escalation_config?key=${FS_KEY}`);
-    const data = await res.json();
-    if (data.fields?.managers?.arrayValue?.values) {
-      const list = data.fields.managers.arrayValue.values.map(v => fsRead(v.mapValue?.fields || {}));
-      if (list.length === 3) { _managersCache = list; return list; }
-    }
+    const cfg = await db.sbGetConfig('escalation_config');
+    if (cfg?.managers?.length === 3) { _managersCache = cfg.managers; return cfg.managers; }
   } catch {}
   _managersCache = DEFAULT_MANAGERS;
   return DEFAULT_MANAGERS;
@@ -112,23 +52,7 @@ async function loadManagers() {
 
 async function saveManagers(managers) {
   _managersCache = managers;
-  await fetch(`${FS_BASE}/config/escalation_config?key=${FS_KEY}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      fields: {
-        managers: {
-          arrayValue: {
-            values: managers.map(m => ({ mapValue: { fields: {
-              level: fsVal(m.level),
-              phone: fsVal(m.phone),
-              name:  fsVal(m.name),
-            }}})),
-          },
-        },
-      },
-    }),
-  });
+  await db.sbSetConfig('escalation_config', { managers });
 }
 
 async function getManagers() {
@@ -136,54 +60,53 @@ async function getManagers() {
   return loadManagers();
 }
 
-function normalizePhone(p) {
-  return String(p || '').replace(/[^0-9]/g, '');
-}
+function normalizePhone(p) { return String(p || '').replace(/[^0-9]/g, ''); }
 
 async function isManagerPhone(phone) {
-  const clean = normalizePhone(phone);
+  const clean    = normalizePhone(phone);
   const managers = await getManagers();
   return managers.some(m => normalizePhone(m.phone) === clean);
 }
 
-// ── Escalation Firestore CRUD ─────────────────────────────────────────────────
+// ── Escalation CRUD (Supabase) ────────────────────────────────────────────────
 function escId() {
   return 'esc_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6);
 }
 
 async function createEscalation(data) {
   const id = escId();
-  await fsCreate(`escalations/${id}`, data);
+  await db.sbSaveEscalation(id, { lead_phone: data.leadPhone, lead_id: data.leadId || '', data });
   return id;
 }
 
 async function getPendingEscalations() {
   try {
-    const res  = await fetch(`${FS_BASE}/escalations?key=${FS_KEY}&pageSize=100`);
-    const data = await res.json();
-    return (data.documents || [])
-      .map(doc => ({ _id: doc.name.split('/').pop(), ...fsRead(doc.fields) }))
+    const rows = await db.sbGetEscalations();
+    return rows
+      .map(r => ({ _id: r.id, ...r.data }))
       .filter(e => e.status === 'pending');
   } catch { return []; }
 }
 
 async function updateEscalation(id, updates) {
-  await fsPatch(`escalations/${id}`, updates);
+  try {
+    const rows = await db.sbGetEscalations();
+    const row  = rows.find(r => r.id === id);
+    if (!row) return;
+    const newData = { ...row.data, ...updates };
+    await db.sbSaveEscalation(id, { lead_phone: newData.leadPhone, lead_id: newData.leadId || '', data: newData });
+  } catch (e) { console.error('[ESC] updateEscalation:', e.message); }
 }
 
-// ── Cancel escalation when issue resolves itself ─────────────────────────────
+// ── Cancel escalation ─────────────────────────────────────────────────────────
 async function cancelEscalation(leadPhone, leadName, sendWAFn) {
   try {
     const pending  = await getPendingEscalations();
     const matching = pending.filter(e => normalizePhone(e.leadPhone) === normalizePhone(leadPhone));
     if (!matching.length) return;
-
     const managers = await getManagers();
-
     for (const esc of matching) {
       await updateEscalation(esc._id, { status: 'resolved', resolvedAt: new Date().toISOString() });
-
-      // Notify every manager who already received the alert
       const notifyLevels = [1, 2, 3].filter(l => esc[`level${l}SentAt`]);
       for (const level of notifyLevels) {
         const mgr = managers.find(m => m.level === level);
@@ -192,39 +115,40 @@ async function cancelEscalation(leadPhone, leadName, sendWAFn) {
         await sendTemplateOrFallback(mgr.phone, 'caso_resuelto', [leadName || leadPhone], fallback, sendWAFn).catch(() => {});
         logTeamMessage(mgr.phone, mgr.name, 'out', fallback).catch(() => {});
       }
-      console.log(`[ESC] Escalación ${esc._id} marcada como resuelta para ${leadPhone}`);
+      console.log(`[ESC] Escalación ${esc._id} resuelta para ${leadPhone}`);
     }
-  } catch (e) {
-    console.error('[ESC] cancelEscalation error:', e.message);
-  }
+  } catch (e) { console.error('[ESC] cancelEscalation error:', e.message); }
 }
 
 // ── Pause Ana for a lead ──────────────────────────────────────────────────────
 async function pauseLeadByPhone(phone) {
   try {
-    const clean = normalizePhone(phone);
-    const res   = await fetch(`${FS_BASE}/leads?key=${FS_KEY}&pageSize=500`);
-    const data  = await res.json();
-    const doc   = (data.documents || []).find(d => {
-      const f = d.fields;
-      const t = f?.telefono?.stringValue || '';
-      return normalizePhone(t) === clean || t.includes(clean);
-    });
-    if (!doc) return;
-    const leadId = doc.name.split('/').pop();
-    await fsPatch(`leads/${leadId}`, { ia_paused: true });
-    console.log(`[ESC] Ana pausada para lead ${leadId} (${phone})`);
-  } catch (e) {
-    console.error('[ESC] pauseLeadByPhone error:', e.message);
-  }
+    const lead = await db.sbGetLeadByPhone ? db.sbGetLeadByPhone(phone) : null;
+    // Import dynamically to avoid circular dep
+    const { sbGetLeadByPhone, sbUpdateLead } = require('./db');
+    const l = await sbGetLeadByPhone(phone);
+    if (!l) return;
+    await sbUpdateLead(l.id, { ia_paused: true });
+    console.log(`[ESC] Ana pausada para lead ${l.id} (${phone})`);
+  } catch (e) { console.error('[ESC] pauseLeadByPhone error:', e.message); }
+}
+
+// ── Mark lead sin_manager ─────────────────────────────────────────────────────
+async function markLeadSinManager(phone) {
+  try {
+    const { sbGetLeadByPhone, sbUpdateLead } = require('./db');
+    const lead = await sbGetLeadByPhone(phone);
+    if (!lead) return;
+    await sbUpdateLead(lead.id, { sin_manager: true });
+    console.log(`[ESC] Lead ${lead.id} marcado sin_manager`);
+  } catch (e) { console.error('[ESC] markLeadSinManager error:', e.message); }
 }
 
 // ── Build alert message ───────────────────────────────────────────────────────
 function buildAlertMsg(esc, managerName, isLast) {
   const label = REASON_LABELS[esc.reason] || esc.reason;
   return [
-    `⚠️ *ALERTA — Grupo Élite CRM*`,
-    ``,
+    `⚠️ *ALERTA — Grupo Élite CRM*`, ``,
     `*Lead:* ${esc.leadName || 'Desconocido'}`,
     `*Teléfono:* ${esc.leadPhone}`,
     `*Motivo:* ${label}`,
@@ -239,44 +163,35 @@ function buildAlertMsg(esc, managerName, isLast) {
 // ── Trigger escalation ────────────────────────────────────────────────────────
 async function triggerEscalation(leadPhone, leadName, reason, lastUserMsg, sendWAFn) {
   try {
-    // Evita duplicados: mismo lead + motivo en últimos 30 min
     const pending = await getPendingEscalations();
     const dup = pending.find(e => e.leadPhone === leadPhone && e.reason === reason);
-    if (dup) { console.log(`[ESC] Escalación duplicada ignorada: ${leadPhone} ${reason}`); return; }
+    if (dup) { console.log(`[ESC] Duplicada ignorada: ${leadPhone} ${reason}`); return; }
 
     const now = new Date().toISOString();
     const id  = await createEscalation({
-      leadPhone,
-      leadName:    leadName || '',
-      reason,
-      summary:     (lastUserMsg || '').slice(0, 300),
-      status:      'pending',
-      currentLevel: 1,
-      round:        1,
-      createdAt:   now,
-      level1SentAt: now,
-      level2SentAt: '',
-      level3SentAt: '',
-      acceptedBy:  '',
-      acceptedAt:  '',
+      leadPhone, leadName: leadName || '', reason,
+      summary:      (lastUserMsg || '').slice(0, 300),
+      status:       'pending',
+      currentLevel: 1, round: 1,
+      createdAt:    now, level1SentAt: now,
+      level2SentAt: '', level3SentAt: '',
+      acceptedBy: '', acceptedAt: '',
     });
 
     const managers = await getManagers();
-    const m1 = managers.find(m => m.level === 1) || managers[0];
+    const m1    = managers.find(m => m.level === 1) || managers[0];
     const isLast = managers.length === 1;
-    const msg = buildAlertMsg({ leadPhone, leadName, reason, summary: lastUserMsg }, m1.name, isLast);
-    const tplParams = [leadName || 'Desconocido', leadPhone, REASON_LABELS[reason] || reason, m1.name];
-    await sendTemplateOrFallback(m1.phone, 'alerta_escalada', tplParams, msg, sendWAFn);
+    const msg   = buildAlertMsg({ leadPhone, leadName, reason, summary: lastUserMsg }, m1.name, isLast);
+    const tplP  = [leadName || 'Desconocido', leadPhone, REASON_LABELS[reason] || reason, m1.name];
+    await sendTemplateOrFallback(m1.phone, 'alerta_escalada', tplP, msg, sendWAFn);
     logTeamMessage(m1.phone, m1.name, 'out', msg).catch(() => {});
     console.log(`[ESC] Alerta ${id} enviada a ${m1.name} (${m1.phone})`);
-  } catch (e) {
-    console.error('[ESC] triggerEscalation error:', e.message);
-  }
+  } catch (e) { console.error('[ESC] triggerEscalation error:', e.message); }
 }
 
 // ── Handle manager reply ──────────────────────────────────────────────────────
 async function handleManagerReply(managerPhone, text, sendWAFn) {
-  const clean = normalizePhone(managerPhone);
+  const clean    = normalizePhone(managerPhone);
   const managers = await getManagers();
   const manager  = managers.find(m => normalizePhone(m.phone) === clean);
   if (!manager) return false;
@@ -287,7 +202,6 @@ async function handleManagerReply(managerPhone, text, sendWAFn) {
   if (!accepted && !goNext) return false;
 
   const pending = await getPendingEscalations();
-  // Match any pending escalation that was sent to this manager (even if already escalated further)
   const esc = pending.find(e => e[`level${manager.level}SentAt`]);
   if (!esc) {
     await sendWAFn(manager.phone, '✅ No tienes alertas pendientes asignadas en este momento.');
@@ -295,34 +209,22 @@ async function handleManagerReply(managerPhone, text, sendWAFn) {
   }
 
   const lateResponse = esc.currentLevel > manager.level;
-
-  // Log incoming manager message
   logTeamMessage(manager.phone, manager.name, 'in', text).catch(() => {});
 
   if (accepted) {
-    await updateEscalation(esc._id, {
-      status:     'accepted',
-      acceptedBy:  manager.phone,
-      acceptedAt:  new Date().toISOString(),
-    });
+    await updateEscalation(esc._id, { status: 'accepted', acceptedBy: manager.phone, acceptedAt: new Date().toISOString() });
     await pauseLeadByPhone(esc.leadPhone);
-    const lateNote = lateResponse
-      ? '\n\n_(Respuesta tardía — el caso ya había escalado, pero fue aceptado igualmente.)_'
-      : '';
-    const acceptMsg = `✅ Caso tomado. Ana ha sido *pausada* para ${esc.leadName || esc.leadPhone}.\n\nResponde directamente al número: ${esc.leadPhone}${lateNote}`;
+    const lateNote   = lateResponse ? '\n\n_(Respuesta tardía — el caso ya había escalado, pero fue aceptado igualmente.)_' : '';
+    const acceptMsg  = `✅ Caso tomado. Ana ha sido *pausada* para ${esc.leadName || esc.leadPhone}.\n\nResponde directamente al número: ${esc.leadPhone}${lateNote}`;
     await sendWAFn(manager.phone, acceptMsg);
     logTeamMessage(manager.phone, manager.name, 'out', acceptMsg).catch(() => {});
-    // Notify managers who were already alerted that someone else took it
     if (lateResponse) {
       for (const m of managers) {
-        if (normalizePhone(m.phone) === clean) continue;
-        if (!esc[`level${m.level}SentAt`]) continue;
-        await sendWAFn(m.phone,
-          `ℹ️ El caso de *${esc.leadName || esc.leadPhone}* fue tomado por ${manager.name}. No necesitas hacer nada.`
-        ).catch(() => {});
+        if (normalizePhone(m.phone) === clean || !esc[`level${m.level}SentAt`]) continue;
+        await sendWAFn(m.phone, `ℹ️ El caso de *${esc.leadName || esc.leadPhone}* fue tomado por ${manager.name}. No necesitas hacer nada.`).catch(() => {});
       }
     }
-    console.log(`[ESC] Alerta ${esc._id} aceptada por ${manager.name}${lateResponse ? ' (tardía)' : ''}`);
+    console.log(`[ESC] Alerta ${esc._id} aceptada por ${manager.name}`);
     return true;
   }
 
@@ -333,7 +235,7 @@ async function handleManagerReply(managerPhone, text, sendWAFn) {
       await sendWAFn(manager.phone, '⚠️ Eres el último encargado. Por favor atiende el caso directamente.');
       return true;
     }
-    const sentKey  = `level${nextLevel}SentAt`;
+    const sentKey = `level${nextLevel}SentAt`;
     await updateEscalation(esc._id, { currentLevel: nextLevel, [sentKey]: new Date().toISOString() });
     const isLast = nextLevel === managers[managers.length - 1].level;
     const msg    = buildAlertMsg(esc, nextManager.name, isLast);
@@ -343,33 +245,13 @@ async function handleManagerReply(managerPhone, text, sendWAFn) {
     const pasadoMsg = `➡️ Alerta pasada a ${nextManager.name}.`;
     await sendWAFn(manager.phone, pasadoMsg);
     logTeamMessage(manager.phone, manager.name, 'out', pasadoMsg).catch(() => {});
-    console.log(`[ESC] Alerta ${esc._id} escalada de nivel ${manager.level} → ${nextLevel}`);
+    console.log(`[ESC] Alerta ${esc._id} escalada → nivel ${nextLevel}`);
     return true;
   }
-
   return false;
 }
 
-// ── Mark lead with no-manager alert in Firestore ─────────────────────────────
-async function markLeadSinManager(phone) {
-  try {
-    const clean = normalizePhone(phone);
-    const res   = await fetch(`${FS_BASE}/leads?key=${FS_KEY}&pageSize=500`);
-    const data  = await res.json();
-    const doc   = (data.documents || []).find(d => {
-      const t = d.fields?.telefono?.stringValue || '';
-      return normalizePhone(t) === clean || t.includes(clean);
-    });
-    if (!doc) return;
-    const leadId = doc.name.split('/').pop();
-    await fsPatch(`leads/${leadId}`, { sin_manager: true });
-    console.log(`[ESC] Lead ${leadId} marcado sin_manager`);
-  } catch (e) {
-    console.error('[ESC] markLeadSinManager error:', e.message);
-  }
-}
-
-// ── Timeout checker (call every 60s) ─────────────────────────────────────────
+// ── Timeout checker ───────────────────────────────────────────────────────────
 async function checkTimeouts(sendWAFn) {
   try {
     const pending  = await getPendingEscalations();
@@ -377,8 +259,8 @@ async function checkTimeouts(sendWAFn) {
     const now      = Date.now();
 
     for (const esc of pending) {
-      const level  = esc.currentLevel || 1;
-      const round  = esc.round || 1;
+      const level         = esc.currentLevel || 1;
+      const round         = esc.round || 1;
       const roundTimeouts = TIMEOUTS[level];
       if (!roundTimeouts) continue;
       const timeout = roundTimeouts[round];
@@ -392,63 +274,39 @@ async function checkTimeouts(sendWAFn) {
       const nextManager = managers.find(m => m.level === nextLevel);
 
       if (nextManager) {
-        // Escalate to next level within same round
         const sentNextKey = `level${nextLevel}SentAt`;
         await updateEscalation(esc._id, { currentLevel: nextLevel, [sentNextKey]: new Date().toISOString() });
         const isLast = nextLevel === managers[managers.length - 1].level;
-        const msg = buildAlertMsg(esc, nextManager.name, isLast);
+        const msg  = buildAlertMsg(esc, nextManager.name, isLast);
         const tplP = [esc.leadName || 'Desconocido', esc.leadPhone, REASON_LABELS[esc.reason] || esc.reason, nextManager.name];
         await sendTemplateOrFallback(nextManager.phone, 'alerta_escalada', tplP, msg, sendWAFn);
         logTeamMessage(nextManager.phone, nextManager.name, 'out', msg).catch(() => {});
         console.log(`[ESC] Alerta ${esc._id} → nivel ${nextLevel} (ronda ${round})`);
 
       } else {
-        // Last level timed out — start new round or give up
         const nextRound = round + 1;
-
         if (nextRound <= MAX_ROUNDS) {
-          // Restart cycle with next round (longer timeouts)
           const m1 = managers.find(m => m.level === 1) || managers[0];
-          await updateEscalation(esc._id, {
-            currentLevel:  1,
-            round:         nextRound,
-            level1SentAt:  new Date().toISOString(),
-            level2SentAt:  '',
-            level3SentAt:  '',
-          });
+          await updateEscalation(esc._id, { currentLevel: 1, round: nextRound, level1SentAt: new Date().toISOString(), level2SentAt: '', level3SentAt: '' });
           const isLast = managers.length === 1;
-          const msg = buildAlertMsg(esc, m1.name, isLast);
+          const msg  = buildAlertMsg(esc, m1.name, isLast);
           const tplP = [esc.leadName || 'Desconocido', esc.leadPhone, REASON_LABELS[esc.reason] || esc.reason, m1.name];
           await sendTemplateOrFallback(m1.phone, 'alerta_escalada', tplP, msg, sendWAFn);
           logTeamMessage(m1.phone, m1.name, 'out', msg).catch(() => {});
           console.log(`[ESC] Alerta ${esc._id} reinicia → ronda ${nextRound}`);
-
         } else {
-          // All 3 rounds exhausted — give up
           await updateEscalation(esc._id, { status: 'exhausted' });
           await markLeadSinManager(esc.leadPhone);
-          // Send Ana's fallback message to the client
-          await sendWAFn(esc.leadPhone,
-            `Hola${esc.leadName ? ' ' + esc.leadName.split(' ')[0] : ''}, soy Ana de Grupo Élite. Aún no he podido contactar a uno de nuestros managers para atender tu consulta, pero en cuanto uno esté disponible te haremos saber. ¡Gracias por tu paciencia!`
-          ).catch(() => {});
+          await sendWAFn(esc.leadPhone, `Hola${esc.leadName ? ' ' + esc.leadName.split(' ')[0] : ''}, soy Ana de Grupo Élite. Aún no he podido contactar a uno de nuestros managers, pero en cuanto uno esté disponible te haremos saber. ¡Gracias por tu paciencia!`).catch(() => {});
           console.log(`[ESC] Alerta ${esc._id} agotada — 3 rondas sin respuesta`);
         }
       }
     }
-  } catch (e) {
-    console.error('[ESC] checkTimeouts error:', e.message);
-  }
+  } catch (e) { console.error('[ESC] checkTimeouts error:', e.message); }
 }
 
 module.exports = {
-  triggerEscalation,
-  cancelEscalation,
-  handleManagerReply,
-  checkTimeouts,
-  isManagerPhone,
-  loadManagers,
-  saveManagers,
-  DEFAULT_MANAGERS,
-  logTeamMessage,
-  getTeamMessages,
+  triggerEscalation, cancelEscalation, handleManagerReply, checkTimeouts,
+  isManagerPhone, loadManagers, saveManagers, DEFAULT_MANAGERS,
+  logTeamMessage, getTeamMessages,
 };

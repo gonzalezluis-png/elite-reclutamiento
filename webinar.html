@@ -487,9 +487,7 @@ const WA_NUMBER = '12145717929';
 // ─────────────────────────────────────────────────────────────────────────────
 
 // TRACKING
-const FS_PROJECT = 'elite-reclutamiento-crm';
-const FS_KEY     = 'AIzaSyCW2t1oHb7xc2Vi6vJROGRM7E7nu-CbU3s';
-const FS_BASE    = `https://firestore.googleapis.com/v1/projects/${FS_PROJECT}/databases/(default)/documents`;
+const TRACK_URL = 'https://elite-reclutamiento-production.up.railway.app';
 
 const params = new URLSearchParams(location.search);
 const leadId = params.get('id');
@@ -518,20 +516,18 @@ async function saveProgress(final = false) {
   const now = Date.now();
   if (!final && now - lastSave < 15000) return;
   lastSave = now;
-  const fields = {
-    webinar_visto_pct:     { integerValue: String(Math.round(maxPct)) },
-    webinar_tiempo_visto:  { integerValue: String(Math.round(watchedSecs)) },
-    webinar_pausas:        { integerValue: String(pauseCount) },
-    webinar_completado:    { booleanValue: completed },
-    webinar_ultima_sesion: { stringValue: sessionStart },
-    webinar_ultimo_evento: { stringValue: new Date().toISOString() },
-  };
   try {
-    const mask = Object.keys(fields).join('&updateMask.fieldPaths=');
-    await fetch(`${FS_BASE}/leads/${leadId}?key=${FS_KEY}&updateMask.fieldPaths=${mask}`, {
-      method: 'PATCH', keepalive: true,
+    await fetch(`${TRACK_URL}/webinar/track/${leadId}`, {
+      method: 'POST', keepalive: true,
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ fields }),
+      body: JSON.stringify({
+        webinar_visto_pct:     Math.round(maxPct),
+        webinar_tiempo_visto:  Math.round(watchedSecs),
+        webinar_pausas:        pauseCount,
+        webinar_completado:    completed,
+        webinar_ultima_sesion: sessionStart,
+        webinar_ultimo_evento: new Date().toISOString(),
+      }),
     });
   } catch(e) {}
 }
@@ -577,15 +573,13 @@ async function solicitarLlamada() {
   btn.disabled = true;
   btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/></svg> Enviando…';
   try {
-    const fields = {
-      quiere_entrevista:       { booleanValue: true },
-      quiere_entrevista_fecha: { stringValue: new Date().toISOString() },
-    };
-    const mask = Object.keys(fields).join('&updateMask.fieldPaths=');
-    await fetch(`${FS_BASE}/leads/${leadId}?key=${FS_KEY}&updateMask.fieldPaths=${mask}`, {
-      method: 'PATCH',
+    await fetch(`${TRACK_URL}/webinar/track/${leadId}`, {
+      method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ fields }),
+      body: JSON.stringify({
+        quiere_entrevista:       true,
+        quiere_entrevista_fecha: new Date().toISOString(),
+      }),
     });
   } catch(e) {}
   btn.style.display = 'none';
