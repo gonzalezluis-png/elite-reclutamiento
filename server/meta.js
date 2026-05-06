@@ -1040,6 +1040,47 @@ function registerMetaRoutes(app) {
     }
   });
 
+  // ── All WA contacts with messages (for messaging sidebar sync) ───────────────
+  app.get('/meta/wa-contacts', async (req, res) => {
+    try {
+      // List all phone docs in wa_messages collection
+      const listData = await fetch(`${FS_BASE}/wa_messages?key=${FS_KEY}&pageSize=300`).then(r => r.json()).catch(() => ({}));
+      const phones = (listData.documents || []).map(d => d.name.split('/').pop());
+
+      const results = await Promise.all(phones.map(async phone => {
+        try {
+          const newData = await fetch(`${FS_BASE}/wa_messages/${phone}/msgs?key=${FS_KEY}&pageSize=200`).then(r => r.json()).catch(() => ({}));
+          const newMsgs = (newData.documents || []).map(d => {
+            const f = d.fields || {};
+            return { ts: Number(f.ts?.integerValue || 0), body: f.text?.stringValue || '', dir: f.direction?.stringValue, status: f.status?.stringValue || '', error_code: Number(f.error_code?.integerValue || 0) };
+          });
+          const oldData = await fetch(`${FS_BASE}/wa_messages/${phone}?key=${FS_KEY}`).then(r => r.json()).catch(() => ({}));
+          const oldMsgs = (oldData.fields?.messages?.arrayValue?.values || []).map(v => {
+            const f = v.mapValue?.fields || {};
+            return { ts: Number(f.ts?.integerValue || 0), body: f.text?.stringValue || '', dir: f.direction?.stringValue, status: '', error_code: 0 };
+          });
+          const msgs = [...oldMsgs, ...newMsgs]
+            .filter(m => m.body && m.dir)
+            .sort((a, b) => a.ts - b.ts)
+            .map(m => ({
+              sid:        `meta_${m.ts}`,
+              body:       m.body,
+              direction:  m.dir === 'out' ? 'outbound' : 'inbound',
+              dateSent:   new Date(m.ts).toISOString(),
+              status:     m.status || undefined,
+              error_code: m.error_code || undefined,
+              ch:         'wa',
+            }));
+          return { phone, messages: msgs };
+        } catch { return { phone, messages: [] }; }
+      }));
+
+      res.json({ ok: true, contacts: results.filter(c => c.messages.length > 0) });
+    } catch(e) {
+      res.json({ ok: true, contacts: [] });
+    }
+  });
+
   // ── Webhook diagnostic (in-memory last 20) ──────────────────────────────────
   app.get('/meta/webhook/diagnostic', (req, res) => {
     res.json({

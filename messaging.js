@@ -174,34 +174,26 @@ function showMessaging() {
 }
 
 async function _msgSyncAllContacts() {
-  // Discover all phones that have WA messages in Firestore wa_messages collection
   try {
-    const data = await fetch(`${FS_BASE}/wa_messages?key=${FS_KEY}&pageSize=300`).then(r => r.json());
-    const phones = (data.documents || []).map(d => d.name.split('/').pop()); // phone is doc ID
+    const data = await fetch(`${SERVER_URL}/meta/wa-contacts`).then(r => r.json());
+    if (!data.contacts || !data.contacts.length) return;
     let anyUpdated = false;
-    for (const rawPhone of phones) {
-      // Match to a lead by phone (strip non-digits, compare last 10 digits)
-      const digits = rawPhone.replace(/\D/g, '');
+    for (const { phone, messages } of data.contacts) {
+      if (!messages.length) continue;
+      // Match lead by phone (last 10 digits)
+      const digits = phone.replace(/\D/g, '');
       const lead = leads.find(l => {
         const ld = (l.telefono || '').replace(/\D/g, '');
         return ld && (ld === digits || ld.slice(-10) === digits.slice(-10));
       });
       if (!lead) continue;
-      if (lead.metaWa && lead.metaWa.length > 0) continue; // already synced
-      // Fetch messages for this lead
-      try {
-        const res = await fetch(`${SERVER_URL}/meta/wa-inbox?phone=${encodeURIComponent(lead.telefono)}`);
-        const d2 = await res.json();
-        if (d2.messages && d2.messages.length > 0) {
-          if (!lead.metaWa) lead.metaWa = [];
-          for (const m of d2.messages) {
-            if (!lead.metaWa.find(s => s.sid === m.sid)) {
-              lead.metaWa.push({...m, ch:'wa'});
-              anyUpdated = true;
-            }
-          }
+      if (!lead.metaWa) lead.metaWa = [];
+      for (const m of messages) {
+        if (!lead.metaWa.find(s => s.sid === m.sid)) {
+          lead.metaWa.push(m);
+          anyUpdated = true;
         }
-      } catch {}
+      }
     }
     if (anyUpdated) { saveLeads(); _msgRenderList(); }
   } catch {}
