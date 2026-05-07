@@ -172,8 +172,10 @@ Si no hay información clara para un campo, pon null. SOLO JSON, nada más.`,
                                                          updates.tiene_papeles   = extracted.tiene_papeles;
     if (extracted.mayor_edad !== null && extracted.mayor_edad !== undefined && lead.mayor_edad !== true)
                                                          updates.mayor_edad      = extracted.mayor_edad;
-    if (extracted.vio_webinar === true && lead.vio_webinar !== true)
+    if (extracted.vio_webinar === true && lead.vio_webinar !== true) {
                                                          updates.vio_webinar     = true;
+                                                         updates.ia_paused       = true;
+    }
 
     if (!Object.keys(updates).length) return null;
     await fsUpdateLeadFields(lead.id, updates);
@@ -270,7 +272,6 @@ async function moveLeadToWebinar(leadId, nombre, correo, baseWebinarUrl) {
       pipeline_id:  'en-webinar',
       etapa:        'Inscrito en Webinar',
       link_webinar: personalUrl,
-      ia_paused:    true,
     });
 
     const lead = await db.sbGetLead(leadId);
