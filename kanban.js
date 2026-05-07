@@ -204,7 +204,14 @@ function renderUniversalTable(stageDefs, pipelineId, q, showEtapa) {
   const extraCols = isEntrevistas ? 3 : 0;
   const cols = (showEtapa ? 11 : 10) + extraCols;
 
-  const resultadoColor = r => r === 'Contratado' ? '#00c875' : r === 'No contratado' ? '#e2445c' : '#8890a4';
+  const resultadoColor = r => ({
+    'Contratado':      '#00c875',
+    'No contratado':   '#e2445c',
+    'No show':         '#f97316',
+    'Reagenda':        '#facc15',
+    'No califica':     '#94a3b8',
+    'No interesado':   '#64748b',
+  }[r] || '#8890a4');
 
   document.getElementById('table-view-wrap').innerHTML = `
     <table class="leads-table">
@@ -228,11 +235,26 @@ function renderUniversalTable(stageDefs, pipelineId, q, showEtapa) {
         const notasCnt = (ld.notas||[]).length;
         const clr = stageColor(ld.etapa);
 
-        let interviewSlotHtml = '<span style="color:var(--text2)">—</span>';
-        if (isEntrevistas && ld.interview_slot) {
-          const slotD = new Date(ld.interview_slot);
-          const slotStr = slotD.toLocaleDateString('es-MX',{weekday:'short',day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:true,timeZone:'America/Chicago'});
-          interviewSlotHtml = `<span style="color:#c4a8ff;font-weight:600;white-space:nowrap">${esc(slotStr)}</span>`;
+        let interviewSlotHtml = '';
+        if (isEntrevistas) {
+          // Convert stored ISO to datetime-local value (in Chicago time)
+          let dtLocalVal = '';
+          let displayStr = '';
+          if (ld.interview_slot) {
+            const slotD = new Date(ld.interview_slot);
+            displayStr = slotD.toLocaleDateString('es-MX',{weekday:'short',day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:true,timeZone:'America/Chicago'});
+            // datetime-local needs local browser value; store as ISO
+            const pad = n => String(n).padStart(2,'0');
+            const local = new Date(slotD.toLocaleString('en-US',{timeZone:'America/Chicago'}));
+            dtLocalVal = `${local.getFullYear()}-${pad(local.getMonth()+1)}-${pad(local.getDate())}T${pad(local.getHours())}:${pad(local.getMinutes())}`;
+          }
+          interviewSlotHtml = `<div style="display:flex;flex-direction:column;gap:2px;">
+            ${displayStr ? `<span style="color:#c4a8ff;font-weight:600;font-size:11px;white-space:nowrap">${esc(displayStr)}</span>` : ''}
+            <input type="datetime-local" value="${dtLocalVal}"
+              onchange="updateInterviewSlot('${ld.id}',this.value)"
+              onclick="event.stopPropagation()"
+              style="background:var(--card2);border:1px solid var(--border);color:var(--text2);border-radius:6px;padding:2px 5px;font-size:10px;width:155px;outline:none;cursor:pointer;" />
+          </div>`;
         }
 
         const resultado = ld.resultado_entrevista || '';
@@ -241,8 +263,12 @@ function renderUniversalTable(stageDefs, pipelineId, q, showEtapa) {
           <select onchange="updateLeadField('${ld.id}','resultado_entrevista',this.value)" onclick="event.stopPropagation()"
             style="background:${resultado ? rColor+'22' : 'var(--card2)'};border:1px solid ${resultado ? rColor+'66' : 'var(--border)'};color:${resultado ? rColor : 'var(--text2)'};border-radius:6px;padding:3px 6px;font-size:11px;font-weight:700;cursor:pointer;outline:none;">
             <option value="" ${!resultado?'selected':''}>— Pendiente —</option>
-            <option value="Contratado" ${resultado==='Contratado'?'selected':''}>✅ Contratado</option>
+            <option value="Contratado"    ${resultado==='Contratado'?'selected':''}>✅ Contratado</option>
             <option value="No contratado" ${resultado==='No contratado'?'selected':''}>❌ No contratado</option>
+            <option value="No show"       ${resultado==='No show'?'selected':''}>👻 No show</option>
+            <option value="Reagenda"      ${resultado==='Reagenda'?'selected':''}>🔄 Reagenda</option>
+            <option value="No califica"   ${resultado==='No califica'?'selected':''}>🚫 No califica</option>
+            <option value="No interesado" ${resultado==='No interesado'?'selected':''}>👋 No interesado</option>
           </select>` : '';
 
         const manager = ld.manager_entrevista || '';
@@ -289,6 +315,13 @@ function updateLeadField(leadId, field, value) {
   lead[field] = value;
   saveLeads(leadId);
   renderKanban();
+}
+
+function updateInterviewSlot(leadId, datetimeLocalValue) {
+  if (!datetimeLocalValue) return;
+  // datetime-local value is in browser local time → store as ISO
+  const isoSlot = new Date(datetimeLocalValue).toISOString();
+  updateLeadField(leadId, 'interview_slot', isoSlot);
 }
 
 function calcProgreso(lead) {
