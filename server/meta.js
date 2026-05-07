@@ -1109,14 +1109,32 @@ function registerMetaRoutes(app) {
   // ── Make.com lead intake ──────────────────────────────────────────────────
   app.post('/meta/make-lead', async (req, res) => {
     try {
-      const body     = req.body || {};
-      const nombre   = body.full_name   || body.nombre   || body.name         || '';
-      const correo   = body.email       || body.correo   || '';
-      const telefono = body.phone_number|| body.phone    || body.telefono     || '';
-      const ubicacion= body.city        || body.ubicacion|| body.state        || '';
-      const leadgenId= body.id          || body.leadgen_id || '';
-      const now      = new Date().toISOString();
-      const uid      = `meta_make_${leadgenId || Date.now()}`;
+      const body      = req.body || {};
+      const nombre    = body.full_name    || body.nombre    || body.name          || '';
+      const correo    = body.email        || body.correo    || '';
+      const telefono  = body.phone_number || body.phone     || body.telefono      || '';
+      const ubicacion = body.city         || body.ubicacion || body.state         || '';
+      const leadgenId = body.id           || body.leadgen_id || '';
+      const now       = new Date().toISOString();
+      const uid       = `meta_make_${leadgenId || Date.now()}`;
+
+      // Build rich notas with all available metadata
+      const metaParts = [
+        body.campaign_name ? `📢 Campaña: ${body.campaign_name}`    : '',
+        body.adset_name    ? `🎯 Conjunto: ${body.adset_name}`       : '',
+        body.ad_name       ? `📌 Anuncio: ${body.ad_name}`           : '',
+        body.form_name     ? `📋 Formulario: ${body.form_name}`      : '',
+        body.page_name     ? `📄 Página: ${body.page_name}`          : '',
+        body.platform      ? `📱 Plataforma: ${body.platform}`       : '',
+        body.ad_id         ? `🆔 Ad ID: ${body.ad_id}`               : '',
+        body.form_id       ? `🆔 Form ID: ${body.form_id}`           : '',
+        leadgenId          ? `🆔 Lead ID: ${leadgenId}`              : '',
+      ].filter(Boolean).join('\n');
+
+      // Tags for quick filtering
+      const etiquetas = ['Meta Lead Ads'];
+      if (body.campaign_name) etiquetas.push(body.campaign_name);
+      if (body.platform)      etiquetas.push(body.platform);
 
       const lead = {
         id:          uid,
@@ -1125,6 +1143,8 @@ function registerMetaRoutes(app) {
         telefono,
         ubicacion,
         fuente:      'Meta / Facebook',
+        notas:       metaParts,
+        etiquetas:   etiquetas,
         pipeline_id: 'postulados-meta',
         etapa:       'New Lead',
         estado:      'abierto',
