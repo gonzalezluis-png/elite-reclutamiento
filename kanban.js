@@ -126,6 +126,24 @@ function renderKanban() {
               <div class="lt-accion-btn">
                 <button class="lt-accion-trigger ${accion}" onclick="toggleAccionMenu(event,'${ld.id}')">${accionLabel} ▾</button>
                 <div class="lt-accion-menu" id="accion-menu-${ld.id}">
+                  ${(() => {
+                    const etapa = ld.etapa;
+                    if (etapa === 'Inscrito en Webinar') {
+                      return `<div style="padding:4px 10px 2px;font-size:10px;color:var(--text2);font-weight:600;letter-spacing:.5px">MOVER A SIGUIENTE ETAPA</div>
+                        <div class="lt-accion-opt" style="color:#00c875;font-weight:700" onclick="event.stopPropagation();moveLead('${ld.id}','AS - Asistente');closeAccionMenu('${ld.id}')">✅ Asistente (vio el webinar)</div>
+                        <div class="lt-accion-opt" style="color:#fdab3d;font-weight:700" onclick="event.stopPropagation();moveLead('${ld.id}','NA - No Asistente');closeAccionMenu('${ld.id}')">✗ No Asistente (no lo vio)</div>
+                        <div style="border-top:1px solid var(--border);margin:3px 0"></div>`;
+                    }
+                    const next = WEBINAR_PROGRESSIONS[etapa];
+                    if (next) {
+                      const nextLabel = next.replace(/^(?:AS|NA) - /, '');
+                      const color = next.startsWith('NA') ? '#fdab3d' : '#4f7fff';
+                      return `<div style="padding:4px 10px 2px;font-size:10px;color:var(--text2);font-weight:600;letter-spacing:.5px">MOVER A SIGUIENTE ETAPA</div>
+                        <div class="lt-accion-opt" style="color:${color};font-weight:700" onclick="event.stopPropagation();moveLead('${ld.id}','${next.replace(/'/g,"\\'")}');closeAccionMenu('${ld.id}')">➡️ ${esc(nextLabel)}</div>
+                        <div style="border-top:1px solid var(--border);margin:3px 0"></div>`;
+                    }
+                    return '';
+                  })()}
                   <div class="lt-accion-opt opt-en-entrevista"   onclick="event.stopPropagation();setWebinarAccion('${ld.id}','en-entrevista')">🗓️ EN ENTREVISTA</div>
                   <div class="lt-accion-opt opt-asistente"      onclick="event.stopPropagation();setWebinarAccion('${ld.id}','asistente')">✅ ASISTENTE</div>
                   <div class="lt-accion-opt opt-no-asistente"   onclick="event.stopPropagation();setWebinarAccion('${ld.id}','no-asistente')">✗ NO ASISTENTE</div>
@@ -182,7 +200,12 @@ function renderUniversalTable(stageDefs, pipelineId, q, showEtapa) {
       (!q || [ld.nombre,ld.correo,ld.telefono,ld.fuente,ld.nombre_lead].join(' ').toLowerCase().includes(q))
     ).map(ld => ({...ld, _etapaLabel: label}))
   );
-  const cols = showEtapa ? 11 : 10;
+  const isEntrevistas = pipelineId === 'entrevistas-generales';
+  const extraCols = isEntrevistas ? 3 : 0;
+  const cols = (showEtapa ? 11 : 10) + extraCols;
+
+  const resultadoColor = r => r === 'Contratado' ? '#00c875' : r === 'No contratado' ? '#e2445c' : '#8890a4';
+
   document.getElementById('table-view-wrap').innerHTML = `
     <table class="leads-table">
       <thead><tr>
@@ -197,12 +220,39 @@ function renderUniversalTable(stageDefs, pipelineId, q, showEtapa) {
         <th>Ubicación</th>
         <th>Fecha</th>
         <th>Notas</th>
+        ${isEntrevistas ? '<th>Fecha / Hora Entrevista</th><th>Resultado</th><th>Manager</th>' : ''}
         <th>Acciones</th>
       </tr></thead>
       <tbody>${rows.length ? rows.map((ld, i) => {
         const date = ld.created_at ? new Date(ld.created_at).toLocaleDateString('es-MX',{day:'2-digit',month:'short',year:'numeric'}) : '';
         const notasCnt = (ld.notas||[]).length;
         const clr = stageColor(ld.etapa);
+
+        let interviewSlotHtml = '<span style="color:var(--text2)">—</span>';
+        if (isEntrevistas && ld.interview_slot) {
+          const slotD = new Date(ld.interview_slot);
+          const slotStr = slotD.toLocaleDateString('es-MX',{weekday:'short',day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:true,timeZone:'America/Chicago'});
+          interviewSlotHtml = `<span style="color:#c4a8ff;font-weight:600;white-space:nowrap">${esc(slotStr)}</span>`;
+        }
+
+        const resultado = ld.resultado_entrevista || '';
+        const rColor = resultadoColor(resultado);
+        const resultadoHtml = isEntrevistas ? `
+          <select onchange="updateLeadField('${ld.id}','resultado_entrevista',this.value)" onclick="event.stopPropagation()"
+            style="background:${resultado ? rColor+'22' : 'var(--card2)'};border:1px solid ${resultado ? rColor+'66' : 'var(--border)'};color:${resultado ? rColor : 'var(--text2)'};border-radius:6px;padding:3px 6px;font-size:11px;font-weight:700;cursor:pointer;outline:none;">
+            <option value="" ${!resultado?'selected':''}>— Pendiente —</option>
+            <option value="Contratado" ${resultado==='Contratado'?'selected':''}>✅ Contratado</option>
+            <option value="No contratado" ${resultado==='No contratado'?'selected':''}>❌ No contratado</option>
+          </select>` : '';
+
+        const manager = ld.manager_entrevista || '';
+        const managerHtml = isEntrevistas ? `
+          <input type="text" value="${esc(manager)}" placeholder="Asignar manager…"
+            onblur="updateLeadField('${ld.id}','manager_entrevista',this.value)"
+            onkeydown="if(event.key==='Enter'){this.blur()}"
+            onclick="event.stopPropagation()"
+            style="background:var(--card2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:3px 8px;font-size:11px;width:130px;outline:none;" />` : '';
+
         return `<tr onclick="openLead('${ld.id}')">
           <td style="color:var(--text2)">${i+1}</td>
           <td style="font-weight:600;color:#fff">${esc(ld.nombre)}</td>
@@ -215,6 +265,7 @@ function renderUniversalTable(stageDefs, pipelineId, q, showEtapa) {
           <td style="color:var(--text2)">${esc(ld.ubicacion||'—')}</td>
           <td style="color:var(--text2);white-space:nowrap">${date}</td>
           <td>${notasCnt?`<span style="background:rgba(0,115,234,.18);color:#4da6ff;padding:2px 7px;border-radius:10px;font-size:10px;font-weight:600">${notasCnt}</span>`:'<span style="color:var(--text2);font-size:10px">—</span>'}</td>
+          ${isEntrevistas ? `<td onclick="event.stopPropagation()">${interviewSlotHtml}</td><td onclick="event.stopPropagation()">${resultadoHtml}</td><td onclick="event.stopPropagation()">${managerHtml}</td>` : ''}
           <td onclick="event.stopPropagation()">
             <div class="lt-actions">
               <button class="lt-btn" onclick="quickAction('call','${ld.id}')">📞</button>
@@ -228,6 +279,16 @@ function renderUniversalTable(stageDefs, pipelineId, q, showEtapa) {
       }).join('') : `<tr><td colspan="${cols}" style="text-align:center;padding:40px;color:var(--text2)">Sin leads en esta etapa</td></tr>`}
       </tbody>
     </table>`;
+}
+
+function updateLeadField(leadId, field, value) {
+  const lead = leads.find(l => l.id === leadId);
+  if (!lead) return;
+  if (lead[field] === value) return;
+  pushUndo('lead_change', JSON.parse(JSON.stringify(lead)));
+  lead[field] = value;
+  saveLeads(leadId);
+  renderKanban();
 }
 
 function calcProgreso(lead) {

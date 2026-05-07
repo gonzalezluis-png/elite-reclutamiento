@@ -1,6 +1,16 @@
 const db = require('./db');
 const { sendTemplateOrFallback } = require('./templates');
 
+// ── Office hours check (America/Chicago — Central Time) ───────────────────────
+function isOfficeHours() {
+  const ct      = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' }));
+  const day     = ct.getDay();   // 0=Sun,1=Mon…6=Sat
+  const minutes = ct.getHours() * 60 + ct.getMinutes();
+  if (day >= 1 && day <= 5) return minutes >= 9 * 60 && minutes < 18 * 60;  // Lun-Vie 9-18h
+  if (day === 6)             return minutes >= 9 * 60 && minutes < 12 * 60;  // Sáb 9-12h
+  return false;
+}
+
 // ── Defaults ──────────────────────────────────────────────────────────────────
 const DEFAULT_INTERVIEW_CONFIG = {
   interviewer: {
@@ -280,6 +290,21 @@ async function bookInterview({ leadPhone, leadName, slotIso, convKey }) {
   };
   await db.sbSaveInterview(id, interviewToRow(doc));
 
+  // Move lead to entrevistas-generales pipeline
+  const { fsGetLeadByPhone, fsUpdateLeadFields } = require('./pipeline');
+  const _lead = await fsGetLeadByPhone(leadPhone).catch(() => null);
+  if (_lead) {
+    const _now  = new Date().toISOString();
+    const _hist = Array.isArray(_lead.historial) ? [..._lead.historial] : [];
+    _hist.push({ icono: '🤝', accion: 'Entrevista agendada — movido a Entrevistas Generales', fecha: _now, usuario: 'Ana (IA)' });
+    await fsUpdateLeadFields(_lead.id, {
+      pipeline_id:    'entrevistas-generales',
+      etapa:          'EN ENTREVISTA',
+      interview_slot: slotIso,
+      historial:      _hist,
+    }).catch(() => {});
+  }
+
   const slot = new Date(slotIso);
   const { fecha, hora } = _fmtSlot(slot);
   const _cleanName = (!leadName || leadName.startsWith('WA ') || leadName.startsWith('+')) ? '' : leadName;
@@ -288,7 +313,9 @@ async function bookInterview({ leadPhone, leadName, slotIso, convKey }) {
 
   const confFallback = `¡Hola ${firstName}! 🎉\n\nTu entrevista con Grupo Élite Work ha sido confirmada.\n\n📅 Fecha: ${fecha}\n🕐 Hora: ${hora}\n🔗 Enlace Zoom: ${cfg.zoomLink}\n\n¡Te esperamos!`;
   const { sendWhatsApp: _metaConfirmWA } = require('./meta');
-  sendTemplateOrFallback(phoneClean, 'confirmacion_entrevista', [firstName, fecha, hora, cfg.zoomLink], confFallback, _metaConfirmWA).catch(() => {});
+  if (isOfficeHours()) {
+    sendTemplateOrFallback(phoneClean, 'confirmacion_entrevista', [firstName, fecha, hora, cfg.zoomLink], confFallback, _metaConfirmWA).catch(() => {});
+  }
 
   return { id, cfg, doc };
 }
@@ -388,7 +415,9 @@ async function checkInterviewReminders(sendWA, sendInternal, sendManager) {
             tplKey    = 'recordatorio_horas_antes';
             tplParams = [firstName, String(rem.value), iv.zoomLink || ''];
           }
-          await sendTemplateOrFallback(phone, tplKey, tplParams, msg, sendWA).catch(() => {});
+          if (isOfficeHours()) {
+            await sendTemplateOrFallback(phone, tplKey, tplParams, msg, sendWA).catch(() => {});
+          }
         }
       }
 
@@ -403,9 +432,11 @@ async function checkInterviewReminders(sendWA, sendInternal, sendManager) {
         if (phone) {
           const firstName    = (iv.leadName || 'Candidato').split(' ')[0];
           const zoomFallback = `🎥 Tu entrevista comienza ahora. Únete aquí:\n${iv.zoomLink}`;
-          await sendTemplateOrFallback(phone, 'enlace_zoom_inicio',
-            [firstName, iv.zoomLink || ''], zoomFallback, sendWA
-          ).catch(() => {});
+          if (isOfficeHours()) {
+            await sendTemplateOrFallback(phone, 'enlace_zoom_inicio',
+              [firstName, iv.zoomLink || ''], zoomFallback, sendWA
+            ).catch(() => {});
+          }
         }
         reminders['zoom_sent'] = new Date().toISOString();
         await updateInterview(iv.id, { reminders });

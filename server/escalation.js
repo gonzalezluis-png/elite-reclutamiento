@@ -3,9 +3,9 @@ const { sendTemplateOrFallback, TEMPLATES } = require('./templates');
 const db = require('./db');
 
 const DEFAULT_MANAGERS = [
-  { level: 1, phone: '+17863060642', name: 'Luis (Admin)' },
-  { level: 2, phone: '+14695285231', name: 'Encargado 2'  },
-  { level: 3, phone: '+17863060642', name: 'Luis (Admin)' },
+  { level: 1, phone: '+584125378673', name: 'Saudimar'    },
+  { level: 2, phone: '+584143605411', name: 'Duglimar'    },
+  { level: 3, phone: '+17863060642',  name: 'Luis (Admin)' },
 ];
 
 const REASON_LABELS = {

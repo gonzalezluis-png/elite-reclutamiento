@@ -144,6 +144,9 @@ function toggleAccionMenu(event, leadId) {
   document.querySelectorAll('.lt-accion-menu.open').forEach(m => { if (m.id !== 'accion-menu-'+leadId) m.classList.remove('open'); });
   document.getElementById('accion-menu-'+leadId)?.classList.toggle('open');
 }
+function closeAccionMenu(leadId) {
+  document.getElementById('accion-menu-'+leadId)?.classList.remove('open');
+}
 document.addEventListener('click', () => document.querySelectorAll('.lt-accion-menu.open').forEach(m => m.classList.remove('open')));
 
 const MAILER_URL = 'https://script.google.com/macros/s/AKfycbzU2_ZaSRlfWI2g8EPESYXw4EqJwPPgMndXmFn-E_yA6_VHGtIiwz-3FXFGQK97lWLs/exec';
