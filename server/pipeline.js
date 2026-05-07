@@ -134,6 +134,7 @@ Campos a extraer:
 - tiene_experiencia: true si mencionó experiencia laboral. false si dijo que no. null si no se sabe.
 - tiene_papeles: true si confirmó documentos legales (SSN, permiso, ciudadanía). false si dijo que no. null si no se sabe.
 - mayor_edad: true si es mayor de 18. false si es menor. null si no se sabe.
+- genero: "M" si el nombre es claramente masculino, "F" si es claramente femenino, null si no se puede determinar por el nombre.
 - webinar_intent: true si mostró interés en ver el webinar o dio correo para el link. false si lo rechazó. null si no aplica.
 - vio_webinar: true si confirmó que ya vio el webinar. false si dijo que no. null si no se sabe.
 - quiere_entrevista: true ÚNICAMENTE si el candidato pidió explícitamente una entrevista, quiere agendar una cita, o dijo claramente que quiere continuar al proceso de entrevista DESPUÉS de haber visto el webinar (vio_webinar debe ser true). NO poner true solo porque quiere ver el webinar o porque está interesado en el trabajo. false si rechazó. null en cualquier otro caso.
@@ -167,6 +168,7 @@ Si no hay información clara para un campo, pon null. SOLO JSON, nada más.`,
     if (extracted.correo         && !lead.correo)        updates.correo          = extracted.correo;
     if (extracted.ubicacion      && !lead.ubicacion)     updates.ubicacion       = extracted.ubicacion;
     if (extracted.disponibilidad && !lead.disponibilidad) updates.disponibilidad = extracted.disponibilidad;
+    if (extracted.genero && !lead.genero)                  updates.genero         = extracted.genero;
     if (extracted.tiene_experiencia !== null && extracted.tiene_experiencia !== undefined && lead.tiene_experiencia !== true)
                                                          updates.tiene_experiencia = extracted.tiene_experiencia;
     if (extracted.tiene_papeles !== null && extracted.tiene_papeles !== undefined && lead.tiene_papeles !== true)

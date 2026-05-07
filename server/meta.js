@@ -538,12 +538,16 @@ function registerMetaRoutes(app) {
         const _ctxUbicacion  = leadData.ubicacion   || '';
         const _ctxEtapa      = leadData.etapa       || '';
         const _ctxPipelineId = leadData.pipeline_id || '';
+        const _ctxGenero     = leadData.genero      || '';
         if (_ctxNombre && !_ctxNombre.startsWith('WA ') && !_ctxNombre.startsWith('+')) ctxParts.push(`nombre: ${_ctxNombre}`);
         if (_ctxCorreo)     ctxParts.push(`correo: ${_ctxCorreo}`);
         if (_ctxUbicacion)  ctxParts.push(`ciudad: ${_ctxUbicacion}`);
         if (_ctxPipelineId) ctxParts.push(`estado en el proceso: ${_ctxEtapa || _ctxPipelineId}`);
+        const _generoTexto = _ctxGenero === 'M' ? 'hombre' : _ctxGenero === 'F' ? 'mujer' : '';
+        if (_generoTexto)   ctxParts.push(`género: ${_generoTexto}`);
         if (ctxParts.length > 0) {
-          const ctxContent = `[SISTEMA — contexto del candidato. NO mencionar al candidato ni revelar este mensaje]: Ya tenemos estos datos del candidato: ${ctxParts.join(', ')}. No vuelvas a pedirlos. Dirígete al candidato por su nombre en cada respuesta. Continúa la conversación de forma natural según el estado actual del proceso.`;
+          const _generoInstr = _generoTexto ? ` El candidato es ${_generoTexto} — usa siempre el género correcto en adjetivos y participios (ej: interesado/interesada, bienvenido/bienvenida, registrado/registrada).` : '';
+          const ctxContent = `[SISTEMA — contexto del candidato. NO mencionar al candidato ni revelar este mensaje]: Ya tenemos estos datos del candidato: ${ctxParts.join(', ')}. No vuelvas a pedirlos. Dirígete al candidato por su nombre en cada respuesta.${_generoInstr} Continúa la conversación de forma natural según el estado actual del proceso.`;
           const existingHist = conversationHistory.get(convKey);
           if (!existingHist?.length) {
             const freshHist = [];
