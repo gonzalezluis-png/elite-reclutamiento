@@ -204,7 +204,7 @@ function renderKanban() {
     tableWrap.innerHTML = noticeHtml + `
       <table class="leads-table">
         <thead><tr>
-          <th>#</th><th>Nombre</th><th>Correo</th><th>Teléfono</th><th>Fuente</th>
+          <th>#</th><th>Nombre</th><th>Correo</th><th style="text-align:center">Ana</th><th>Teléfono</th><th>Fuente</th>
           <th>Ubicación</th><th>Inscrito por</th><th>Fecha de inscripción</th>
           ${showEtapaCol ? '<th>Etapa</th>' : ''}
           <th>Avance</th><th>% Visto</th><th>Tiempo visto</th><th>Link Webinar</th><th>Acciones</th>
@@ -236,6 +236,11 @@ function renderKanban() {
             <td style="color:var(--text2);display:flex;align-items:center;gap:6px;min-height:36px">${icon}${i+1}</td>
             <td style="font-weight:600;color:#fff">${esc(ld.nombre)}${sinMgrBadge ? '<br>'+sinMgrBadge : ''}${ivBadgeW ? '<br>'+ivBadgeW : ''}${llamadaBadge ? '<br>'+llamadaBadge : ''}</td>
             <td style="color:var(--text2)">${esc(ld.correo||'')}</td>
+            <td style="text-align:center" title="${ld.ia_paused ? 'Ana pausada' : 'Ana activa'}">
+              ${ld.ia_paused
+                ? '<span style="background:rgba(248,113,113,.15);color:#f87171;border:1px solid rgba(248,113,113,.3);border-radius:20px;padding:2px 8px;font-size:10px;font-weight:600;white-space:nowrap">⏸ Pausada</span>'
+                : '<span style="background:rgba(0,200,117,.12);color:#00c875;border:1px solid rgba(0,200,117,.25);border-radius:20px;padding:2px 8px;font-size:10px;font-weight:600;white-space:nowrap">🤖 Activa</span>'}
+            </td>
             <td>${esc(ld.telefono||'')}</td>
             <td><span class="lt-badge ${srcClass(ld.fuente)}">${esc(ld.fuente||'')}</span></td>
             <td style="color:var(--text2)">${esc(ld.ubicacion||'—')}</td>
@@ -348,6 +353,7 @@ function renderUniversalTable(stageDefs, pipelineId, q, showEtapa) {
         <th>#</th>
         <th>Nombre</th>
         <th>Correo</th>
+        <th style="text-align:center">Ana</th>
         <th>Teléfono</th>
         <th>Fuente</th>
         ${showEtapa ? '<th>Etapa</th>' : ''}
@@ -412,6 +418,11 @@ function renderUniversalTable(stageDefs, pipelineId, q, showEtapa) {
           <td style="color:var(--text2)">${i+1}</td>
           <td style="font-weight:600;color:#fff">${esc(ld.nombre)}</td>
           <td style="color:var(--text2)">${esc(ld.correo||'')}</td>
+          <td style="text-align:center" title="${ld.ia_paused ? 'Ana pausada' : 'Ana activa'}">
+            ${ld.ia_paused
+              ? '<span style="background:rgba(248,113,113,.15);color:#f87171;border:1px solid rgba(248,113,113,.3);border-radius:20px;padding:2px 8px;font-size:10px;font-weight:600;white-space:nowrap">⏸ Pausada</span>'
+              : '<span style="background:rgba(0,200,117,.12);color:#00c875;border:1px solid rgba(0,200,117,.25);border-radius:20px;padding:2px 8px;font-size:10px;font-weight:600;white-space:nowrap">🤖 Activa</span>'}
+          </td>
           <td>${esc(ld.telefono||'')}</td>
           <td><span class="lt-badge ${srcClass(ld.fuente)}">${esc(ld.fuente||'')}</span></td>
           ${showEtapa ? `<td><span style="display:inline-block;padding:2px 9px;border-radius:20px;font-size:10px;font-weight:600;background:${clr}22;color:${clr};border:1px solid ${clr}44">${esc(ld._etapaLabel)}</span></td>` : ''}
