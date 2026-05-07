@@ -1,4 +1,5 @@
 // PLAYWRIGHT_BROWSERS_PATH se setea vía env var en render.yaml
+const SERVER_START_TIME = Date.now().toString();
 
 const express    = require('express');
 const cors       = require('cors');
@@ -1212,8 +1213,9 @@ app.post('/webinar/track/:leadId', async (req, res) => {
 });
 
 // ── Health check ──────────────────────────────────────────────────────────────
-app.get('/',       (req, res) => res.json({ status: 'ok', service: 'Elite Webinar Bot' }));
-app.get('/health', (req, res) => res.json({ status: 'ok' }));
+app.get('/',        (req, res) => res.json({ status: 'ok', service: 'Elite Webinar Bot' }));
+app.get('/health',  (req, res) => res.json({ status: 'ok' }));
+app.get('/version', (req, res) => res.json({ v: SERVER_START_TIME }));
 
 // ── Send webinar email manually (from CRM button) ─────────────────────────────
 app.post('/send-webinar-email', async (req, res) => {

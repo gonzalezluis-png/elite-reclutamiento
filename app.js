@@ -657,4 +657,23 @@ function calNavMonth(dir) { // kept for compat
 }
 function calGoToday() { calWeekStart = _getWeekStart(new Date()); renderCalendario(); }
 
+// ── Auto-reload on new deploy ─────────────────────────────────────────────────
+(function() {
+  let _knownVersion = null;
+  async function _checkVersion() {
+    try {
+      const r = await fetch(`${SERVER_URL}/version?_=${Date.now()}`);
+      if (!r.ok) return;
+      const { v } = await r.json();
+      if (!_knownVersion) { _knownVersion = v; return; }
+      if (v !== _knownVersion) {
+        showToast('🔄 Nueva versión disponible — actualizando…');
+        setTimeout(() => location.reload(true), 1500);
+      }
+    } catch {}
+  }
+  setInterval(_checkVersion, 30000);
+  _checkVersion();
+})();
+
 // ════════════════════════════════════════════
