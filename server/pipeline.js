@@ -136,7 +136,7 @@ Campos a extraer:
 - mayor_edad: true si es mayor de 18. false si es menor. null si no se sabe.
 - webinar_intent: true si mostró interés en ver el webinar o dio correo para el link. false si lo rechazó. null si no aplica.
 - vio_webinar: true si confirmó que ya vio el webinar. false si dijo que no. null si no se sabe.
-- quiere_entrevista: true si el candidato quiere avanzar al proceso de entrevista, mostró intención clara de agendar, pidió una entrevista, dijo que quiere continuar o avanzar en el proceso después de ver el webinar. false si rechazó. null si no se sabe.
+- quiere_entrevista: true ÚNICAMENTE si el candidato pidió explícitamente una entrevista, quiere agendar una cita, o dijo claramente que quiere continuar al proceso de entrevista DESPUÉS de haber visto el webinar (vio_webinar debe ser true). NO poner true solo porque quiere ver el webinar o porque está interesado en el trabajo. false si rechazó. null en cualquier otro caso.
 Si no hay información clara para un campo, pon null. SOLO JSON, nada más.`,
       messages: [...messages, { role: 'assistant', content: '{' }],
     });
