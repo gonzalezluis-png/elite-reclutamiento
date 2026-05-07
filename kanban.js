@@ -198,7 +198,8 @@ function renderKanban() {
     const rows = leads.filter(ld =>
       ld.pipeline_id === activePipelineId &&
       (tableEtapas.includes(ld.etapa) || (curTab.id === 'inscrito' && ld.inscrito_webinar && ld.pipeline_id === 'en-webinar')) &&
-      (!q || [ld.nombre, ld.correo, ld.telefono, ld.fuente, ld.nombre_lead].join(' ').toLowerCase().includes(q))
+      (!q || [ld.nombre, ld.correo, ld.telefono, ld.fuente, ld.nombre_lead].join(' ').toLowerCase().includes(q)) &&
+      (currentUser?.role === 'developer' || !ld.invisible)
     ).map(ld => { const eo = curTab.etapas.find(e => e.v === ld.etapa); return {...ld, _etapaLabel: eo ? eo.l : ld.etapa}; });
 
     const noticeHtml = curTab.id === 'no-asistente'
@@ -292,6 +293,8 @@ function renderKanban() {
                   <div class="lt-accion-opt opt-sin-registro"   onclick="event.stopPropagation();setWebinarAccion('${ld.id}','sin-registro')">— SIN REGISTRO</div>
                   <div style="border-top:1px solid var(--border);margin:3px 0"></div>
                   <div class="lt-accion-opt" style="color:#a5b4fc" onclick="event.stopPropagation();openAgendarCitaModal('${ld.id}')">📅 Agendar entrevista</div>
+                  ${currentUser?.role === 'developer' ? `<div style="border-top:1px solid var(--border);margin:3px 0"></div>
+                  <div class="lt-accion-opt" style="color:${ld.invisible ? '#00c875' : '#94a3b8'}" onclick="event.stopPropagation();toggleInvisible('${ld.id}')">${ld.invisible ? '👁 Hacer visible' : '👁‍🗨 Ocultar (solo admin)'}</div>` : ''}
                   <div style="border-top:1px solid var(--border);margin:3px 0"></div>
                   <div class="lt-accion-opt" style="color:#f87171" onclick="event.stopPropagation();_openMenuLeadId='${ld.id}';deleteLeadFull()">🗑️ Eliminar todos los datos</div>
                 </div>
@@ -337,7 +340,8 @@ function renderUniversalTable(stageDefs, pipelineId, q, showEtapa) {
   const rows = stageDefs.flatMap(({v, l: label}) =>
     leads.filter(ld =>
       ld.pipeline_id === pipelineId && ld.etapa === v &&
-      (!q || [ld.nombre,ld.correo,ld.telefono,ld.fuente,ld.nombre_lead].join(' ').toLowerCase().includes(q))
+      (!q || [ld.nombre,ld.correo,ld.telefono,ld.fuente,ld.nombre_lead].join(' ').toLowerCase().includes(q)) &&
+      (currentUser?.role === 'developer' || !ld.invisible)
     ).map(ld => ({...ld, _etapaLabel: label}))
   );
   const isEntrevistas = pipelineId === 'entrevistas-generales';
@@ -541,7 +545,7 @@ function renderCard(l) {
   const progColor = prog >= 100 ? '#fbbf24' : prog >= 70 ? '#00c875' : prog >= 40 ? '#4f7fff' : '#8890a4';
 
   return `
-  <div class="kcard${l.quiere_entrevista ? ' kcard--alert' : ''}${l.sin_manager ? ' kcard--sinmgr' : ''}${l.unread_msg ? ' kcard--unread' : ''}${l.solicita_entrevista ? ' kcard--iv' : ''}" draggable="true" id="kcard-${l.id}"
+  <div class="kcard${l.quiere_entrevista ? ' kcard--alert' : ''}${l.sin_manager ? ' kcard--sinmgr' : ''}${l.unread_msg ? ' kcard--unread' : ''}${l.solicita_entrevista ? ' kcard--iv' : ''}${l.invisible ? ' kcard--invisible' : ''}" draggable="true" id="kcard-${l.id}"
        ondragstart="handleDragStart(event,'${l.id}')"
        ondragend="this.classList.remove('dragging')"
        onclick="openLead('${l.id}')">
@@ -603,6 +607,20 @@ function toggleMoveMenu(event, leadId) {
   // Ocultar botón global "En Webinar" en modo simplificado (se pone dentro del menú)
   const webinarSection = document.getElementById('move-menu-webinar-section');
   if (webinarSection) webinarSection.style.display = (lead?.pipeline_id === 'en-webinar' || esModoSimplificado || esWebinarIntento) ? 'none' : '';
+
+  // Botón invisible — solo para developer/admin
+  const invisBtn = document.getElementById('move-menu-invisible-btn');
+  if (invisBtn) {
+    if (currentUser?.role === 'developer') {
+      const isInvis = lead?.invisible;
+      invisBtn.style.display = 'flex';
+      invisBtn.textContent   = isInvis ? '👁 Hacer visible' : '👁‍🗨 Ocultar (solo admin)';
+      invisBtn.style.borderColor = isInvis ? '#00c875' : '#94a3b8';
+      invisBtn.style.color       = isInvis ? '#00c875' : '#94a3b8';
+    } else {
+      invisBtn.style.display = 'none';
+    }
+  }
 
   if (esWebinarIntento) {
     const siguienteEtapa = WEBINAR_PROGRESSIONS[etapaActual];
@@ -1026,6 +1044,19 @@ function moveLead(leadId, newEtapa) {
   addHistorial(leadId, `Etapa cambiada: ${prevEtapa} → ${newEtapa}`, '↕️');
   saveLeads(leadId); renderKanban(); renderSidebar();
   showToast('↕️ Movido a: ' + newEtapa, true);
+}
+
+// ── INVISIBLE TOGGLE ──
+async function toggleInvisible(leadId) {
+  closeAllMenus();
+  const lead = leads.find(l => l.id === leadId);
+  if (!lead) return;
+  const nowInvisible = !lead.invisible;
+  lead.invisible = nowInvisible;
+  saveLeads(leadId);
+  renderKanban();
+  renderSidebar();
+  showToast(nowInvisible ? '👁‍🗨 Lead oculto — solo tú lo puedes ver' : '👁 Lead visible para todos', true);
 }
 
 // ── INDICADOR ONLINE/OFFLINE ──

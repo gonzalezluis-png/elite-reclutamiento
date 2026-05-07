@@ -1059,7 +1059,9 @@ setInterval(() => checkInterviewReminders(_ivSendWA, _ivSendInternal, _ivSendMan
 // ── Lead CRUD API ─────────────────────────────────────────────────────────────
 app.get('/leads', requireSession(), async (req, res) => {
   try {
-    const leads = await db.sbGetLeads();
+    const all   = await db.sbGetLeads();
+    const isDev = req.authSession?.role === 'developer';
+    const leads = isDev ? all : all.filter(l => !l.invisible);
     res.json({ ok: true, leads });
   } catch (e) {
     res.status(500).json({ ok: false, error: e.message });
@@ -1075,7 +1077,7 @@ const LEAD_COLS = new Set([
   'inscrito_por','seguidores','ia_paused','interview_state','pending_slots',
   'tiene_experiencia','tiene_papeles','mayor_edad','vio_webinar','disponibilidad',
   'contacto','link_webinar','webinar_pausas','webinar_completado','webinar_ultima_sesion',
-  'webinar_ultimo_evento','quiere_entrevista_fecha','created_at','updated_at',
+  'webinar_ultimo_evento','quiere_entrevista_fecha','created_at','updated_at','invisible',
 ]);
 const LEAD_TS_COLS = new Set([
   'webinar_email_enviado','fecha_inscripcion_webinar','quiere_entrevista_fecha',

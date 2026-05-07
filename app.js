@@ -495,6 +495,7 @@ function renderSidebar() {
   const q       = (document.getElementById('pipe-search').value || '').toLowerCase();
   const role    = currentUser?.role || 'agente';
   const allowed = new Set(getAllowedPipelines(role));
+  const _isDev  = role === 'developer';
   const el      = document.getElementById('pipe-list');
 
   const GROUPS = [
@@ -533,7 +534,7 @@ function renderSidebar() {
     html += `<div class="sidebar-group-body${collapsed ? ' collapsed' : ''}">`;
     if (group.extraFirst) html += group.extraFirst;
     for (const p of pipes) {
-      const count = leads.filter(l => l.pipeline_id === p.id).length;
+      const count = leads.filter(l => l.pipeline_id === p.id && (_isDev || !l.invisible)).length;
       const active = activePipelineId === p.id && activeView === 'kanban' ? 'active' : '';
       const webinarCls = group.webinar ? 'pipe-item-webinar' : '';
       html += `<div class="pipe-item ${webinarCls} ${active}" onclick="selectPipeline('${p.id}')">
@@ -544,7 +545,7 @@ function renderSidebar() {
       if (p.tabs) {
         for (const tab of p.tabs) {
           if (tab.sidebar === false) continue;
-          const tabCount = leads.filter(l => l.pipeline_id === p.id && tab.etapas.some(e => e.v === l.etapa)).length;
+          const tabCount = leads.filter(l => l.pipeline_id === p.id && tab.etapas.some(e => e.v === l.etapa) && (_isDev || !l.invisible)).length;
           const tabActive = activePipelineId === p.id && activeView === 'kanban' && getPipeTab(p.id) === tab.id ? 'active' : '';
           html += `<div class="pipe-subtab ${tabActive}" onclick="selectPipelineTab('${p.id}','${tab.id}')">
             <span class="pipe-subtab-dot"></span>

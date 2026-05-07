@@ -211,6 +211,7 @@ tr.lead-resuelto td:last-child { pointer-events:auto;opacity:1; }
 .kcard-unread-dot { width:6px;height:6px;border-radius:50%;background:#25d366;flex-shrink:0;animation:pulse-unread 1.2s ease-in-out infinite; }
 @keyframes pulse-unread { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.5;transform:scale(1.6)} }
 .kcard--unread { border-color:rgba(37,211,102,.4) !important;box-shadow:0 0 0 1px rgba(37,211,102,.15); }
+.kcard--invisible { opacity:.45;border-style:dashed !important;border-color:rgba(148,163,184,.4) !important; }
 .kc-active-dot { display:inline-block;width:7px;height:7px;border-radius:50%;background:#25d366;margin-left:6px;vertical-align:middle;flex-shrink:0; }
 .kcard.dragging { opacity:.5;transform:rotate(2deg); }
 .kprog-bar { height:4px; background:var(--border); border-radius:0 0 8px 8px; margin:8px -11px -10px; overflow:hidden; }
