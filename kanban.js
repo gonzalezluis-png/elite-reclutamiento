@@ -1,5 +1,131 @@
 //  KANBAN (all views now use table layout)
 // ════════════════════════════════════════════
+
+// ── Global search ─────────────────────────────────────────────────────────────
+let _gsIdx = -1;
+
+function openGlobalSearch() {
+  document.getElementById('global-search-overlay').style.display = 'block';
+  const inp = document.getElementById('global-search-input');
+  inp.value = '';
+  _gsIdx = -1;
+  document.getElementById('global-search-results').innerHTML = '<div style="padding:28px;text-align:center;color:var(--text2);font-size:13px;">Escribe para buscar…</div>';
+  setTimeout(() => inp.focus(), 50);
+}
+
+function closeGlobalSearch() {
+  document.getElementById('global-search-overlay').style.display = 'none';
+}
+
+document.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'k') { e.preventDefault(); openGlobalSearch(); }
+  if (e.key === 'Escape' && document.getElementById('global-search-overlay').style.display !== 'none') closeGlobalSearch();
+});
+
+function _gsScore(lead, q) {
+  const fields = [
+    lead.nombre      || '',
+    lead.correo      || '',
+    lead.telefono    || '',
+    lead.ubicacion   || '',
+    lead.fuente      || '',
+    lead.propietario || '',
+    (lead.notas || []).map(n => n.texto || n).join(' '),
+    lead.created_at  ? new Date(lead.created_at).toLocaleDateString('es-MX', {day:'2-digit',month:'long',year:'numeric'}) : '',
+    lead.created_at  ? new Date(lead.created_at).toLocaleDateString('es-MX', {day:'2-digit',month:'2-digit',year:'numeric'}) : '',
+    lead.etiquetas   ? lead.etiquetas.join(' ') : '',
+  ].join(' ').toLowerCase();
+  const qWords = q.toLowerCase().trim().split(/\s+/);
+  if (!qWords.every(w => fields.includes(w))) return 0;
+  // exact name match scores highest
+  if ((lead.nombre || '').toLowerCase().includes(q.toLowerCase())) return 3;
+  if ((lead.telefono || '').replace(/\D/g,'').includes(q.replace(/\D/g,''))) return 2;
+  return 1;
+}
+
+function _pipeLabel(pipeId) {
+  const p = (typeof PIPELINES !== 'undefined' ? PIPELINES : []).find(p => p.id === pipeId);
+  return p ? p.nombre : pipeId || '—';
+}
+
+function runGlobalSearch() {
+  const q = (document.getElementById('global-search-input').value || '').trim();
+  const wrap = document.getElementById('global-search-results');
+  _gsIdx = -1;
+  if (q.length < 2) {
+    wrap.innerHTML = '<div style="padding:28px;text-align:center;color:var(--text2);font-size:13px;">Escribe al menos 2 caracteres…</div>';
+    return;
+  }
+  const scored = (leads || [])
+    .map(l => ({ l, s: _gsScore(l, q) }))
+    .filter(x => x.s > 0)
+    .sort((a, b) => b.s - a.s)
+    .slice(0, 30);
+
+  if (!scored.length) {
+    wrap.innerHTML = '<div style="padding:28px;text-align:center;color:var(--text2);font-size:13px;">Sin resultados para "<strong style=\'color:#fff\'>' + esc(q) + '</strong>"</div>';
+    return;
+  }
+
+  wrap.innerHTML = scored.map(({ l }, i) => {
+    const srcClass = {'Meta / Facebook':'meta','Instagram':'ig','WhatsApp':'wa','Referido':'ref','LinkedIn':'otro','OCC / Indeed':'otro'}[l.fuente]||'otro';
+    const date = l.created_at ? new Date(l.created_at).toLocaleDateString('es-MX',{day:'2-digit',month:'short',year:'numeric'}) : '';
+    const pipe = _pipeLabel(l.pipeline_id);
+    const stageClr = stageColor(l.etapa);
+    return `<div class="gs-result" data-idx="${i}" data-id="${l.id}" onclick="gsOpen('${l.id}')" onmouseenter="gsHover(${i})">
+      <div style="display:flex;align-items:center;gap:10px;padding:9px 18px;cursor:pointer;border-radius:0;transition:background .12s;">
+        <div style="flex:1;min-width:0;">
+          <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap;">
+            <span style="font-weight:700;color:#fff;font-size:13px;">${esc(l.nombre||'Sin nombre')}</span>
+            <span class="lt-badge ${srcClass}" style="font-size:9px;">${esc(l.fuente||'')}</span>
+            ${l.solicita_entrevista ? '<span style="font-size:9px;color:#00c875;font-weight:700;">🤝 Quiere entrevista</span>' : ''}
+            ${l.quiere_entrevista   ? '<span style="font-size:9px;color:#fdab3d;font-weight:700;">🔔 Quiere llamada</span>'   : ''}
+          </div>
+          <div style="display:flex;gap:12px;margin-top:3px;flex-wrap:wrap;">
+            ${l.telefono ? `<span style="color:var(--text2);font-size:11px;">📞 ${esc(l.telefono)}</span>` : ''}
+            ${l.correo   ? `<span style="color:var(--text2);font-size:11px;">✉️ ${esc(l.correo)}</span>`   : ''}
+            ${l.ubicacion? `<span style="color:var(--text2);font-size:11px;">📍 ${esc(l.ubicacion)}</span>`: ''}
+          </div>
+        </div>
+        <div style="text-align:right;flex-shrink:0;">
+          <div style="font-size:10px;color:var(--text2);">${esc(pipe)}</div>
+          <div style="margin-top:2px;"><span style="display:inline-block;padding:1px 7px;border-radius:20px;font-size:9px;font-weight:600;background:${stageClr}22;color:${stageClr};border:1px solid ${stageClr}44;">${esc(l.etapa||'')}</span></div>
+          <div style="font-size:10px;color:var(--text2);margin-top:2px;">${date}</div>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function gsHover(idx) {
+  _gsIdx = idx;
+  document.querySelectorAll('.gs-result').forEach((el, i) => {
+    el.querySelector('div').style.background = i === idx ? 'rgba(120,75,209,.18)' : '';
+  });
+}
+
+function globalSearchKey(e) {
+  const items = document.querySelectorAll('.gs-result');
+  if (e.key === 'ArrowDown') { e.preventDefault(); gsHover(Math.min(_gsIdx + 1, items.length - 1)); }
+  else if (e.key === 'ArrowUp') { e.preventDefault(); gsHover(Math.max(_gsIdx - 1, 0)); }
+  else if (e.key === 'Enter') {
+    const active = document.querySelector(`.gs-result[data-idx="${_gsIdx}"]`);
+    if (active) gsOpen(active.dataset.id);
+    else if (items.length === 1) gsOpen(items[0].dataset.id);
+  }
+}
+
+function gsOpen(leadId) {
+  closeGlobalSearch();
+  // Navigate to the lead's pipeline first, then open modal
+  const lead = (leads || []).find(l => l.id === leadId);
+  if (lead && lead.pipeline_id && lead.pipeline_id !== activePipelineId) {
+    activePipelineId = lead.pipeline_id;
+    renderSidebar();
+    renderKanban();
+  }
+  setTimeout(() => openLead(leadId), 100);
+}
 function renderKanban() {
   if (activeView !== 'kanban') return;
   const pipe = PIPELINES.find(p => p.id === activePipelineId);

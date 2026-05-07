@@ -75,7 +75,10 @@
   <div id="main">
     <div id="topbar">
       <div id="board-title">POSTULADOS POR META</div>
-      <input id="search-input" placeholder="🔍 Buscar aplicante..." style="padding:6px 11px;background:var(--card2);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-size:12px;font-family:var(--font);outline:none;width:190px;" oninput="renderKanban()" />
+      <button onclick="openGlobalSearch()" title="Buscar en todos los leads (Ctrl+K)" style="display:flex;align-items:center;gap:6px;padding:6px 12px;background:var(--card2);border:1px solid var(--border);border-radius:var(--radius);color:var(--text2);font-size:12px;font-family:var(--font);cursor:pointer;">
+        🔍 <span>Buscar lead…</span> <kbd style="background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:1px 5px;font-size:10px;color:var(--text2);">Ctrl K</kbd>
+      </button>
+      <input id="search-input" placeholder="🔍 Filtrar pipeline…" style="padding:6px 11px;background:var(--card2);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-size:12px;font-family:var(--font);outline:none;width:150px;" oninput="renderKanban()" />
       <div id="online-indicator" style="display:flex;align-items:center;gap:5px;padding:5px 11px;border-radius:20px;font-size:11.5px;font-weight:600;background:rgba(0,200,117,.12);color:#00c875;border:1px solid rgba(0,200,117,.25);">
         <span id="online-dot" style="width:7px;height:7px;border-radius:50%;background:#00c875;display:inline-block;"></span>
         <span id="online-text">En línea</span>
@@ -92,6 +95,24 @@
 
     <!-- LEADS TODAY BAR -->
     <div id="leads-today-bar" style="display:none;align-items:center;padding:6px 20px;background:rgba(79,127,255,.06);border-bottom:1px solid var(--border);font-size:12px;gap:8px;flex-wrap:wrap;"></div>
+
+    <!-- GLOBAL SEARCH OVERLAY -->
+    <div id="global-search-overlay" style="display:none;position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,.65);backdrop-filter:blur(4px);" onclick="closeGlobalSearch()">
+      <div onclick="event.stopPropagation()" style="position:absolute;top:12vh;left:50%;transform:translateX(-50%);width:min(680px,94vw);background:#13152a;border:1px solid rgba(120,75,209,.35);border-radius:14px;box-shadow:0 24px 80px rgba(0,0,0,.6);overflow:hidden;">
+        <div style="display:flex;align-items:center;gap:10px;padding:14px 18px;border-bottom:1px solid var(--border);">
+          <span style="font-size:18px;opacity:.5;">🔍</span>
+          <input id="global-search-input" placeholder="Buscar por nombre, correo, teléfono, ciudad, fecha…" autocomplete="off" spellcheck="false"
+            oninput="runGlobalSearch()"
+            onkeydown="globalSearchKey(event)"
+            style="flex:1;background:none;border:none;outline:none;color:#fff;font-size:15px;font-family:var(--font);" />
+          <kbd onclick="closeGlobalSearch()" style="background:var(--card2);border:1px solid var(--border);color:var(--text2);border-radius:5px;padding:2px 7px;font-size:11px;cursor:pointer;">ESC</kbd>
+        </div>
+        <div id="global-search-results" style="max-height:420px;overflow-y:auto;padding:6px 0;"></div>
+        <div style="padding:8px 18px;border-top:1px solid var(--border);font-size:10px;color:var(--text2);display:flex;gap:16px;">
+          <span>↑↓ navegar</span><span>Enter abrir</span><span>Esc cerrar</span>
+        </div>
+      </div>
+    </div>
 
     <!-- PIPELINE TABS (webinar) -->
     <div id="pipeline-tabs"></div>
