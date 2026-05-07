@@ -70,6 +70,39 @@ const META_APP_SECRET_WA = process.env.META_APP_SECRET_WA || '80dc2555ece1fd87af
 const META_APP_ID        = process.env.META_APP_ID        || '1447919720444811';
 const META_WA_PHONE_ID   = process.env.META_WA_PHONE_ID   || '';
 
+// Conversions API
+const META_PIXEL_ID      = process.env.META_PIXEL_ID      || '1447919720444811';
+const META_CAPI_TOKEN    = process.env.META_CAPI_TOKEN     || 'EAAUk4BSZAs4sBRZAM5BFZCC1KJZA2GFUoFVDeMrjeykIZBWnMoNV5C3GTqbcgpJW1jVthGzZBplRAAub56LtItgoVd0mpALFFNAhRLTpS9heu4tiYCDF52eVYX90aYu2Pp3qFGc7tl8XZByKtI3HqIDKTB4fMZC4ZA4bgZAcYkHeh4J5pqKwHUquSwZAUFsTZAkcqKZBY8vR3iHFQtHv1e5a7CE77uZBdjB9SXO0yne968h1TjiKOHr2EGwle108xlCzsitpCqEWKw3kZBIWgPvYeiB7ELD';
+
+async function fireCapiLead({ email, telefono, nombre, eventId }) {
+  if (!META_PIXEL_ID || !META_CAPI_TOKEN) return;
+  const crypto = require('crypto');
+  const hash = s => s ? crypto.createHash('sha256').update(s.trim().toLowerCase()).digest('hex') : undefined;
+  const cleanPhone = (telefono || '').replace(/\D/g, '');
+  const userData = {};
+  if (email)      userData.em = [hash(email)];
+  if (cleanPhone) userData.ph = [hash(cleanPhone)];
+  const payload = {
+    data: [{
+      event_name:   'Lead',
+      event_time:   Math.floor(Date.now() / 1000),
+      event_id:     eventId || `lead_${Date.now()}`,
+      action_source: 'other',
+      user_data:    userData,
+    }],
+  };
+  try {
+    await fetch(`${GRAPH_URL}/${META_PIXEL_ID}/events?access_token=${META_CAPI_TOKEN}`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify(payload),
+    });
+    console.log('[CAPI] Lead event fired');
+  } catch(e) {
+    console.warn('[CAPI] Error:', e.message);
+  }
+}
+
 const GRAPH_URL = 'https://graph.facebook.com/v21.0';
 
 // ── Token management ─────────────────────────────────────────────────────────
@@ -1155,6 +1188,9 @@ function registerMetaRoutes(app) {
       };
 
       await db.sbSaveLead(lead);
+
+      // Fire Conversions API Lead event
+      fireCapiLead({ email: correo, telefono, nombre, eventId: uid }).catch(() => {});
 
       // Welcome WhatsApp if office hours
       if (telefono) {
