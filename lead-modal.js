@@ -41,6 +41,8 @@ function openLead(id, tabName) {
 
   // populate header
   document.getElementById('ml-nombre').value = lead.nombre || '';
+  const _folioEl = document.getElementById('ml-folio');
+  if (_folioEl) _folioEl.textContent = typeof _leadFolio === 'function' ? _leadFolio(id) : '';
   _mlUpdateAvatar();
 
   // populate pipeline/etapa selects
@@ -152,7 +154,7 @@ function _mlRenderProgreso(lead) {
     { pct: 45,  label: 'Interés en webinar',    check: l => l.webinar_intent },
     { pct: 50,  label: 'Papeles y mayoría',     check: l => l.tiene_papeles && l.mayor_edad },
     { pct: 60,  label: 'Correo registrado',     check: l => !!l.correo },
-    { pct: 70,  label: 'Vio el webinar',        check: l => l.webinar_visto || l.vio_webinar || (l.pipeline_id === 'en-webinar' && l.etapa !== 'Inscrito en Webinar') },
+    { pct: 70,  label: 'Vio el webinar',        check: l => l.webinar_visto || l.vio_webinar || (l.pipeline_id === 'en-webinar' && l.etapa !== 'En Webinar sin actividad') },
     { pct: 80,  label: 'Entrevista agendada',   check: l => !!(l.cita?.fecha) || ['entrevistas-generales','caritza-rojas','maria-lugo','brayan-alexander'].includes(l.pipeline_id) },
     { pct: 90,  label: 'Confirmó asistencia',   check: l => /confirm/i.test(l.etapa||'') },
     { pct: 100, label: 'Asistió a entrevista',  check: l => /asist|ENTREVISTADO|ENTREVISTADA/i.test(l.etapa||'') },

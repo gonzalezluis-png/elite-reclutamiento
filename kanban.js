@@ -48,6 +48,12 @@ function _pipeLabel(pipeId) {
   return p ? p.nombre : pipeId || '—';
 }
 
+// ── Lead folio: stable short code derived from ID (no DB column needed) ────────
+function _leadFolio(id) {
+  const digits = (id.match(/\d+/g) || []).join('');
+  return '#' + digits.slice(-6);
+}
+
 function runGlobalSearch() {
   const q = (document.getElementById('global-search-input').value || '').trim();
   const wrap = document.getElementById('global-search-results');
@@ -204,7 +210,7 @@ function renderKanban() {
     tableWrap.innerHTML = noticeHtml + `
       <table class="leads-table">
         <thead><tr>
-          <th>#</th><th>Nombre</th><th>Correo</th><th style="text-align:center">Ana</th><th>Teléfono</th><th>Fuente</th>
+          <th>Folio</th><th>Nombre</th><th>Correo</th><th style="text-align:center">Ana</th><th>Teléfono</th><th>Fuente</th>
           <th>Ubicación</th><th>Inscrito por</th><th>Fecha de inscripción</th>
           ${showEtapaCol ? '<th>Etapa</th>' : ''}
           <th>Avance</th><th>% Visto</th><th>Tiempo visto</th><th>Link Webinar</th><th>Acciones</th>
@@ -233,7 +239,7 @@ function renderKanban() {
             ? `<span onclick="event.stopPropagation();dismissSolicitaEntrevista('${ld.id}')" title="Marcar como atendido" style="display:inline-flex;align-items:center;gap:4px;background:rgba(0,200,117,.15);border:1px solid rgba(0,200,117,.4);color:#00c875;font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;cursor:pointer;animation:blink-dot 1.4s ease-in-out infinite;">🤝 Quiere entrevista</span>`
             : '';
           return `<tr class="${resuelto}${ld.quiere_entrevista ? ' tr-llamada-alert' : ''}${ld.sin_manager ? ' tr-sinmgr-alert' : ''}${ld.solicita_entrevista ? ' tr-iv-alert' : ''}" onclick="openLead('${ld.id}')">
-            <td style="color:var(--text2);display:flex;align-items:center;gap:6px;min-height:36px">${icon}${i+1}</td>
+            <td style="color:var(--text2);display:flex;align-items:center;gap:6px;min-height:36px;font-size:10px;font-family:monospace">${icon}${_leadFolio(ld.id)}</td>
             <td style="font-weight:600;color:#fff">${esc(ld.nombre)}${sinMgrBadge ? '<br>'+sinMgrBadge : ''}${ivBadgeW ? '<br>'+ivBadgeW : ''}${llamadaBadge ? '<br>'+llamadaBadge : ''}</td>
             <td style="color:var(--text2)">${esc(ld.correo||'')}</td>
             <td style="text-align:center" title="${ld.ia_paused ? 'Ana pausada' : 'Ana activa'}">
@@ -262,7 +268,7 @@ function renderKanban() {
                 <div class="lt-accion-menu" id="accion-menu-${ld.id}">
                   ${(() => {
                     const etapa = ld.etapa;
-                    if (etapa === 'Inscrito en Webinar') {
+                    if (etapa === 'En Webinar sin actividad') {
                       return `<div style="padding:4px 10px 2px;font-size:10px;color:var(--text2);font-weight:600;letter-spacing:.5px">MOVER A SIGUIENTE ETAPA</div>
                         <div class="lt-accion-opt" style="color:#00c875;font-weight:700" onclick="event.stopPropagation();moveLead('${ld.id}','AS - Asistente');closeAccionMenu('${ld.id}')">✅ Asistente (vio el webinar)</div>
                         <div class="lt-accion-opt" style="color:#fdab3d;font-weight:700" onclick="event.stopPropagation();moveLead('${ld.id}','NA - No Asistente');closeAccionMenu('${ld.id}')">✗ No Asistente (no lo vio)</div>
@@ -350,7 +356,7 @@ function renderUniversalTable(stageDefs, pipelineId, q, showEtapa) {
   document.getElementById('table-view-wrap').innerHTML = `
     <table class="leads-table">
       <thead><tr>
-        <th>#</th>
+        <th>Folio</th>
         <th>Nombre</th>
         <th>Correo</th>
         <th style="text-align:center;width:60px">Ana</th>
@@ -415,7 +421,7 @@ function renderUniversalTable(stageDefs, pipelineId, q, showEtapa) {
             style="background:var(--card2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:3px 8px;font-size:11px;width:130px;outline:none;" />` : '';
 
         return `<tr onclick="openLead('${ld.id}')">
-          <td style="color:var(--text2)">${i+1}</td>
+          <td style="color:var(--text2);font-size:10px;font-family:monospace">${_leadFolio(ld.id)}</td>
           <td style="font-weight:600;color:#fff">${esc(ld.nombre)}</td>
           <td style="color:var(--text2)">${esc(ld.correo||'')}</td>
           <td style="text-align:center" title="${ld.ia_paused ? 'Ana pausada' : 'Ana activa'}">
@@ -479,7 +485,7 @@ function calcProgreso(lead) {
   // 60%
   if (lead.correo) max = Math.max(max, 60);
   // 70%
-  if (lead.webinar_visto === true || lead.vio_webinar === true || (lead.pipeline_id === 'en-webinar' && lead.etapa !== 'Inscrito en Webinar')) max = Math.max(max, 70);
+  if (lead.webinar_visto === true || lead.vio_webinar === true || (lead.pipeline_id === 'en-webinar' && lead.etapa !== 'En Webinar sin actividad')) max = Math.max(max, 70);
   // 80%
   if ((lead.cita && lead.cita.fecha) || ['entrevistas-generales','caritza-rojas','maria-lugo','brayan-alexander'].includes(lead.pipeline_id)) max = Math.max(max, 80);
   // 90%
@@ -770,7 +776,7 @@ function moveReinscritoWebinar(leadId) {
   if (!lead) return;
   pushUndo('lead_change', JSON.parse(JSON.stringify(lead)));
   const prev = lead.etapa;
-  lead.etapa = 'Inscrito en Webinar';
+  lead.etapa = 'En Webinar sin actividad';
   lead.reinscrito_from_na = true;
   lead.webinar_accion = 'sin-registro';
   lead.inscrito_webinar = false;
@@ -909,10 +915,10 @@ async function _registrarEnWebinar(lead, prevEtapa) {
   const personalUrl = `${location.origin}/webinar.html?id=${lead.id}&nombre=${encodeURIComponent(lead.nombre||'')}&correo=${encodeURIComponent(lead.correo||'')}`;
 
   lead.pipeline_id               = 'en-webinar';
-  lead.etapa                     = 'Inscrito en Webinar';
+  lead.etapa                     = 'En Webinar sin actividad';
   lead.fecha_inscripcion_webinar = lead.fecha_inscripcion_webinar || new Date().toISOString();
   lead.link_webinar              = personalUrl;
-  addHistorial(lead.id, `Inscrito en Webinar${prevEtapa ? ` (desde ${prevEtapa})` : ''} — link personalizado generado`, '🎥');
+  addHistorial(lead.id, `En Webinar sin actividad${prevEtapa ? ` (desde ${prevEtapa})` : ''} — link personalizado generado`, '🎥');
   saveLeads(lead.id);
 
   if (lead.correo) {
@@ -990,7 +996,7 @@ function moveLead(leadId, newEtapa) {
 
   // ── TRANSICIONES AUTOMÁTICAS DE BOARD ──
   const AUTO_TRANSITIONS = [
-    { match: e => /^en webinar$/i.test(e),                         pipeline:'en-webinar',             etapa:'Inscrito en Webinar',    msg:'EN WEBINAR → Inscrito en Webinar' },
+    { match: e => /^en webinar$/i.test(e),                         pipeline:'en-webinar',             etapa:'En Webinar sin actividad',    msg:'EN WEBINAR → En Webinar sin actividad' },
     { match: e => /para entrevista.*enviar/i.test(e),              pipeline:'entrevistas-generales',   etapa:'EN ENTREVISTA',           msg:'ENTREVISTAS GENERALES → En Entrevista' },
     { match: e => /enviar a caritza/i.test(e),                     pipeline:'caritza-rojas',           etapa:'ENTREVISTADOS',           msg:'ENTREVISTA: CARITZA ROJAS → Entrevistados' },
     { match: e => /enviar a maria/i.test(e),                       pipeline:'maria-lugo',              etapa:'ENTREVISTADO',            msg:'ENTREVISTA: MARIA LUGO → Entrevistado' },

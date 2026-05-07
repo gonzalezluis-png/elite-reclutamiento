@@ -86,7 +86,7 @@ function autoMoverVistos() {
   let changed = false;
   const ahora = Date.now();
   leads.forEach(ld => {
-    if (ld.pipeline_id === 'en-webinar' && ld.etapa === 'Inscrito en Webinar') {
+    if (ld.pipeline_id === 'en-webinar' && ld.etapa === 'En Webinar sin actividad') {
       const pct = ld.webinar_visto_pct != null ? Number(ld.webinar_visto_pct) : null;
       if (pct !== null && pct > 0) {
         ld.etapa = 'AS - Asistente';

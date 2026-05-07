@@ -218,7 +218,7 @@ function setWebinarAccion(leadId, accion) {
     lead.etapa = 'No Califica';
     addHistorial(leadId, 'Marcado como NO CALIFICA', '🚫');
   } else {
-    lead.etapa = 'Inscrito en Webinar';
+    lead.etapa = 'En Webinar sin actividad';
     lead.inscrito_webinar = false;
     addHistorial(leadId, 'Registro de Webinar restablecido a Sin Registro', '—');
   }

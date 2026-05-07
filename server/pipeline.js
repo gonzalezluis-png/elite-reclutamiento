@@ -81,7 +81,8 @@ async function fsCreateLeadWA(from) {
   };
   try {
     await db.sbSaveLead(lead);
-    console.log(`[WA-AI] Lead auto-creado: ${id} para ${phone}`);
+    const folio = '#' + id.replace(/\D/g,'').slice(-6);
+    console.log(`[WA-AI] Lead auto-creado: ${id} folio:${folio} para ${phone}`);
   } catch (e) {
     console.error('[WA-AI] Error creando lead:', e.message);
   }
@@ -163,7 +164,7 @@ Si no hay información clara para un campo, pon null. SOLO JSON, nada más.`,
     if (!lead) { console.error(`[AI-Extract] Lead no encontrado para ${phone}`); return; }
 
     const updates = {};
-    const isAutoName = !lead.nombre || lead.nombre.startsWith('WA ') || lead.nombre.startsWith('+');
+    const isAutoName = !lead.nombre || lead.nombre.startsWith('WA ') || lead.nombre.startsWith('+') || lead.nombre.startsWith('Lead Meta');
     if (extracted.nombre         && isAutoName)          updates.nombre          = extracted.nombre;
     if (extracted.correo         && !lead.correo)        updates.correo          = extracted.correo;
     if (extracted.ubicacion      && !lead.ubicacion)     updates.ubicacion       = extracted.ubicacion;
@@ -292,17 +293,19 @@ async function moveLeadToWebinar(leadId, nombre, correo, baseWebinarUrl) {
     const personalUrl = `${baseWebinarUrl}?id=${leadId}&nombre=${encodeURIComponent(nombre)}&correo=${encodeURIComponent(correo)}`;
 
     await fsUpdateLeadFields(leadId, {
-      pipeline_id:  'en-webinar',
-      etapa:        'Inscrito en Webinar',
-      link_webinar: personalUrl,
+      pipeline_id:              'en-webinar',
+      etapa:                    'En Webinar sin actividad',
+      link_webinar:             personalUrl,
+      fecha_inscripcion_webinar: now,
     });
 
     const lead = await db.sbGetLead(leadId);
     const hist = Array.isArray(lead?.historial) ? [...lead.historial] : [];
-    hist.push({ icono: '🎥', accion: 'Inscrito en Webinar — link personalizado generado y enviado por correo', fecha: now, usuario: 'Ana (IA)' });
+    hist.push({ icono: '🎥', accion: 'En Webinar sin actividad — link personalizado generado y enviado por correo', fecha: now, usuario: 'Ana (IA)' });
     await fsUpdateLeadFields(leadId, { historial: hist });
 
-    await sendWebinarEmail(correo, nombre, personalUrl);
+    const emailOk = await sendWebinarEmail(correo, nombre, personalUrl);
+    if (emailOk) await fsUpdateLeadFields(leadId, { webinar_email_enviado: now });
 
     const telefono = lead?.telefono || '';
     pixelWebinar({ id: leadId, telefono, correo }).catch(e => console.error('[Pixel] pixelWebinar:', e.message));

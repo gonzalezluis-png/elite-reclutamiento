@@ -31,8 +31,8 @@ const PIPELINES = [
     etapas:['New Lead','1er intento de contacto','2do intento de contacto','3er intento de contacto'] },
   { id:'en-webinar', nombre:'EN WEBINAR', icon:'🎥', visible:true,
     tabs: [
-      { id:'inscrito', nombre:'Inscrito en Webinar', sidebar:false, tableView:true,
-        etapas:[{v:'Inscrito en Webinar', l:'Inscrito en Webinar'}] },
+      { id:'inscrito', nombre:'En Webinar sin actividad', sidebar:false, tableView:true,
+        etapas:[{v:'En Webinar sin actividad', l:'En Webinar sin actividad'}] },
       { id:'no-asistente', nombre:'No Asistente', sidebar:true, tableView:true,
         etapas:[
           {v:'NA - No Asistente',            l:'No Asistente'},
@@ -61,7 +61,7 @@ const PIPELINES = [
         subTabs: true,
         subTabVisible: ['AS - Asistente','AS - 1er intento de contacto','AS - 2do intento de contacto','AS - 3er intento de contacto'] },
     ],
-    etapas:['Inscrito en Webinar','NA - No Asistente','NA - 1er intento de contacto','NA - 2do intento de contacto','NA - 3er intento de contacto','NA - Reinscrito en Webinar','NA - No contactado','NA - No interesado','NA - No Califica','NA - Para Entrevista','AS - Asistente','AS - 1er intento de contacto','AS - 2do intento de contacto','AS - 3er intento de contacto','AS - No contactado','AS - No interesado','AS - No Califica','AS - Para Entrevista'] },
+    etapas:['En Webinar sin actividad','NA - No Asistente','NA - 1er intento de contacto','NA - 2do intento de contacto','NA - 3er intento de contacto','NA - Reinscrito en Webinar','NA - No contactado','NA - No interesado','NA - No Califica','NA - Para Entrevista','AS - Asistente','AS - 1er intento de contacto','AS - 2do intento de contacto','AS - 3er intento de contacto','AS - No contactado','AS - No interesado','AS - No Califica','AS - Para Entrevista'] },
   { id:'entrevistas-generales', nombre:'ENTREVISTAS GENERALES', icon:'🤝', visible:true,
     etapas:['EN ENTREVISTA','NO SHOW','ENVIAR a Caritza Rojas','ENVIAR a Maria Lugo','ENVIAR a Bryan Palacios','Contratados Personales'] },
   { id:'maria-lugo', nombre:'ENTREVISTA: MARIA LUGO', icon:'👤', visible:false,
@@ -191,7 +191,7 @@ if (localStorage.getItem('er_seed_v') !== SEED_VERSION) {
     { nombre:'Claudia Ibarra',     correo:'claudia.ibarra.mx@gmail.com', telefono:'+52 55 8899 7766', fuente:'WhatsApp', ubicacion:'CDMX',            pipeline_id:'postulados-whatsapp-meta', etapa:'3er intento de contacto',  estado:'abierto', valor:0, propietario:'Luis González',  nombre_lead:'Ejecutiva',        etiquetas:[], notas:[], tareas:[], pagos:[], created_at:_d(16) },
 
     // ── OTROS (webinar, entrevistas) ──
-    { nombre:'Patricia Ruiz',      correo:'patricia@email.com',          telefono:'+52 55 5555 6666', fuente:'Referido',         ubicacion:'CDMX',      pipeline_id:'en-webinar', etapa:'Inscrito en Webinar', estado:'abierto', valor:0, propietario:'Luis González', nombre_lead:'Coordinadora', etiquetas:[], notas:[], tareas:[], pagos:[], created_at:_d(3) },
+    { nombre:'Patricia Ruiz',      correo:'patricia@email.com',          telefono:'+52 55 5555 6666', fuente:'Referido',         ubicacion:'CDMX',      pipeline_id:'en-webinar', etapa:'En Webinar sin actividad', estado:'abierto', valor:0, propietario:'Luis González', nombre_lead:'Coordinadora', etiquetas:[], notas:[], tareas:[], pagos:[], created_at:_d(3) },
     { nombre:'Sandra López',       correo:'sandra@email.com',            telefono:'+52 55 0001 1234', fuente:'Meta / Facebook',  ubicacion:'Monterrey', pipeline_id:'entrevistas-generales', etapa:'EN ENTREVISTA', estado:'abierto', valor:0, propietario:'Caritza Rojas', nombre_lead:'Asesora Senior', etiquetas:[], notas:[], tareas:[], pagos:[], created_at:_d(5) },
   ].map((l,i) => ({ id: 'lead-s'+i, ...l }));
   leads = sample;

@@ -357,7 +357,7 @@ async function submitRegistroWebinar() {
         id:           leadId,
         nombre,       telefono,    correo,
         fuente:       'Registro Manual Webinar',
-        etapa:        'Inscrito en Webinar',
+        etapa:        'En Webinar sin actividad',
         pipeline_id:  'en-webinar',
         estado:       'abierto',
         valor:        0,
@@ -380,7 +380,7 @@ async function submitRegistroWebinar() {
     // Add to local leads array
     leads.push({
       id: leadId, nombre, telefono, correo,
-      fuente: 'Registro Manual Webinar', etapa: 'Inscrito en Webinar',
+      fuente: 'Registro Manual Webinar', etapa: 'En Webinar sin actividad',
       pipeline_id: 'en-webinar', estado: 'abierto', valor: 0,
       propietario: currentUser?.nombre || 'Admin',
       link_webinar: personalUrl, webinar_email_enviado: now,
@@ -461,7 +461,7 @@ async function mlEnviarWebinar() {
       headers: _leadHeaders(),
       body:    JSON.stringify({
         pipeline_id:  'en-webinar',
-        etapa:        'Inscrito en Webinar',
+        etapa:        'En Webinar sin actividad',
         link_webinar: personalUrl,
         historial:    hist,
       }),
@@ -478,7 +478,7 @@ async function mlEnviarWebinar() {
 
     // Update local lead object
     lead.pipeline_id  = 'en-webinar';
-    lead.etapa        = 'Inscrito en Webinar';
+    lead.etapa        = 'En Webinar sin actividad';
     lead.link_webinar = personalUrl;
     lead.historial    = hist;
 

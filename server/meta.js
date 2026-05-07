@@ -403,13 +403,20 @@ function registerMetaRoutes(app) {
 
         console.log(`[Meta WA] Formulario WA detectado — ${formNombre} / ${formTelefono} / ${formCorreo}`);
 
-        const _fLead = await fsGetLeadByPhone(from).catch(() => null);
+        // Ensure lead exists — create it now if first contact
+        let _fLead = await fsGetLeadByPhone(from).catch(() => null);
+        if (!_fLead) {
+          await fsCreateLeadWA(`wa_meta:${from}`).catch(() => {});
+          _fLead = await fsGetLeadByPhone(from).catch(() => null);
+        }
         if (_fLead) {
           const updates = { fuente: 'Meta / Facebook' };
-          if (formNombre && (!_fLead.nombre || _fLead.nombre.startsWith('WA ') || _fLead.nombre.startsWith('+'))) updates.nombre = formNombre;
+          if (formNombre && (!_fLead.nombre || _fLead.nombre.startsWith('WA ') || _fLead.nombre.startsWith('+') || _fLead.nombre.startsWith('Lead Meta'))) updates.nombre = formNombre;
           if (formCorreo && !_fLead.correo) updates.correo = formCorreo;
-          if (formModal) updates.modalidad = formModal;
+          if (formModal)  updates.modalidad = formModal;
+          if (formTelefono && !_fLead.telefono) updates.telefono = toE164(formTelefono.replace(/\D/g,''));
           await fsUpdateLeadFields(_fLead.id, updates).catch(() => {});
+          console.log(`[Meta WA] Formulario guardado en lead ${_fLead.id}:`, updates);
         }
 
         // Inject context so Ana knows the name and skips asking for it
@@ -422,12 +429,15 @@ function registerMetaRoutes(app) {
           hist.unshift({ role: 'assistant', content: 'Entendido, tengo los datos del formulario.', ts: Date.now() - 1000 });
           hist.unshift({ role: 'user', content: ctxMsg, ts: Date.now() - 2000 });
         }
+        // Add the raw form message as a regular user message so extractAndUpdateLead can process it
+        hist.push({ role: 'user', content: combinedText, ts: Date.now() - 500 });
 
         // Send personalized welcome using Ana
         const welcomeText = `¡Hola ${firstName}! 👋 Soy Ana de RRHH de Grupo Élite. Vi que completaste nuestro formulario — ¡me alegra que estés interesado/a! ¿Desde qué ciudad nos escribes?`;
         await humanDelay(welcomeText);
         await sendWhatsApp(from, welcomeText);
         _logWAMessage(from, 'out', welcomeText).catch(() => {});
+        hist.push({ role: 'assistant', content: welcomeText, ts: Date.now() });
 
         // Run pipeline in background to update lead fields
         ;(async () => {
@@ -481,8 +491,31 @@ function registerMetaRoutes(app) {
       const exists = await fsLeadExists(from);
       const _isFirstEverContact = !exists;
       if (!exists) {
-        await fsCreateLeadWA(`wa_meta:${from}`);
-        pixelLead({ telefono: from, correo: '' }).catch(() => {});
+        // Click-to-WhatsApp dedup: look for a recent postulados-meta lead with no phone
+        // (person filled Meta form → WA message arrives separately, form lead has no phone)
+        let _ctwaMatched = false;
+        try {
+          const _twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+          const _recentMeta  = await db.sbGet('leads',
+            `pipeline_id=eq.postulados-meta&created_at=gte.${encodeURIComponent(_twoHoursAgo)}&order=created_at.desc&limit=20`
+          );
+          const _phoneless   = _recentMeta.filter(l => !l.telefono);
+          if (_phoneless.length === 1) {
+            await db.sbPatch('leads', `id=eq.${encodeURIComponent(_phoneless[0].id)}`, {
+              telefono:    from,
+              pipeline_id: 'postulados-whatsapp-meta',
+              updated_at:  new Date().toISOString(),
+            });
+            console.log(`[Meta WA] Click-to-WA merge: ${_phoneless[0].id} (${_phoneless[0].nombre}) ← ${from}`);
+            _ctwaMatched = true;
+          }
+        } catch (_e) {
+          console.warn('[Meta WA] Click-to-WA merge check failed:', _e.message);
+        }
+        if (!_ctwaMatched) {
+          await fsCreateLeadWA(`wa_meta:${from}`);
+          pixelLead({ telefono: from, correo: '' }).catch(() => {});
+        }
       }
 
       // Save WhatsApp profile name and inbox number to lead
@@ -1183,6 +1216,22 @@ function registerMetaRoutes(app) {
             updated_at:  now,
           };
 
+          // Dedup: skip if Make.com already created a lead for this leadgen_id
+          const _makeId = `meta_make_${leadgen_id}`;
+          const _makeExists = await db.sbGetLead(_makeId).catch(() => null);
+          if (_makeExists) {
+            console.log(`[LeadGen] Omitido — Make.com ya creó ${_makeId}`);
+            continue;
+          }
+          // Dedup by phone if available
+          if (telefono) {
+            const _phoneExists = await db.sbGetLeadByPhone(telefono).catch(() => null);
+            if (_phoneExists) {
+              console.log(`[LeadGen] Omitido — teléfono ya existe: ${telefono}`);
+              continue;
+            }
+          }
+
           await db.sbSaveLead(lead);
           console.log(`[LeadGen] Lead guardado: ${nombre} (${correo}) (${telefono})`);
           _logWebhookEvent('leadgen', telefono || correo, `${nombre} — ${ad_name || 'sin anuncio'}`, JSON.stringify(change.value)).catch(() => {});
@@ -1197,6 +1246,7 @@ function registerMetaRoutes(app) {
   app.post('/meta/make-lead', async (req, res) => {
     try {
       const body = req.body || {};
+      console.log('[Make Lead] Body recibido:', JSON.stringify(body).slice(0, 500));
       // Support both root-level keys and Make.com's nested fieldData format
       const fd = body.fieldData || {};
       const nombre    = body.full_name     || fd.fullName     || fd.full_name     || body.nombre || body.name || '';

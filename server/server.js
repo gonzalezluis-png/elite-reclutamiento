@@ -1,5 +1,5 @@
 // PLAYWRIGHT_BROWSERS_PATH se setea vía env var en render.yaml
-const SERVER_START_TIME = Date.now().toString();
+const SERVER_START_TIME = process.env.RAILWAY_DEPLOYMENT_ID || process.env.RAILWAY_REPLICA_ID || Date.now().toString();
 
 const express    = require('express');
 const cors       = require('cors');
@@ -1174,7 +1174,7 @@ app.post('/webinar/register', async (req, res) => {
     await db.sbSaveLead({
       id: leadId, nombre, telefono, correo,
       fuente:      'Registro Webinar',
-      etapa:       'Inscrito en Webinar',
+      etapa:       'En Webinar sin actividad',
       pipeline_id: 'en-webinar',
       estado:      'abierto',
       valor:       0,
