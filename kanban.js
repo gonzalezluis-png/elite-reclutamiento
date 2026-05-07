@@ -428,6 +428,7 @@ function renderUniversalTable(stageDefs, pipelineId, q, showEtapa) {
               <button class="lt-btn" onclick="openLead('${ld.id}','notas')">📝</button>
               <button class="lt-btn" onclick="openLead('${ld.id}','tareas')">✅</button>
               <button class="lt-btn" onclick="toggleMoveMenu(event,'${ld.id}')">Mover ↕</button>
+              <button class="lt-btn" style="color:#f87171;" onclick="openNoInteresado('${ld.id}')">✗ NI</button>
             </div>
           </td>
         </tr>`;
@@ -553,6 +554,7 @@ function renderCard(l) {
         <button class="kca-btn" title="Tareas" onclick="event.stopPropagation();openLead('${l.id}','tareas')">✅</button>
         <button class="kca-btn" title="Agendar cita" onclick="event.stopPropagation();openLead('${l.id}','cita')">📅</button>
         <button class="kca-btn-move" title="Mover etapa" onclick="event.stopPropagation();toggleMoveMenu(event,'${l.id}')">Mover ↕</button>
+        <button class="kca-btn" title="No interesado / No califica" style="color:#f87171;" onclick="event.stopPropagation();openNoInteresado('${l.id}')">✗ NI</button>
       </div>
     </div>
   </div>`;
