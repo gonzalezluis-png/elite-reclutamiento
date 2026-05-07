@@ -839,6 +839,11 @@ function fmtDateTime(d) {
 function _initials(name) {
   return (name || '?').split(' ').map(w => w[0] || '').join('').slice(0, 2).toUpperCase();
 }
+function _renderNoteText(text) {
+  return esc(text).replace(/@([\w\u00C0-\u024F][\w\u00C0-\u024F\s]*?)(?=\s|$|[^\w\u00C0-\u024F\s])/g,
+    '<span style="color:#a5b4fc;font-weight:600;background:rgba(165,180,252,.12);border-radius:4px;padding:0 3px;">@$1</span>');
+}
+
 function renderNotas(notas) {
   const el = document.getElementById('notas-list');
   if (!notas || !notas.length) {
@@ -853,12 +858,116 @@ function renderNotas(notas) {
           <span class="note-author">${esc(n.autor || 'Sistema')}</span>
           <span class="note-time">${fmtDateTime(n.fecha)}</span>
         </div>
-        <div class="note-text">${esc(n.texto)}</div>
+        <div class="note-text">${_renderNoteText(n.texto)}</div>
       </div>
     </div>`).join('');
 }
+
+// ── @mention autocomplete ─────────────────────────────────────────────────────
+let _mentionUsers = [];
+let _mentionQuery = null;
+let _mentionStart = -1;
+let _mentionActiveIdx = 0;
+
+async function _loadMentionUsers() {
+  if (_mentionUsers.length) return _mentionUsers;
+  try {
+    const r = await fetch(`${SERVER_URL}/team`, { headers: _leadHeaders() });
+    const d = await r.json();
+    _mentionUsers = (d.users || []);
+  } catch {}
+  return _mentionUsers;
+}
+
+function handleNotaMention(e) {
+  const ta  = e.target;
+  const val = ta.value;
+  const pos = ta.selectionStart;
+  // Find the last @ before cursor
+  const before = val.slice(0, pos);
+  const atIdx  = before.lastIndexOf('@');
+  if (atIdx === -1 || (atIdx > 0 && /\S/.test(val[atIdx - 1]))) {
+    closeMentionDropdown(); return;
+  }
+  const query = before.slice(atIdx + 1);
+  if (query.includes('\n')) { closeMentionDropdown(); return; }
+  _mentionQuery = query;
+  _mentionStart = atIdx;
+  _showMentionDropdown(query);
+}
+
+async function _showMentionDropdown(query) {
+  const users = await _loadMentionUsers();
+  const q = query.toLowerCase();
+  const matches = users.filter(u => u.nombre.toLowerCase().includes(q) && u.id !== currentUser?.userId);
+  const dd = document.getElementById('mention-dropdown');
+  if (!matches.length) { closeMentionDropdown(); return; }
+  _mentionActiveIdx = 0;
+  dd.style.display = 'block';
+  dd.innerHTML = matches.map((u, i) => `
+    <div class="mention-opt${i === 0 ? ' active' : ''}" data-idx="${i}" data-name="${esc(u.nombre)}" data-id="${esc(u.id)}"
+         onmousedown="event.preventDefault();insertMention('${esc(u.nombre)}','${esc(u.id)}')"
+         onmouseover="setMentionActive(${i})">
+      <div style="width:26px;height:26px;border-radius:50%;background:#4f7fff;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff;flex-shrink:0;">${esc(u.nombre.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase())}</div>
+      <div>
+        <div style="font-size:12px;font-weight:600;color:#fff;">${esc(u.nombre)}</div>
+        <div style="font-size:10px;color:var(--text3);">${esc(u.role)}</div>
+      </div>
+    </div>`).join('');
+  dd._matches = matches;
+}
+
+function setMentionActive(idx) {
+  _mentionActiveIdx = idx;
+  document.querySelectorAll('#mention-dropdown .mention-opt').forEach((el, i) =>
+    el.classList.toggle('active', i === idx));
+}
+
+function insertMention(name, userId) {
+  const ta  = document.getElementById('nota-inp');
+  const val = ta.value;
+  const pos = ta.selectionStart;
+  const before = val.slice(0, _mentionStart);
+  const after  = val.slice(pos);
+  ta.value = before + '@' + name + ' ' + after;
+  const newPos = (before + '@' + name + ' ').length;
+  ta.setSelectionRange(newPos, newPos);
+  ta.focus();
+  closeMentionDropdown();
+  // Store the userId for later notification dispatch
+  if (!ta._pendingMentions) ta._pendingMentions = [];
+  ta._pendingMentions.push({ name, userId });
+}
+
+function closeMentionDropdown() {
+  const dd = document.getElementById('mention-dropdown');
+  if (dd) { dd.style.display = 'none'; dd.innerHTML = ''; }
+  _mentionQuery = null; _mentionStart = -1;
+}
+
+function notaKeydown(e) {
+  const dd = document.getElementById('mention-dropdown');
+  if (!dd || dd.style.display === 'none') {
+    if (e.ctrlKey && e.key === 'Enter') addNota();
+    return;
+  }
+  const opts = dd._matches || [];
+  if (e.key === 'ArrowDown') {
+    e.preventDefault(); setMentionActive(Math.min(_mentionActiveIdx + 1, opts.length - 1));
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault(); setMentionActive(Math.max(_mentionActiveIdx - 1, 0));
+  } else if (e.key === 'Enter' || e.key === 'Tab') {
+    e.preventDefault();
+    const sel = opts[_mentionActiveIdx];
+    if (sel) insertMention(sel.nombre, sel.id);
+  } else if (e.key === 'Escape') {
+    closeMentionDropdown();
+  }
+}
+
 function addNota() {
-  const texto = document.getElementById('nota-inp').value.trim();
+  const ta    = document.getElementById('nota-inp');
+  const texto = ta.value.trim();
   if (!texto || !currentLeadId) return;
   const lead = leads.find(l => l.id === currentLeadId);
   if (!lead) return;
@@ -867,8 +976,30 @@ function addNota() {
   addHistorial(currentLeadId, `Nota agregada: "${texto.slice(0,60)}${texto.length>60?'…':''}"`, '📝');
   saveLeads();
   renderNotas(lead.notas);
-  document.getElementById('nota-inp').value = '';
+
+  // Dispatch notifications for @mentions
+  const pendingMentions = ta._pendingMentions || [];
+  ta.value = '';
+  ta._pendingMentions = [];
+  closeMentionDropdown();
   showToast('Nota agregada');
+
+  if (pendingMentions.length) {
+    pendingMentions.forEach(m => {
+      fetch(`${SERVER_URL}/notifications`, {
+        method: 'POST',
+        headers: _leadHeaders(),
+        body: JSON.stringify({
+          user_id:     m.userId,
+          lead_id:     lead.id,
+          lead_nombre: lead.nombre || lead.telefono || '',
+          pipeline_id: lead.pipeline_id || '',
+          note_text:   texto,
+        }),
+      }).catch(() => {});
+    });
+    showToast(`📣 Notificación enviada a ${pendingMentions.map(m => m.name).join(', ')}`);
+  }
 }
 
 // ════════════════════════════════════════════

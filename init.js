@@ -52,6 +52,12 @@ function postLoginInit() {
     Notification.requestPermission();
   }
 
+  // Cargar notificaciones al inicio y cada 15s
+  if (typeof loadNotifications === 'function') {
+    loadNotifications();
+    setInterval(loadNotifications, 15 * 1000);
+  }
+
   // Sync automático + detección de leads nuevos
   let _knownLeadIds = new Set(leads.map(l => l.id));
   setInterval(async () => {

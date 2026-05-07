@@ -479,6 +479,126 @@ async function resetAllLeads() {
   alert('Todos los leads han sido eliminados.');
 }
 
+// ════════════════════════════════════════════
+//  NOTIFICATIONS
+// ════════════════════════════════════════════
+let _notifPanelOpen = false;
+let _notifCache = [];
+
+async function loadNotifications() {
+  if (!_sessionToken) return;
+  try {
+    const r = await fetch(`${SERVER_URL}/notifications`, { headers: { 'x-session-token': _sessionToken } });
+    const d = await r.json();
+    if (!d.ok) return;
+    _notifCache = d.notifications || [];
+    _updateNotifBadge();
+  } catch {}
+}
+
+function _updateNotifBadge() {
+  const unread = _notifCache.filter(n => !n.read).length;
+  const badge  = document.getElementById('notif-badge');
+  if (!badge) return;
+  if (unread > 0) {
+    badge.style.display = 'block';
+    badge.textContent   = unread > 9 ? '9+' : unread;
+  } else {
+    badge.style.display = 'none';
+  }
+}
+
+function toggleNotifPanel() {
+  _notifPanelOpen = !_notifPanelOpen;
+  const panel = document.getElementById('notif-panel');
+  if (!panel) return;
+  panel.style.display = _notifPanelOpen ? 'block' : 'none';
+  if (_notifPanelOpen) _renderNotifPanel();
+}
+
+function _renderNotifPanel() {
+  const el = document.getElementById('notif-list');
+  if (!el) return;
+  if (!_notifCache.length) {
+    el.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text2);font-size:13px;">Sin notificaciones</div>';
+    return;
+  }
+  el.innerHTML = _notifCache.map(n => {
+    const timeAgo = _timeAgo(n.created_at);
+    const leadName = n.lead_nombre || 'Lead';
+    const preview  = (n.note_text || '').slice(0, 80) + ((n.note_text || '').length > 80 ? '…' : '');
+    return `<div onclick="openNotif('${esc(n.id)}','${esc(n.lead_id)}','${esc(n.pipeline_id)}')"
+      style="display:flex;align-items:flex-start;gap:10px;padding:12px 16px;cursor:pointer;border-bottom:1px solid var(--border);transition:background .12s;${n.read ? 'opacity:.55;' : ''}"
+      onmouseover="this.style.background='var(--card2)'" onmouseout="this.style.background='transparent'">
+      <div style="width:8px;height:8px;border-radius:50%;background:${n.read ? 'transparent' : '#4f7fff'};flex-shrink:0;margin-top:5px;"></div>
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:12px;font-weight:${n.read ? '400' : '700'};color:#fff;margin-bottom:2px;">
+          ${esc(n.from_user_name)} te mencionó en <span style="color:#a5b4fc">${esc(leadName)}</span>
+        </div>
+        <div style="font-size:11px;color:var(--text2);line-height:1.4;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(preview)}</div>
+        <div style="font-size:10px;color:var(--text3);margin-top:3px;">${timeAgo}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function openNotif(notifId, leadId, pipelineId) {
+  // Mark as read
+  try {
+    await fetch(`${SERVER_URL}/notifications/${notifId}/read`, { method: 'PATCH', headers: { 'x-session-token': _sessionToken } });
+    const n = _notifCache.find(n => n.id === notifId);
+    if (n) n.read = true;
+    _updateNotifBadge();
+    _renderNotifPanel();
+  } catch {}
+  // Navigate to pipeline + open lead
+  toggleNotifPanel();
+  if (pipelineId && pipelineId !== activePipelineId) {
+    activePipelineId = pipelineId;
+    renderKanban();
+    renderSidebar();
+  }
+  if (leadId) {
+    // Give kanban a moment to render then open lead
+    setTimeout(() => openLead(leadId), 200);
+  }
+}
+
+async function markAllNotifsRead() {
+  try {
+    await fetch(`${SERVER_URL}/notifications/mark-all-read`, { method: 'POST', headers: { 'x-session-token': _sessionToken } });
+    _notifCache.forEach(n => { n.read = true; });
+    _updateNotifBadge();
+    _renderNotifPanel();
+  } catch {}
+}
+
+function _timeAgo(iso) {
+  if (!iso) return '';
+  const diff = Date.now() - new Date(iso).getTime();
+  const m = Math.floor(diff / 60000);
+  if (m < 1)  return 'ahora';
+  if (m < 60) return `hace ${m}m`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `hace ${h}h`;
+  return `hace ${Math.floor(h / 24)}d`;
+}
+
+// Close notif panel when clicking outside
+document.addEventListener('click', e => {
+  if (_notifPanelOpen && !document.getElementById('notif-bell-wrap')?.contains(e.target)) {
+    _notifPanelOpen = false;
+    const p = document.getElementById('notif-panel');
+    if (p) p.style.display = 'none';
+  }
+  // Close mention dropdown when clicking outside
+  if (!document.getElementById('nota-inp')?.contains(e.target) &&
+      !document.getElementById('mention-dropdown')?.contains(e.target)) {
+    const dd = document.getElementById('mention-dropdown');
+    if (dd) { dd.style.display = 'none'; }
+  }
+});
+
 function doLogout() {
   localStorage.removeItem('er_session');
   _sessionToken = null; currentUser = null;

@@ -509,6 +509,51 @@ app.get('/auth/status/:id', async (req, res) => {
   } catch(e) { res.json({ ok: true, verified: false, expired: false }); }
 });
 
+// ── GET /team — basic user list for @mentions (all authenticated users) ────────
+app.get('/team', requireSession(), async (req, res) => {
+  try {
+    const users = await dbGetUsers();
+    res.json({ ok: true, users: users.filter(u => u.active !== false).map(u => ({ id: u.id, nombre: u.nombre, role: u.role })) });
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+// ── NOTIFICATIONS ─────────────────────────────────────────────────────────────
+app.get('/notifications', requireSession(), async (req, res) => {
+  try {
+    const notifs = await db.sbGetNotifications(req.authSession.userId);
+    res.json({ ok: true, notifications: notifs });
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+app.post('/notifications', requireSession(), async (req, res) => {
+  try {
+    const { user_id, lead_id, lead_nombre, pipeline_id, note_text } = req.body;
+    if (!user_id || !lead_id) return res.status(400).json({ ok: false, error: 'Campos requeridos' });
+    const id = await db.sbCreateNotification({
+      user_id, lead_id,
+      lead_nombre: lead_nombre || '',
+      pipeline_id: pipeline_id || '',
+      note_text:   note_text   || '',
+      from_user_name: req.authSession.name,
+    });
+    res.json({ ok: true, id });
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+app.patch('/notifications/:id/read', requireSession(), async (req, res) => {
+  try {
+    await db.sbMarkNotificationRead(req.params.id);
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+app.post('/notifications/mark-all-read', requireSession(), async (req, res) => {
+  try {
+    await db.sbMarkAllNotificationsRead(req.authSession.userId);
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
 // ── GET /auth/users ───────────────────────────────────────────────────────────
 app.get('/auth/users', requireSession('developer'), async (req, res) => {
   try {

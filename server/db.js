@@ -255,6 +255,22 @@ async function sbDeleteInterview(id) {
   await sbDelete('interviews', `id=eq.${encodeURIComponent(id)}`);
 }
 
+// ── NOTIFICATIONS ─────────────────────────────────────────────────────────────
+async function sbCreateNotification(data) {
+  const id = `notif_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+  await sbUpsert('notifications', { id, ...data, created_at: new Date().toISOString(), read: false });
+  return id;
+}
+async function sbGetNotifications(userId) {
+  return sbGet('notifications', `user_id=eq.${encodeURIComponent(userId)}&order=created_at.desc&limit=50`);
+}
+async function sbMarkNotificationRead(id) {
+  await sbPatch('notifications', `id=eq.${encodeURIComponent(id)}`, { read: true });
+}
+async function sbMarkAllNotificationsRead(userId) {
+  await sbPatch('notifications', `user_id=eq.${encodeURIComponent(userId)}&read=eq.false`, { read: true });
+}
+
 module.exports = {
   // Leads
   sbGetLead, sbGetLeads, sbGetLeadByPhone, sbSaveLead, sbUpdateLead, sbDeleteLead, sbAppendMetaWa,
@@ -276,4 +292,7 @@ module.exports = {
   sbLogCall, sbGetCallLog, sbUpdateCall,
   // Interviews
   sbGetInterviews, sbGetInterviewsByConvKey, sbGetInterviewsByPhone, sbSaveInterview, sbDeleteInterview,
+  // Notifications
+  sbCreateNotification, sbGetNotifications, sbMarkNotificationRead, sbMarkAllNotificationsRead,
+  sbGet,
 };
