@@ -112,7 +112,7 @@ async function fsAppendLeadMetaWa(phone, message) {
 }
 
 // ── AI: extract lead data from conversation ───────────────────────────────────
-async function extractAndUpdateLead(from, history) {
+async function extractAndUpdateLead(from, history, sendFn) {
   try {
     const messages = history
       .filter(m => !m.content?.startsWith('[SISTEMA'))
@@ -136,6 +136,7 @@ Campos a extraer:
 - mayor_edad: true si es mayor de 18. false si es menor. null si no se sabe.
 - webinar_intent: true si mostró interés en ver el webinar o dio correo para el link. false si lo rechazó. null si no aplica.
 - vio_webinar: true si confirmó que ya vio el webinar. false si dijo que no. null si no se sabe.
+- quiere_entrevista: true si el candidato quiere avanzar al proceso de entrevista, mostró intención clara de agendar, pidió una entrevista, dijo que quiere continuar o avanzar en el proceso después de ver el webinar. false si rechazó. null si no se sabe.
 Si no hay información clara para un campo, pon null. SOLO JSON, nada más.`,
       messages: [...messages, { role: 'assistant', content: '{' }],
     });
@@ -173,13 +174,33 @@ Si no hay información clara para un campo, pon null. SOLO JSON, nada más.`,
     if (extracted.mayor_edad !== null && extracted.mayor_edad !== undefined && lead.mayor_edad !== true)
                                                          updates.mayor_edad      = extracted.mayor_edad;
     if (extracted.vio_webinar === true && lead.vio_webinar !== true) {
-                                                         updates.vio_webinar     = true;
-                                                         updates.ia_paused       = true;
+                                                         updates.vio_webinar = true;
+    }
+    if (extracted.quiere_entrevista === true && !lead.solicita_entrevista) {
+                                                         updates.solicita_entrevista = true;
+                                                         updates.ia_paused           = true;
     }
 
     if (!Object.keys(updates).length) return null;
     await fsUpdateLeadFields(lead.id, updates);
     console.log(`[AI-Extract] Lead ${lead.id} actualizado:`, updates);
+
+    // Interview intent: send "dame unos minutos" + alert managers
+    if (updates.solicita_entrevista) {
+      const nombreFinalIv  = updates.nombre || lead.nombre || '';
+      const nombreValidoIv = nombreFinalIv && !nombreFinalIv.startsWith('WA ') && !nombreFinalIv.startsWith('+');
+      const firstNameIv    = nombreValidoIv ? nombreFinalIv.split(' ')[0] : '';
+      const ivMsg = `¡${firstNameIv ? firstNameIv + '! ' : ''}Dame un momento para revisar los horarios disponibles para tu entrevista. 😊 En breve te confirmamos.`;
+      if (sendFn) {
+        await humanDelay(ivMsg);
+        await sendFn(rawPhone(from), ivMsg).catch(() => {});
+      }
+      try {
+        const { triggerEscalation } = require('./escalation');
+        await triggerEscalation(rawPhone(from), nombreFinalIv || rawPhone(from), 'quiere-entrevista', '', sendFn || (() => {}));
+      } catch(e) { console.error('[AI-Extract] escalation error:', e.message); }
+      console.log(`[AI-Extract] Entrevista solicitada — Ana pausada: ${lead.id}`);
+    }
 
     const correoFinal     = updates.correo || lead.correo || '';
     const nombreFinal     = updates.nombre || lead.nombre || '';
@@ -298,7 +319,7 @@ async function runWAPipeline(from, historyMap, sendFn, opts) {
   const history = historyMap.get(from) || [];
 
   try {
-    await extractAndUpdateLead(from, history);
+    await extractAndUpdateLead(from, history, sendFn);
 
     const phone = rawPhone(from);
     const lead  = await fsGetLeadByPhone(phone);

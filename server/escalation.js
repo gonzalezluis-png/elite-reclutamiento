@@ -15,6 +15,7 @@ const REASON_LABELS = {
   'fuera-de-alcance': '❓ Pregunta fuera del alcance de Ana',
   'tiene-licencia':   '📋 Candidato ya tiene licencia de seguros',
   'sin-documentos':   '⚠️ Sin documentos legales para trabajar en EE.UU.',
+  'quiere-entrevista':'🤝 Candidato listo para entrevista — requiere agendamiento',
 };
 
 const TIMEOUTS = {

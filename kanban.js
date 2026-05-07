@@ -103,9 +103,12 @@ function renderKanban() {
           const sinMgrBadge = ld.sin_manager
             ? `<span onclick="event.stopPropagation();dismissSinManager('${ld.id}')" title="Marcar como atendido" style="display:inline-flex;align-items:center;gap:4px;background:rgba(239,68,68,.15);border:1px solid rgba(239,68,68,.4);color:#f87171;font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;cursor:pointer;animation:blink-dot 1.4s ease-in-out infinite;">🚨 Sin manager</span>`
             : '';
-          return `<tr class="${resuelto}${ld.quiere_entrevista ? ' tr-llamada-alert' : ''}${ld.sin_manager ? ' tr-sinmgr-alert' : ''}" onclick="openLead('${ld.id}')">
+          const ivBadgeW = ld.solicita_entrevista
+            ? `<span onclick="event.stopPropagation();dismissSolicitaEntrevista('${ld.id}')" title="Marcar como atendido" style="display:inline-flex;align-items:center;gap:4px;background:rgba(0,200,117,.15);border:1px solid rgba(0,200,117,.4);color:#00c875;font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;cursor:pointer;animation:blink-dot 1.4s ease-in-out infinite;">🤝 Quiere entrevista</span>`
+            : '';
+          return `<tr class="${resuelto}${ld.quiere_entrevista ? ' tr-llamada-alert' : ''}${ld.sin_manager ? ' tr-sinmgr-alert' : ''}${ld.solicita_entrevista ? ' tr-iv-alert' : ''}" onclick="openLead('${ld.id}')">
             <td style="color:var(--text2);display:flex;align-items:center;gap:6px;min-height:36px">${icon}${i+1}</td>
-            <td style="font-weight:600;color:#fff">${esc(ld.nombre)}${sinMgrBadge ? '<br>'+sinMgrBadge : ''}${llamadaBadge ? '<br>'+llamadaBadge : ''}</td>
+            <td style="font-weight:600;color:#fff">${esc(ld.nombre)}${sinMgrBadge ? '<br>'+sinMgrBadge : ''}${ivBadgeW ? '<br>'+ivBadgeW : ''}${llamadaBadge ? '<br>'+llamadaBadge : ''}</td>
             <td style="color:var(--text2)">${esc(ld.correo||'')}</td>
             <td>${esc(ld.telefono||'')}</td>
             <td><span class="lt-badge ${srcClass(ld.fuente)}">${esc(ld.fuente||'')}</span></td>
@@ -372,6 +375,14 @@ function renderCard(l) {
        </div>`
     : '';
 
+  const ivAlert = l.solicita_entrevista
+    ? `<div class="kcard-llamada-alert" style="background:rgba(0,200,117,.1);border-color:rgba(0,200,117,.3);">
+        <span class="kcard-llamada-dot" style="background:#00c875"></span>
+        Quiere entrevista
+        <button class="kcard-llamada-dismiss" title="Marcar como atendido" onclick="event.stopPropagation();dismissSolicitaEntrevista('${l.id}')">✕</button>
+       </div>`
+    : '';
+
   const now24h = Date.now() - 24 * 60 * 60 * 1000;
   const isActive = l.last_msg_ts && Number(l.last_msg_ts) > now24h;
   const unreadAlert = l.unread_msg
@@ -386,11 +397,11 @@ function renderCard(l) {
   const progColor = prog >= 100 ? '#fbbf24' : prog >= 70 ? '#00c875' : prog >= 40 ? '#4f7fff' : '#8890a4';
 
   return `
-  <div class="kcard${l.quiere_entrevista ? ' kcard--alert' : ''}${l.sin_manager ? ' kcard--sinmgr' : ''}${l.unread_msg ? ' kcard--unread' : ''}" draggable="true" id="kcard-${l.id}"
+  <div class="kcard${l.quiere_entrevista ? ' kcard--alert' : ''}${l.sin_manager ? ' kcard--sinmgr' : ''}${l.unread_msg ? ' kcard--unread' : ''}${l.solicita_entrevista ? ' kcard--iv' : ''}" draggable="true" id="kcard-${l.id}"
        ondragstart="handleDragStart(event,'${l.id}')"
        ondragend="this.classList.remove('dragging')"
        onclick="openLead('${l.id}')">
-    ${sinMgrAlert}${llamadaAlert}${unreadAlert}
+    ${sinMgrAlert}${ivAlert}${llamadaAlert}${unreadAlert}
     <div class="kc-top">
       <div class="kc-name">${esc(l.nombre)}${isActive ? '<span class="kc-active-dot" title="Conversación activa en últimas 24h"></span>' : ''}</div>
       <div style="display:flex;flex-direction:column;align-items:flex-end;gap:1px;flex-shrink:0;">

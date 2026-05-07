@@ -31,6 +31,22 @@ async function dismissLlamada(leadId) {
   } catch(e) {}
 }
 
+async function dismissSolicitaEntrevista(leadId) {
+  const lead = leads.find(l => l.id === leadId);
+  if (!lead) return;
+  lead.solicita_entrevista = false;
+  addHistorial(leadId, 'Alerta de entrevista atendida por el equipo', '🤝');
+  renderKanban();
+  renderSidebar();
+  try {
+    await fetch(`${SERVER_URL}/leads/${leadId}`, {
+      method: 'PATCH',
+      headers: _leadHeaders(),
+      body: JSON.stringify({ solicita_entrevista: false }),
+    });
+  } catch(e) {}
+}
+
 async function dismissSinManager(leadId) {
   const lead = leads.find(l => l.id === leadId);
   if (!lead) return;
