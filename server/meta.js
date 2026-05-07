@@ -1189,6 +1189,15 @@ function registerMetaRoutes(app) {
         updated_at:  now,
       };
 
+      // Dedup: skip if lead with same phone already exists
+      if (telefono) {
+        const existing = await db.sbGetLeadByPhone(telefono);
+        if (existing) {
+          console.log(`[Make Lead] Duplicado omitido — teléfono ya existe: ${telefono} (${existing.nombre})`);
+          return res.json({ ok: true, id: existing.id, duplicate: true });
+        }
+      }
+
       await db.sbSaveLead(lead);
 
       // Fire Conversions API Lead event
