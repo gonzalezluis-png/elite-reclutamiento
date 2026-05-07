@@ -960,10 +960,12 @@ async function aiLoadEntrevistasPanel() {
     _aieConfig = entData.config || {};
     _ivConfig  = ivData.config  || {};
   } catch(e) { showToast('Error cargando config entrevistas: ' + e.message); }
-  // Re-inject open sections
+  // Clear loaded flag on ALL sections so next open gets fresh data
   ['config','general','qa','forbidden','cases','triggers','templates'].forEach(id => {
     const el = document.getElementById(`aie-section-${id}`);
-    if (el && el.style.display !== 'none') { el.dataset.loaded = ''; _aieInjectSection(id); }
+    if (!el) return;
+    el.dataset.loaded = '';
+    if (el.style.display !== 'none') _aieInjectSection(id);
   });
 }
 
@@ -975,7 +977,13 @@ async function _aieSave(partial, label) {
       body: JSON.stringify({ config: partial }),
     });
     const d = await r.json();
-    showToast(d.ok ? `✅ ${label} guardado` : `⚠️ ${label} activo solo en memoria`);
+    if (d.ok) {
+      showToast(`✅ ${label} guardado`);
+      // Reload from server to confirm persisted data
+      await aiLoadEntrevistasPanel();
+    } else {
+      showToast(`⚠️ ${label} activo solo en memoria — verifica conexión`);
+    }
   } catch(e) { showToast(`❌ Error: ${e.message}`); }
 }
 
