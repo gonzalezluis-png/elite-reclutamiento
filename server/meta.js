@@ -1118,18 +1118,20 @@ function registerMetaRoutes(app) {
       const now       = new Date().toISOString();
       const uid       = `meta_make_${leadgenId || Date.now()}`;
 
-      // Build rich notas with all available metadata
-      const metaParts = [
-        body.campaign_name ? `📢 Campaña: ${body.campaign_name}`    : '',
-        body.adset_name    ? `🎯 Conjunto: ${body.adset_name}`       : '',
-        body.ad_name       ? `📌 Anuncio: ${body.ad_name}`           : '',
-        body.form_name     ? `📋 Formulario: ${body.form_name}`      : '',
-        body.page_name     ? `📄 Página: ${body.page_name}`          : '',
-        body.platform      ? `📱 Plataforma: ${body.platform}`       : '',
-        body.ad_id         ? `🆔 Ad ID: ${body.ad_id}`               : '',
-        body.form_id       ? `🆔 Form ID: ${body.form_id}`           : '',
-        leadgenId          ? `🆔 Lead ID: ${leadgenId}`              : '',
+      // Build rich notas as array of note objects (CRM format)
+      const metaText = [
+        body.campaign_name ? `📢 Campaña: ${body.campaign_name}`   : '',
+        body.adset_name    ? `🎯 Conjunto: ${body.adset_name}`      : '',
+        body.ad_name       ? `📌 Anuncio: ${body.ad_name}`          : '',
+        body.form_name     ? `📋 Formulario: ${body.form_name}`     : '',
+        body.page_name     ? `📄 Página: ${body.page_name}`         : '',
+        body.platform      ? `📱 Plataforma: ${body.platform}`      : '',
+        body.ad_id         ? `🆔 Ad ID: ${body.ad_id}`              : '',
+        body.form_id       ? `🆔 Form ID: ${body.form_id}`          : '',
+        leadgenId          ? `🆔 Lead ID: ${leadgenId}`             : '',
       ].filter(Boolean).join('\n');
+
+      const notasArr = metaText ? [{ texto: metaText, fecha: now, autor: 'Meta / Make.com' }] : [];
 
       // Tags for quick filtering
       const etiquetas = ['Meta Lead Ads'];
@@ -1143,7 +1145,7 @@ function registerMetaRoutes(app) {
         telefono,
         ubicacion,
         fuente:      'Meta / Facebook',
-        notas:       metaParts,
+        notas:       notasArr,
         etiquetas:   etiquetas,
         pipeline_id: 'postulados-meta',
         etapa:       'New Lead',
