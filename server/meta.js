@@ -1152,7 +1152,9 @@ function registerMetaRoutes(app) {
       const uid       = `meta_make_${leadgenId || Date.now()}`;
 
       // Build rich notas as array of note objects (CRM format)
+      const modalidad = body['buscas_trabajo_presencial_o_remoto?'] || body.modalidad || '';
       const metaText = [
+        modalidad          ? `💼 Modalidad: ${modalidad}`           : '',
         body.campaign_name ? `📢 Campaña: ${body.campaign_name}`   : '',
         body.adset_name    ? `🎯 Conjunto: ${body.adset_name}`      : '',
         body.ad_name       ? `📌 Anuncio: ${body.ad_name}`          : '',
