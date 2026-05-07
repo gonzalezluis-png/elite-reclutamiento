@@ -270,6 +270,7 @@ async function moveLeadToWebinar(leadId, nombre, correo, baseWebinarUrl) {
       pipeline_id:  'en-webinar',
       etapa:        'Inscrito en Webinar',
       link_webinar: personalUrl,
+      ia_paused:    true,
     });
 
     const lead = await db.sbGetLead(leadId);
