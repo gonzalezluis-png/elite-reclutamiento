@@ -65,7 +65,7 @@ function renderKanban() {
     const tableEtapas = activeEtapas.map(e => e.v);
     const rows = leads.filter(ld =>
       ld.pipeline_id === activePipelineId &&
-      (tableEtapas.includes(ld.etapa) || (curTab.id === 'inscrito' && ld.inscrito_webinar)) &&
+      (tableEtapas.includes(ld.etapa) || (curTab.id === 'inscrito' && ld.inscrito_webinar && ld.pipeline_id === 'en-webinar')) &&
       (!q || [ld.nombre, ld.correo, ld.telefono, ld.fuente, ld.nombre_lead].join(' ').toLowerCase().includes(q))
     ).map(ld => { const eo = curTab.etapas.find(e => e.v === ld.etapa); return {...ld, _etapaLabel: eo ? eo.l : ld.etapa}; });
 
@@ -607,8 +607,9 @@ function moveParaEntrevista(leadId) {
   if (!lead) return;
   pushUndo('lead_change', JSON.parse(JSON.stringify(lead)));
   const prev = lead.etapa;
-  lead.pipeline_id = 'entrevistas-generales';
-  lead.etapa = 'EN ENTREVISTA';
+  lead.pipeline_id    = 'entrevistas-generales';
+  lead.etapa          = 'EN ENTREVISTA';
+  lead.inscrito_webinar = false;
   addHistorial(leadId, `Enviado a Entrevistas Generales (desde ${prev})`, '🤝');
   saveLeads(leadId); renderKanban(); renderSidebar();
   showToast('🤝 Movido a Entrevistas Generales', true);

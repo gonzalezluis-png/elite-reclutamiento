@@ -298,10 +298,11 @@ async function bookInterview({ leadPhone, leadName, slotIso, convKey }) {
     const _hist = Array.isArray(_lead.historial) ? [..._lead.historial] : [];
     _hist.push({ icono: '🤝', accion: 'Entrevista agendada — movido a Entrevistas Generales', fecha: _now, usuario: 'Ana (IA)' });
     await fsUpdateLeadFields(_lead.id, {
-      pipeline_id:    'entrevistas-generales',
-      etapa:          'EN ENTREVISTA',
-      interview_slot: slotIso,
-      historial:      _hist,
+      pipeline_id:      'entrevistas-generales',
+      etapa:            'EN ENTREVISTA',
+      interview_slot:   slotIso,
+      inscrito_webinar: false,
+      historial:        _hist,
     }).catch(() => {});
   }
 
