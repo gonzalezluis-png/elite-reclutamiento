@@ -184,9 +184,10 @@ Si no hay información clara para un campo, pon null. SOLO JSON, nada más.`,
                                                          updates.ia_paused           = true;
     }
 
-    if (!Object.keys(updates).length) return null;
-    await fsUpdateLeadFields(lead.id, updates);
-    console.log(`[AI-Extract] Lead ${lead.id} actualizado:`, updates);
+    if (Object.keys(updates).length) {
+      await fsUpdateLeadFields(lead.id, updates);
+      console.log(`[AI-Extract] Lead ${lead.id} actualizado:`, updates);
+    }
 
     // Interview intent: send "dame unos minutos" + alert managers
     if (updates.solicita_entrevista) {
