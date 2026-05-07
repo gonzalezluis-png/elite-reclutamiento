@@ -1142,28 +1142,39 @@ function registerMetaRoutes(app) {
   // ── Make.com lead intake ──────────────────────────────────────────────────
   app.post('/meta/make-lead', async (req, res) => {
     try {
-      const body      = req.body || {};
-      const nombre    = body.full_name    || body.nombre    || body.name          || '';
-      const correo    = body.email        || body.correo    || '';
-      const telefono  = body.phone_number || body.phone     || body.telefono      || '';
-      const ubicacion = body.city         || body.ubicacion || body.state         || '';
-      const leadgenId = body.id           || body.leadgen_id || '';
+      const body = req.body || {};
+      // Support both root-level keys and Make.com's nested fieldData format
+      const fd = body.fieldData || {};
+      const nombre    = body.full_name     || fd.fullName     || fd.full_name     || body.nombre || body.name || '';
+      const correo    = body.email         || fd.email        || body.correo      || '';
+      const telefono  = body.phone_number  || fd.phoneNumber  || fd.phone_number  || body.phone  || body.telefono || '';
+      const ubicacion = body.city          || fd.city         || body.ubicacion   || body.state  || fd.state  || '';
+      const leadgenId = body.id            || body.leadgen_id || body.leadId      || '';
       const now       = new Date().toISOString();
       const uid       = `meta_make_${leadgenId || Date.now()}`;
 
       // Build rich notas as array of note objects (CRM format)
-      const modalidad = body['buscas_trabajo_presencial_o_remoto?'] || body.modalidad || '';
+      const modalidad = fd['buscas_trabajo_presencial_o_remoto?'] || body['buscas_trabajo_presencial_o_remoto?'] || fd.modalidad || body.modalidad || '';
+      const campaignName = body.campaign_name || body.campaignName || '';
+      const adsetName    = body.adset_name    || body.adsetName    || '';
+      const adName       = body.ad_name       || body.adName       || '';
+      const formName     = body.form_name     || body.formName     || '';
+      const pageName     = body.page_name     || body.pageName     || '';
+      const platform     = body.platform      || '';
+      const adId         = body.ad_id         || body.adId         || '';
+      const formId       = body.form_id       || body.formId       || '';
+
       const metaText = [
-        modalidad          ? `💼 Modalidad: ${modalidad}`           : '',
-        body.campaign_name ? `📢 Campaña: ${body.campaign_name}`   : '',
-        body.adset_name    ? `🎯 Conjunto: ${body.adset_name}`      : '',
-        body.ad_name       ? `📌 Anuncio: ${body.ad_name}`          : '',
-        body.form_name     ? `📋 Formulario: ${body.form_name}`     : '',
-        body.page_name     ? `📄 Página: ${body.page_name}`         : '',
-        body.platform      ? `📱 Plataforma: ${body.platform}`      : '',
-        body.ad_id         ? `🆔 Ad ID: ${body.ad_id}`              : '',
-        body.form_id       ? `🆔 Form ID: ${body.form_id}`          : '',
-        leadgenId          ? `🆔 Lead ID: ${leadgenId}`             : '',
+        modalidad    ? `💼 Modalidad: ${modalidad}`       : '',
+        campaignName ? `📢 Campaña: ${campaignName}`      : '',
+        adsetName    ? `🎯 Conjunto: ${adsetName}`        : '',
+        adName       ? `📌 Anuncio: ${adName}`            : '',
+        formName     ? `📋 Formulario: ${formName}`       : '',
+        pageName     ? `📄 Página: ${pageName}`           : '',
+        platform     ? `📱 Plataforma: ${platform}`       : '',
+        adId         ? `🆔 Ad ID: ${adId}`                : '',
+        formId       ? `🆔 Form ID: ${formId}`            : '',
+        leadgenId    ? `🆔 Lead ID: ${leadgenId}`         : '',
       ].filter(Boolean).join('\n');
 
       const notasArr = metaText ? [{ texto: metaText, fecha: now, autor: 'Meta / Make.com' }] : [];
