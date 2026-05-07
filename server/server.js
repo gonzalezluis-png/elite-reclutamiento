@@ -37,6 +37,7 @@ const TWILIO_API_KEY       = process.env.TWILIO_API_KEY;       // Twilio Console
 const TWILIO_API_SECRET    = process.env.TWILIO_API_SECRET;
 const TWILIO_PHONE_NUMBER  = process.env.TWILIO_PHONE_NUMBER;  // e.g. +12015551234
 const TWILIO_APP_SID       = process.env.TWILIO_APP_SID;       // TwiML App SID
+const client = TWILIO_ACCOUNT_SID && TWILIO_AUTH_TOKEN ? twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN) : null;
 // TWILIO_WA_FROM removido — WhatsApp usa Meta Cloud API
 
 // ── Twilio: Access Token (browser can make calls) ─────────────────────────────
@@ -339,7 +340,7 @@ app.post('/twilio/sms', async (req, res) => {
   if (!to || !body) return res.status(400).json({ ok: false, error: 'to y body son requeridos' });
   if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN) return res.status(500).json({ ok: false, error: 'Twilio no configurado' });
   try {
-    const client  = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
+    // using global client
     const message = await client.messages.create({
       body,
       to,
@@ -360,7 +361,7 @@ app.get('/twilio/sms-inbox', async (req, res) => {
   if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN) return res.status(500).json({ ok: false, error: 'Twilio no configurado' });
   const phone = toE164(raw);
   try {
-    const client = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
+    // using global client
     const [inbound, outbound] = await Promise.all([
       client.messages.list({ to: TWILIO_PHONE_NUMBER, from: phone, limit: 50 }),
       client.messages.list({ from: TWILIO_PHONE_NUMBER, to: phone, limit: 50 }),
@@ -609,7 +610,7 @@ app.post('/twilio/sms-incoming', async (req, res) => {
     try {
       const reply = await askClaude(From, Body, 'sms');
       console.log(`[SMS-AI] Ana → ${From}: "${reply}"`);
-      const client = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
+      // using global client
       await client.messages.create({ from: TWILIO_PHONE_NUMBER, to: From, body: reply });
     } catch (e) {
       console.error('[SMS-AI] Error:', e.message);
@@ -656,18 +657,14 @@ app.get('/call-log', async (req, res) => {
 // ── Call log ──────────────────────────────────────────────────────────────────
 app.get('/twilio/calls', async (req, res) => {
   try {
+    if (!client) return res.json({ calls: [] });
     const { phone, limit = 50 } = req.query;
     const filters = { limit: parseInt(limit) };
-    if (phone) {
-      filters.to   = phone;
-    }
-    const [outbound, inbound] = await Promise.all([
-      client.calls.list({ ...filters, from: phone ? undefined : undefined }),
-      phone ? client.calls.list({ to: phone, limit: parseInt(limit) }) : Promise.resolve([]),
-    ]);
-    // If no phone filter, just fetch recent calls
     const calls = phone
-      ? [...outbound, ...inbound].sort((a, b) => new Date(b.startTime) - new Date(a.startTime))
+      ? (await Promise.all([
+          client.calls.list({ from: phone, limit: parseInt(limit) }),
+          client.calls.list({ to:   phone, limit: parseInt(limit) }),
+        ])).flat().sort((a, b) => new Date(b.startTime) - new Date(a.startTime))
       : (await client.calls.list({ limit: parseInt(limit) }));
     res.json({ calls: (Array.isArray(calls) ? calls : []).map(c => ({
       sid:       c.sid,
