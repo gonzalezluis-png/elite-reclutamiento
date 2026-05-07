@@ -238,8 +238,8 @@ function renderKanban() {
             <td style="color:var(--text2)">${esc(ld.correo||'')}</td>
             <td style="text-align:center" title="${ld.ia_paused ? 'Ana pausada' : 'Ana activa'}">
               ${ld.ia_paused
-                ? '<span style="background:rgba(248,113,113,.15);color:#f87171;border:1px solid rgba(248,113,113,.3);border-radius:20px;padding:2px 8px;font-size:10px;font-weight:600;white-space:nowrap">⏸ Pausada</span>'
-                : '<span style="background:rgba(0,200,117,.12);color:#00c875;border:1px solid rgba(0,200,117,.25);border-radius:20px;padding:2px 8px;font-size:10px;font-weight:600;white-space:nowrap">🤖 Activa</span>'}
+                ? '<span style="background:rgba(248,113,113,.15);color:#f87171;border:1px solid rgba(248,113,113,.3);border-radius:20px;padding:1px 5px;font-size:9px;font-weight:600;white-space:nowrap">⏸ Pausada</span>'
+                : '<span style="background:rgba(0,200,117,.12);color:#00c875;border:1px solid rgba(0,200,117,.25);border-radius:20px;padding:1px 5px;font-size:9px;font-weight:600;white-space:nowrap">🤖 Activa</span>'}
             </td>
             <td>${esc(ld.telefono||'')}</td>
             <td><span class="lt-badge ${srcClass(ld.fuente)}">${esc(ld.fuente||'')}</span></td>
@@ -353,7 +353,7 @@ function renderUniversalTable(stageDefs, pipelineId, q, showEtapa) {
         <th>#</th>
         <th>Nombre</th>
         <th>Correo</th>
-        <th style="text-align:center">Ana</th>
+        <th style="text-align:center;width:60px">Ana</th>
         <th>Teléfono</th>
         <th>Fuente</th>
         ${showEtapa ? '<th>Etapa</th>' : ''}
