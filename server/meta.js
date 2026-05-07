@@ -386,6 +386,56 @@ function registerMetaRoutes(app) {
     _logWAMessage(from, 'in', combinedText).catch(() => {});
 
     try {
+      // ── Detect Click-to-WhatsApp form data message ───────────────────────
+      // Meta sends form fields as first WA message: "full_name: X phone: Y email: Z"
+      if (/full_name\s*:/i.test(combinedText) && /phone\s*:/i.test(combinedText)) {
+        const extractField = (text, ...keys) => {
+          for (const key of keys) {
+            const m = text.match(new RegExp(`${key}\\s*:\\s*([^\\n\\r]+?)(?=\\s+\\w+[_\\w]*\\s*:|$)`, 'i'));
+            if (m) return m[1].trim();
+          }
+          return '';
+        };
+        const formNombre   = extractField(combinedText, 'full_name', 'nombre');
+        const formTelefono = extractField(combinedText, 'phone', 'phone_number', 'telefono');
+        const formCorreo   = extractField(combinedText, 'email', 'correo');
+        const formModal    = extractField(combinedText, 'buscas_trabajo_presencial_o_remoto\\?', 'modalidad');
+
+        console.log(`[Meta WA] Formulario WA detectado — ${formNombre} / ${formTelefono} / ${formCorreo}`);
+
+        const _fLead = await fsGetLeadByPhone(from).catch(() => null);
+        if (_fLead) {
+          const updates = { fuente: 'Meta / Facebook' };
+          if (formNombre && (!_fLead.nombre || _fLead.nombre.startsWith('WA ') || _fLead.nombre.startsWith('+'))) updates.nombre = formNombre;
+          if (formCorreo && !_fLead.correo) updates.correo = formCorreo;
+          if (formModal) updates.modalidad = formModal;
+          await fsUpdateLeadFields(_fLead.id, updates).catch(() => {});
+        }
+
+        // Inject context so Ana knows the name and skips asking for it
+        const convKey = `wa_meta:${from}`;
+        const firstName = formNombre.split(' ')[0] || '';
+        if (!conversationHistory.has(convKey)) conversationHistory.set(convKey, []);
+        const hist = conversationHistory.get(convKey);
+        const ctxMsg = `[SISTEMA]: El candidato acaba de llenar un formulario de Facebook. Ya tenemos sus datos: nombre: ${formNombre}${formCorreo ? ', correo: '+formCorreo : ''}${formModal ? ', modalidad: '+formModal : ''}. NO pidas estos datos de nuevo. Salúdalo por su nombre y continúa el proceso de reclutamiento.`;
+        if (!hist.length || !hist[0].content?.startsWith('[SISTEMA]')) {
+          hist.unshift({ role: 'assistant', content: 'Entendido, tengo los datos del formulario.', ts: Date.now() - 1000 });
+          hist.unshift({ role: 'user', content: ctxMsg, ts: Date.now() - 2000 });
+        }
+
+        // Send personalized welcome using Ana
+        const welcomeText = `¡Hola ${firstName}! 👋 Soy Ana de RRHH de Grupo Élite. Vi que completaste nuestro formulario — ¡me alegra que estés interesado/a! ¿Desde qué ciudad nos escribes?`;
+        await humanDelay(welcomeText);
+        await sendWhatsApp(from, welcomeText);
+        _logWAMessage(from, 'out', welcomeText).catch(() => {});
+
+        // Run pipeline in background to update lead fields
+        ;(async () => {
+          try { await runWAPipeline(`wa_meta:${from}`, conversationHistory, sendWhatsApp, { WEBINAR_URL }); } catch {}
+        })();
+        return;
+      }
+
       // ── Interviewer CONFIRMAR/REAGENDAR reply ────────────────────────────
       const _ivCfg = await loadInterviewConfig().catch(() => null);
       if (_ivCfg?.interviewer?.phone) {
