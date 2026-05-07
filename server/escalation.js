@@ -2,6 +2,28 @@
 const { sendTemplateOrFallback, TEMPLATES } = require('./templates');
 const db = require('./db');
 
+async function _notifyManagerEmail(managerPhone, subject, htmlBody) {
+  try {
+    const RESEND_API_KEY = process.env.RESEND_API_KEY;
+    if (!RESEND_API_KEY) return;
+    const normPhone = managerPhone.replace(/[^\d]/g, '');
+    const allUsers  = await db.sbGet('users', 'active=eq.true&select=correo,telefono,nombre');
+    const user      = allUsers.find(u => (u.telefono || '').replace(/[^\d]/g, '') === normPhone);
+    if (!user?.correo) return;
+    await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        from:    `Grupo Elite Work CRM <webinar@grupoelitework.com>`,
+        to:      [user.correo],
+        subject,
+        html: `<div style="font-family:sans-serif;white-space:pre-wrap;padding:16px">${htmlBody}</div>`,
+      }),
+    });
+    console.log(`[ESC-Email] Enviado a ${user.correo}`);
+  } catch (e) { console.error('[ESC-Email]', e.message); }
+}
+
 const DEFAULT_MANAGERS = [
   { level: 1, phone: '+584125378673', name: 'Saudimar'    },
   { level: 2, phone: '+584143605411', name: 'Duglimar'    },
@@ -186,6 +208,10 @@ async function triggerEscalation(leadPhone, leadName, reason, lastUserMsg, sendW
     const tplP  = [leadName || 'Desconocido', leadPhone, REASON_LABELS[reason] || reason, m1.name];
     await sendTemplateOrFallback(m1.phone, 'alerta_escalada', tplP, msg, sendWAFn);
     logTeamMessage(m1.phone, m1.name, 'out', msg).catch(() => {});
+    _notifyManagerEmail(m1.phone,
+      `⚠️ ALERTA CRM — ${leadName || leadPhone} (${REASON_LABELS[reason] || reason})`,
+      msg.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>').replace(/\*([^*]+)\*/g,'<b>$1</b>')
+    ).catch(() => {});
     console.log(`[ESC] Alerta ${id} enviada a ${m1.name} (${m1.phone})`);
   } catch (e) { console.error('[ESC] triggerEscalation error:', e.message); }
 }
@@ -282,6 +308,10 @@ async function checkTimeouts(sendWAFn) {
         const tplP = [esc.leadName || 'Desconocido', esc.leadPhone, REASON_LABELS[esc.reason] || esc.reason, nextManager.name];
         await sendTemplateOrFallback(nextManager.phone, 'alerta_escalada', tplP, msg, sendWAFn);
         logTeamMessage(nextManager.phone, nextManager.name, 'out', msg).catch(() => {});
+        _notifyManagerEmail(nextManager.phone,
+          `⚠️ ALERTA CRM — ${esc.leadName || esc.leadPhone} (${REASON_LABELS[esc.reason] || esc.reason})`,
+          msg.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>').replace(/\*([^*]+)\*/g,'<b>$1</b>')
+        ).catch(() => {});
         console.log(`[ESC] Alerta ${esc._id} → nivel ${nextLevel} (ronda ${round})`);
 
       } else {
@@ -294,6 +324,10 @@ async function checkTimeouts(sendWAFn) {
           const tplP = [esc.leadName || 'Desconocido', esc.leadPhone, REASON_LABELS[esc.reason] || esc.reason, m1.name];
           await sendTemplateOrFallback(m1.phone, 'alerta_escalada', tplP, msg, sendWAFn);
           logTeamMessage(m1.phone, m1.name, 'out', msg).catch(() => {});
+          _notifyManagerEmail(m1.phone,
+            `⚠️ ALERTA CRM — ${esc.leadName || esc.leadPhone} (${REASON_LABELS[esc.reason] || esc.reason})`,
+            msg.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>').replace(/\*([^*]+)\*/g,'<b>$1</b>')
+          ).catch(() => {});
           console.log(`[ESC] Alerta ${esc._id} reinicia → ronda ${nextRound}`);
         } else {
           await updateEscalation(esc._id, { status: 'exhausted' });

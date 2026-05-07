@@ -488,7 +488,7 @@ app.post('/auth/login', async (req, res) => {
     if (user.telefono) {
       try {
         const { sendWhatsApp: _authWA } = require('./meta');
-        const phone = user.telefono.replace(/^\+/, '');
+        const phone = user.telefono.replace(/[^\d]/g, ''); // strip +, spaces, dashes
         _authWA(phone, `🔐 *Grupo Elite Work*\n\nHola ${user.nombre.split(' ')[0]}, iniciaste sesión con tu cuenta (${user.correo}).`)
           .catch(e => console.error('[Auth] WA error:', e.message));
       } catch(e) {}
