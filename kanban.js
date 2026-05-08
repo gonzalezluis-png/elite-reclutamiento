@@ -150,7 +150,7 @@ function renderKanban() {
 
   tabsEl.className = 'visible';
   tabsEl.innerHTML = allTabs.map(t => {
-    const cnt = leads.filter(l => l.pipeline_id === activePipelineId && t.etapas.some(e => e.v === l.etapa)).length;
+    const cnt = leads.filter(l => l.pipeline_id === activePipelineId && (t.matchAll || t.etapas.some(e => e.v === l.etapa))).length;
     const colorSrc = t.etapas[0]?.v || t.nombre;
     const clr = stageColor(colorSrc);
     const isActive = curTab.id === t.id;
@@ -197,7 +197,7 @@ function renderKanban() {
     const tableEtapas = activeEtapas.map(e => e.v);
     const rows = leads.filter(ld =>
       ld.pipeline_id === activePipelineId &&
-      (tableEtapas.includes(ld.etapa) || (curTab.id === 'inscrito' && ld.inscrito_webinar && ld.pipeline_id === 'en-webinar')) &&
+      (curTab.matchAll || tableEtapas.includes(ld.etapa) || (curTab.id === 'inscrito' && ld.inscrito_webinar && ld.pipeline_id === 'en-webinar')) &&
       (!q || [ld.nombre, ld.correo, ld.telefono, ld.fuente, ld.nombre_lead].join(' ').toLowerCase().includes(q)) &&
       (currentUser?.role === 'developer' || !ld.invisible)
     ).map(ld => { const eo = curTab.etapas.find(e => e.v === ld.etapa); return {...ld, _etapaLabel: eo ? eo.l : ld.etapa}; });
