@@ -220,7 +220,11 @@ function renderKanban() {
           const accion = ld.webinar_accion || 'sin-registro';
           const accionLabel = accion==='asistente'?'ASISTENTE':accion==='no-asistente'?'NO ASISTENTE':accion==='en-entrevista'?'EN ENTREVISTA':accion==='no-interesado'?'NO INTERESADO':accion==='no-califica'?'NO CALIFICA':'SIN REGISTRO';
           const resuelto = accion !== 'sin-registro' ? 'lead-resuelto' : '';
-          const fechaIns = ld.fecha_inscripcion_webinar ? new Date(ld.fecha_inscripcion_webinar).toLocaleDateString('es-MX',{day:'2-digit',month:'short',year:'numeric'}) : '—';
+          const _fechaSrc = ld.fecha_inscripcion_webinar || ld.updated_at || ld.created_at;
+          const fechaIns = _fechaSrc
+            ? new Date(_fechaSrc).toLocaleDateString('es-MX',{day:'2-digit',month:'short',year:'numeric'})
+              + (!ld.fecha_inscripcion_webinar ? ' <span title="Fecha estimada (sin fecha exacta de inscripción)" style="opacity:.4;font-size:9px">~</span>' : '')
+            : '—';
           const icon = accion==='asistente'?`<span class="lead-status-icon asistente">✓</span>`:accion==='no-asistente'?`<span class="lead-status-icon no-asistente">✗</span>`:'';
           const pct = ld.webinar_visto_pct != null ? Number(ld.webinar_visto_pct) : null;
           const pctColor = pct == null ? 'var(--text2)' : pct >= 50 ? '#00c875' : pct >= 25 ? '#0073ea' : '#e2445c';
