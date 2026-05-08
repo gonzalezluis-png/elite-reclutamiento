@@ -1163,7 +1163,7 @@ function isLeadContratado(lead) {
   return e.includes('CONTRATADO') || r === 'contratado';
 }
 
-const CONTRATADO_ALLOWED_FIELDS = new Set(['notas', 'historial', 'tareas']);
+const CONTRATADO_ALLOWED_FIELDS = new Set(['notas', 'historial', 'tareas', 'resultado_entrevista', 'manager_entrevista']);
 
 app.patch('/leads/:id', requireSession(), async (req, res) => {
   const { id } = req.params;
