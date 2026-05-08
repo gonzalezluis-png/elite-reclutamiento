@@ -950,6 +950,10 @@ app.post('/ai/force-respond', requireSession(), async (req, res) => {
 
       // Inject lead context
       const lead = await fsGetLeadByPhone(toE164(cleanPhone));
+      if (lead && isLeadContratado(lead)) {
+        console.log(`[AI-Force] Lead contratado ${cleanPhone} — comunicación bloqueada.`);
+        return;
+      }
       if (lead) {
         const ctxParts = [];
         const nombre = lead.nombre || '';
@@ -1151,12 +1155,34 @@ function sanitizeLeadFields(fields) {
   return out;
 }
 
+function isLeadContratado(lead) {
+  if (!lead) return false;
+  const e = (lead.etapa || '').toUpperCase();
+  const r = (lead.resultado || '').toLowerCase();
+  return e.includes('CONTRATADO') || r === 'contratado';
+}
+
+const CONTRATADO_ALLOWED_FIELDS = new Set(['notas', 'historial', 'tareas']);
+
 app.patch('/leads/:id', requireSession(), async (req, res) => {
   const { id } = req.params;
   try {
     const raw = req.body || {};
     delete raw.id;
-    // Strip unknown columns, then sanitize empty timestamps
+
+    // Check if lead is contratado — only allow notes/history/tasks
+    const current = await db.sbGetLead(id);
+    if (isLeadContratado(current)) {
+      const allowed = Object.fromEntries(
+        Object.entries(raw).filter(([k]) => CONTRATADO_ALLOWED_FIELDS.has(k))
+      );
+      if (!Object.keys(allowed).length) {
+        return res.status(403).json({ ok: false, error: 'Lead contratado: solo se pueden agregar notas.' });
+      }
+      await db.sbUpdateLead(id, sanitizeLeadFields(allowed));
+      return res.json({ ok: true });
+    }
+
     const fields = sanitizeLeadFields(
       Object.fromEntries(Object.entries(raw).filter(([k]) => LEAD_COLS.has(k)))
     );

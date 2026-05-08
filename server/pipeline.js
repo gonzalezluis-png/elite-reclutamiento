@@ -167,6 +167,14 @@ Si no hay información clara para un campo, pon null. SOLO JSON, nada más.`,
     const lead  = await fsGetLeadByPhone(phone);
     if (!lead) { console.error(`[AI-Extract] Lead no encontrado para ${phone}`); return; }
 
+    // Block any processing for contratado leads
+    const _etapaUp = (lead.etapa || '').toUpperCase();
+    const _resultLo = (lead.resultado || '').toLowerCase();
+    if (_etapaUp.includes('CONTRATADO') || _resultLo === 'contratado') {
+      console.log(`[AI-Extract] Lead contratado ${phone} — sin acción.`);
+      return;
+    }
+
     const updates = {};
     const isAutoName = !lead.nombre || lead.nombre.startsWith('WA ') || lead.nombre.startsWith('+') || lead.nombre.startsWith('Lead Meta');
     if (extracted.nombre         && isAutoName)          updates.nombre          = extracted.nombre;

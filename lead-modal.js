@@ -62,6 +62,35 @@ function _mlUpdateAvatar() {
   if (av) av.textContent = initials;
 }
 
+function isLeadContratado(lead) {
+  if (!lead) return false;
+  const e = (lead.etapa || '').toUpperCase();
+  const r = (lead.resultado || '').toLowerCase();
+  return e.includes('CONTRATADO') || r === 'contratado';
+}
+
+function _mlApplyContratadoLock(lead) {
+  const locked = isLeadContratado(lead);
+  let banner = document.getElementById('ml-contratado-banner');
+  if (locked && !banner) {
+    banner = document.createElement('div');
+    banner.id = 'ml-contratado-banner';
+    banner.style.cssText = 'background:rgba(0,200,117,.08);border:1px solid rgba(0,200,117,.3);border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:12.5px;color:#00c875;font-weight:600;display:flex;align-items:center;gap:8px;';
+    banner.innerHTML = '🔒 Lead contratado — solo se pueden agregar notas. Toda comunicación está bloqueada.';
+    const form = document.querySelector('.modal-lead .ml-form-section') || document.querySelector('.modal-lead .modal-body');
+    if (form) form.prepend(banner);
+  } else if (!locked && banner) {
+    banner.remove();
+  }
+  // Hide edit button and send inputs for contratado leads
+  const editBtn = document.getElementById('ml-btn-edit');
+  if (editBtn) editBtn.style.display = locked ? 'none' : '';
+  const sendBtn = document.getElementById('lc-send-btn');
+  if (sendBtn) sendBtn.style.display = locked ? 'none' : '';
+  const lcInput = document.querySelector('.lc-input-row');
+  if (lcInput) lcInput.style.display = locked ? 'none' : '';
+}
+
 function _mlSetMode(editing) {
   const modal = document.querySelector('.modal-lead');
   modal.classList.toggle('ml-view-mode', !editing);
@@ -72,6 +101,7 @@ function _mlSetMode(editing) {
 
 function _mlEdit() {
   const lead = leads.find(l => l.id === currentLeadId);
+  if (isLeadContratado(lead)) { showToast('🔒 Lead contratado — no se puede editar.'); return; }
   if (lead) _mlSnapshot = JSON.parse(JSON.stringify(lead));
   _mlSetMode(true);
 }
@@ -143,6 +173,7 @@ function openLead(id, tabName) {
 
   document.getElementById('lead-modal').classList.remove('hidden');
   _mlSetMode(false);
+  _mlApplyContratadoLock(lead);
   lcOpen();
   loadRecordings(lead.telefono);
   _updateNavPos();
@@ -188,6 +219,7 @@ async function mlExtractFromChat() {
 function saveLead() {
   const lead = leads.find(l => l.id === currentLeadId);
   if (!lead) return;
+  if (isLeadContratado(lead)) { showToast('🔒 Lead contratado — no se puede editar.'); _mlSetMode(false); return; }
 
   pushUndo('lead_change', JSON.parse(JSON.stringify(lead)));
   const oldPipeline = lead.pipeline_id;

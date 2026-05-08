@@ -1178,6 +1178,15 @@ function registerMetaRoutes(app) {
     if (!to || !body) return res.status(400).json({ ok: false, error: 'to y body requeridos' });
     if (!_waToken || !META_WA_PHONE_ID) return res.status(503).json({ ok: false, error: 'Meta WA no configurado' });
     try {
+      // Block messages to contratado leads
+      if (leadId) {
+        const lead = await db.sbGetLead(leadId).catch(() => null);
+        const etapa = (lead?.etapa || '').toUpperCase();
+        const resultado = (lead?.resultado || '').toLowerCase();
+        if (etapa.includes('CONTRATADO') || resultado === 'contratado') {
+          return res.status(403).json({ ok: false, error: 'Lead contratado: comunicación bloqueada.' });
+        }
+      }
       const cleanTo = to.replace(/^\+/, '').replace(/\D/g, '');
       const ts = Date.now();
       const ok = await sendWhatsApp(cleanTo, body);
