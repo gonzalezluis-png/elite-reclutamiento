@@ -334,7 +334,14 @@ function renderKanban() {
     renderUniversalTable(activeSub.etapas, activePipelineId, q, activeSub.etapas.length > 1);
   } else {
     subTabsEl.className = '';
-    renderUniversalTable(curTab.etapas, activePipelineId, q, curTab.etapas.length > 1);
+    let stageDefs = curTab.etapas;
+    if (curTab.matchAll) {
+      const seen = new Set();
+      stageDefs = leads
+        .filter(l => l.pipeline_id === activePipelineId)
+        .reduce((acc, l) => { if (!seen.has(l.etapa)) { seen.add(l.etapa); acc.push({v:l.etapa, l:l.etapa}); } return acc; }, []);
+    }
+    renderUniversalTable(stageDefs, activePipelineId, q, stageDefs.length > 1);
   }
   initResizableCols(activePipelineId + ':' + curTab.id);
 }
