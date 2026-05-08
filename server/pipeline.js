@@ -169,7 +169,7 @@ Si no hay información clara para un campo, pon null. SOLO JSON, nada más.`,
 
     // Block any processing for contratado leads
     const _etapaUp = (lead.etapa || '').toUpperCase();
-    const _resultLo = (lead.resultado || '').toLowerCase();
+    const _resultLo = (lead.resultado_entrevista || '').toLowerCase();
     if (_etapaUp.includes('CONTRATADO') || _resultLo === 'contratado') {
       console.log(`[AI-Extract] Lead contratado ${phone} — sin acción.`);
       return;

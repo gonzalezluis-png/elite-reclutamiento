@@ -614,6 +614,8 @@ function lcUpdateIAState(paused) {
     document.getElementById('lc-send-btn')?.removeAttribute('disabled');
     document.getElementById('lc-ch-sms')?.removeAttribute('disabled');
     document.getElementById('lc-ch-wa')?.removeAttribute('disabled');
+    // Re-apply contratado lock after IA state change
+    if (typeof _mlEnforceChatLock === 'function') _mlEnforceChatLock();
   } else {
     banner.style.background   = 'rgba(168,85,247,.08)';
     banner.style.borderColor  = 'rgba(168,85,247,.25)';
@@ -690,6 +692,7 @@ function lcLoadTpl() {
 async function lcSend() {
   const lead = leads.find(l => l.id === currentLeadId);
   if (!lead?.telefono) { showToast('Lead sin número de teléfono'); return; }
+  if (window._currentLeadLocked) { showToast('🔒 Lead contratado — comunicación bloqueada.'); return; }
   const phone = lead.telefono.replace(/[\s\-().]/g, '');
   const btn = document.getElementById('lc-send-btn');
   btn.disabled = true;

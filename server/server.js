@@ -1140,6 +1140,7 @@ const LEAD_COLS = new Set([
   'contacto','link_webinar','webinar_pausas','webinar_completado','webinar_ultima_sesion',
   'webinar_ultimo_evento','quiere_entrevista_fecha','created_at','updated_at','invisible',
   'genero','solicita_entrevista','last_msg_ts',
+  'resultado_entrevista','manager_entrevista','interview_slot',
 ]);
 const LEAD_TS_COLS = new Set([
   'webinar_email_enviado','fecha_inscripcion_webinar','quiere_entrevista_fecha',
@@ -1158,7 +1159,7 @@ function sanitizeLeadFields(fields) {
 function isLeadContratado(lead) {
   if (!lead) return false;
   const e = (lead.etapa || '').toUpperCase();
-  const r = (lead.resultado || '').toLowerCase();
+  const r = (lead.resultado_entrevista || '').toLowerCase();
   return e.includes('CONTRATADO') || r === 'contratado';
 }
 

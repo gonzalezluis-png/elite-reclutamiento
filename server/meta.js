@@ -1182,7 +1182,7 @@ function registerMetaRoutes(app) {
       if (leadId) {
         const lead = await db.sbGetLead(leadId).catch(() => null);
         const etapa = (lead?.etapa || '').toUpperCase();
-        const resultado = (lead?.resultado || '').toLowerCase();
+        const resultado = (lead?.resultado_entrevista || '').toLowerCase();
         if (etapa.includes('CONTRATADO') || resultado === 'contratado') {
           return res.status(403).json({ ok: false, error: 'Lead contratado: comunicación bloqueada.' });
         }

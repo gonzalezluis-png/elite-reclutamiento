@@ -65,30 +65,37 @@ function _mlUpdateAvatar() {
 function isLeadContratado(lead) {
   if (!lead) return false;
   const e = (lead.etapa || '').toUpperCase();
-  const r = (lead.resultado || '').toLowerCase();
+  const r = (lead.resultado_entrevista || '').toLowerCase();
   return e.includes('CONTRATADO') || r === 'contratado';
 }
 
 function _mlApplyContratadoLock(lead) {
   const locked = isLeadContratado(lead);
+  // Store lock state globally so lcSend and lcUpdateIAState can check it
+  window._currentLeadLocked = locked;
+
   let banner = document.getElementById('ml-contratado-banner');
   if (locked && !banner) {
     banner = document.createElement('div');
     banner.id = 'ml-contratado-banner';
     banner.style.cssText = 'background:rgba(0,200,117,.08);border:1px solid rgba(0,200,117,.3);border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:12.5px;color:#00c875;font-weight:600;display:flex;align-items:center;gap:8px;';
     banner.innerHTML = '🔒 Lead contratado — solo se pueden agregar notas. Toda comunicación está bloqueada.';
-    const form = document.querySelector('.modal-lead .ml-form-section') || document.querySelector('.modal-lead .modal-body');
+    const form = document.querySelector('.modal-lead') || document.getElementById('lead-modal');
     if (form) form.prepend(banner);
   } else if (!locked && banner) {
     banner.remove();
   }
-  // Hide edit button and send inputs for contratado leads
   const editBtn = document.getElementById('ml-btn-edit');
   if (editBtn) editBtn.style.display = locked ? 'none' : '';
-  const sendBtn = document.getElementById('lc-send-btn');
-  if (sendBtn) sendBtn.style.display = locked ? 'none' : '';
+  _mlEnforceChatLock();
+}
+
+function _mlEnforceChatLock() {
+  const locked = !!window._currentLeadLocked;
   const lcInput = document.querySelector('.lc-input-row');
   if (lcInput) lcInput.style.display = locked ? 'none' : '';
+  const tplRow = document.querySelector('.lc-tpl-row');
+  if (tplRow) tplRow.style.display = locked ? 'none' : '';
 }
 
 function _mlSetMode(editing) {
