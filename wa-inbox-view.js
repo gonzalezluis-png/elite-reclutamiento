@@ -51,6 +51,7 @@ function _waInboxRender() {
 
   const q = _waInboxSearch.toLowerCase();
   const rows = _waInboxData.filter(r => {
+    if (r.lead?.invisible) return false;
     if (!q) return true;
     const name  = (r.lead?.nombre || '').toLowerCase();
     const phone = r.phone.toLowerCase();

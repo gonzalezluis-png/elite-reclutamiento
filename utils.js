@@ -88,6 +88,7 @@ async function fsSaveLead(lead) {
     });
     if (!res.ok) {
       console.warn('Lead save error:', res.status);
+      if (res.status === 401) { _handleSessionExpired(); return false; }
       showToast(`❌ Error al guardar (${res.status})`);
       return false;
     }

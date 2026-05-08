@@ -36,7 +36,7 @@ function postLoginInit() {
         renderKanban();
         if (typeof _updateLeadsTodayBar === 'function') _updateLeadsTodayBar();
         if (activeView === 'monitor' && typeof renderMonitor === 'function') renderMonitor();
-        showToast(`☁️ ${fsLeads.length} leads cargados`);
+        if (currentUser?.role === 'developer') showToast(`☁️ ${fsLeads.length} leads cargados`);
         // Sync WA messages in background so messaging sidebar is ready
         if (typeof _msgSyncAllContacts === 'function') _msgSyncAllContacts();
       } else {

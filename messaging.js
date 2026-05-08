@@ -237,6 +237,7 @@ function _msgSetFilter(f) {
 function _msgGetConversations() {
   const convs = [];
   for (const lead of leads) {
+    if (lead.invisible) continue;
     const hasSms    = lead.sms     && lead.sms.length > 0;
     const hasWaTwi  = lead.whatsapp && lead.whatsapp.length > 0;
     const hasWaMeta = lead.metaWa  && lead.metaWa.length > 0;
@@ -911,7 +912,7 @@ function _hideAllViewsConv() {
 function showConversations() {
   _hideAllViews();
   activeView = 'conversations';
-  document.getElementById('board-title').textContent = 'Conversaciones';
+  document.getElementById('board-title').textContent = 'Llamadas';
   const el = document.getElementById('conversations-view');
   el.classList.add('active');
   el.style.display = 'flex';
@@ -928,7 +929,7 @@ function _cvBuildPage() {
   <div class="cv-wrap">
     <div class="cv-sidebar">
       <div class="cv-sidebar-hdr">
-        <h2>📞 Conversaciones</h2>
+        <h2>📞 Llamadas</h2>
         <div class="cv-filters">
           <button class="cv-filter active" data-f="all"      onclick="_cvSetFilter('all')">Todas</button>
           <button class="cv-filter"        data-f="inbound"  onclick="_cvSetFilter('inbound')">Entrantes</button>
@@ -1026,7 +1027,15 @@ function _cvRenderList() {
     list.innerHTML = '<div class="cv-loading">Sin llamadas para este filtro</div>';
     return;
   }
-  list.innerHTML = entries.map(([num, calls]) => {
+  const visibleEntries = entries.filter(([num]) => {
+    const lead = leads.find(l => l.telefono && num.includes(l.telefono.replace(/\D/g,'').slice(-10)));
+    return !lead?.invisible;
+  });
+  if (!visibleEntries.length) {
+    list.innerHTML = '<div class="cv-loading">Sin llamadas para este filtro</div>';
+    return;
+  }
+  list.innerHTML = visibleEntries.map(([num, calls]) => {
     const last   = calls[0];
     const lead   = leads.find(l => l.telefono && num.includes(l.telefono.replace(/\D/g,'').slice(-10)));
     const name   = lead?.nombre || num;

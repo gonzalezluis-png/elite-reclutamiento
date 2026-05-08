@@ -2,6 +2,59 @@
 // ════════════════════════════════════════════
 let _mlSnapshot = null;
 
+// ── Lead navigation (prev / next) ────────────────────────────────────────────
+function _buildNavLeads() {
+  // Pull IDs from the current rendered table rows (respects filters & sort)
+  const ids = [];
+  document.querySelectorAll('#table-view-wrap tr[onclick]').forEach(tr => {
+    const m = (tr.getAttribute('onclick') || '').match(/openLead\('([^']+)'\)/);
+    if (m) ids.push(m[1]);
+  });
+  if (ids.length) return ids;
+  // Kanban card view fallback
+  document.querySelectorAll('.kc-card[onclick]').forEach(card => {
+    const m = (card.getAttribute('onclick') || '').match(/openLead\('([^']+)'\)/);
+    if (m) ids.push(m[1]);
+  });
+  if (ids.length) return ids;
+  // Last resort: full leads array
+  return (leads || []).map(l => l.id);
+}
+
+function _updateNavPos() {
+  const navEl = document.getElementById('mlh-nav-pos');
+  if (!navEl || !currentLeadId) return;
+  const navLeads = _buildNavLeads();
+  const idx = navLeads.indexOf(currentLeadId);
+  if (idx === -1 || !navLeads.length) { navEl.textContent = ''; return; }
+  navEl.textContent = `${idx + 1} / ${navLeads.length}`;
+  const prevBtn = document.querySelector('.mlh-nav-btn:first-child');
+  const nextBtn = document.querySelector('.mlh-nav-btn:last-child');
+  if (prevBtn) prevBtn.disabled = idx === 0;
+  if (nextBtn) nextBtn.disabled = idx === navLeads.length - 1;
+}
+
+function _leadNavPrev() {
+  const navLeads = _buildNavLeads();
+  const idx = navLeads.indexOf(currentLeadId);
+  if (idx > 0) openLead(navLeads[idx - 1]);
+}
+
+function _leadNavNext() {
+  const navLeads = _buildNavLeads();
+  const idx = navLeads.indexOf(currentLeadId);
+  if (idx !== -1 && idx < navLeads.length - 1) openLead(navLeads[idx + 1]);
+}
+
+// Keyboard nav: ← → when modal is open
+document.addEventListener('keydown', e => {
+  if (!currentLeadId) return;
+  const tag = (document.activeElement?.tagName || '').toLowerCase();
+  if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+  if (e.key === 'ArrowLeft')  { e.preventDefault(); _leadNavPrev(); }
+  if (e.key === 'ArrowRight') { e.preventDefault(); _leadNavNext(); }
+});
+
 function _mlUpdateAvatar() {
   const name = document.getElementById('ml-nombre')?.value || '';
   const initials = name.split(' ').filter(Boolean).map(w => w[0].toUpperCase()).slice(0,2).join('') || '?';
@@ -88,12 +141,41 @@ function openLead(id, tabName) {
   _mlSetMode(false);
   lcOpen();
   loadRecordings(lead.telefono);
+  _updateNavPos();
 }
 
 function closeLead() {
   clearInterval(_lcPollInt);
   document.getElementById('lead-modal').classList.add('hidden');
   currentLeadId = null;
+}
+
+// ── Extract lead data from chat ───────────────────────────────────────────────
+async function mlExtractFromChat() {
+  if (!currentLeadId) return;
+  const btn = document.getElementById('ml-extract-btn');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Leyendo…'; }
+  try {
+    const res  = await fetch(`${SERVER_URL}/leads/${currentLeadId}/extract`, {
+      method: 'POST', headers: _leadHeaders(),
+    });
+    const data = await res.json();
+    if (!data.ok) {
+      showToast('⚠️ ' + (data.error || 'Sin historial suficiente'));
+      return;
+    }
+    // Update lead in memory and reload modal
+    const idx = leads.findIndex(l => l.id === currentLeadId);
+    if (idx >= 0) leads[idx] = { ...leads[idx], ...data.lead };
+    else leads.unshift(data.lead);
+    openLead(currentLeadId);
+    showToast('✅ Datos actualizados desde el chat');
+    renderKanban();
+  } catch (e) {
+    showToast('❌ Error al leer conversación');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '🤖 Leer chat'; }
+  }
 }
 
 // ════════════════════════════════════════════
@@ -156,7 +238,6 @@ function _mlRenderProgreso(lead) {
     { pct: 60,  label: 'Correo registrado',     check: l => !!l.correo },
     { pct: 70,  label: 'Vio el webinar',        check: l => l.webinar_visto || l.vio_webinar || (l.pipeline_id === 'en-webinar' && l.etapa !== 'En Webinar sin actividad') },
     { pct: 80,  label: 'Entrevista agendada',   check: l => !!(l.cita?.fecha) || ['entrevistas-generales','caritza-rojas','maria-lugo','brayan-alexander'].includes(l.pipeline_id) },
-    { pct: 90,  label: 'Confirmó asistencia',   check: l => /confirm/i.test(l.etapa||'') },
     { pct: 100, label: 'Asistió a entrevista',  check: l => /asist|ENTREVISTADO|ENTREVISTADA/i.test(l.etapa||'') },
   ];
   const current = calcProgreso(lead);

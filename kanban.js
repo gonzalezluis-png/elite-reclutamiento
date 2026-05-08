@@ -239,7 +239,7 @@ function renderKanban() {
           const ivBadgeW = ld.solicita_entrevista
             ? `<span onclick="event.stopPropagation();dismissSolicitaEntrevista('${ld.id}')" title="Marcar como atendido" style="display:inline-flex;align-items:center;gap:4px;background:rgba(0,200,117,.15);border:1px solid rgba(0,200,117,.4);color:#00c875;font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;cursor:pointer;animation:blink-dot 1.4s ease-in-out infinite;">🤝 Quiere entrevista</span>`
             : '';
-          return `<tr class="${resuelto}${ld.quiere_entrevista ? ' tr-llamada-alert' : ''}${ld.sin_manager ? ' tr-sinmgr-alert' : ''}${ld.solicita_entrevista ? ' tr-iv-alert' : ''}" onclick="openLead('${ld.id}')">
+          return `<tr class="${resuelto}${ld.quiere_entrevista ? ' tr-llamada-alert' : ''}${ld.sin_manager ? ' tr-sinmgr-alert' : ''}${ld.solicita_entrevista ? ' tr-iv-alert' : ''}" onclick="openLead('${ld.id}')" ${ld.invisible ? 'style="opacity:.45;border-left:2px dashed rgba(148,163,184,.4);"' : ''}>
             <td style="color:var(--text2);display:flex;align-items:center;gap:6px;min-height:36px;font-size:10px;font-family:monospace">${icon}${_leadFolio(ld.id)}</td>
             <td style="font-weight:600;color:#fff">${esc(ld.nombre)}${sinMgrBadge ? '<br>'+sinMgrBadge : ''}${ivBadgeW ? '<br>'+ivBadgeW : ''}${llamadaBadge ? '<br>'+llamadaBadge : ''}</td>
             <td style="color:var(--text2)">${esc(ld.correo||'')}</td>
@@ -424,7 +424,7 @@ function renderUniversalTable(stageDefs, pipelineId, q, showEtapa) {
             onclick="event.stopPropagation()"
             style="background:var(--card2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:3px 8px;font-size:11px;width:130px;outline:none;" />` : '';
 
-        return `<tr onclick="openLead('${ld.id}')">
+        return `<tr onclick="openLead('${ld.id}')" ${ld.invisible ? 'style="opacity:.45;border-left:2px dashed rgba(148,163,184,.4);"' : ''}>
           <td style="color:var(--text2);font-size:10px;font-family:monospace">${_leadFolio(ld.id)}</td>
           <td style="font-weight:600;color:#fff">${esc(ld.nombre)}</td>
           <td style="color:var(--text2)">${esc(ld.correo||'')}</td>
@@ -492,8 +492,6 @@ function calcProgreso(lead) {
   if (lead.webinar_visto === true || lead.vio_webinar === true || (lead.pipeline_id === 'en-webinar' && lead.etapa !== 'En Webinar sin actividad')) max = Math.max(max, 70);
   // 80%
   if ((lead.cita && lead.cita.fecha) || ['entrevistas-generales','caritza-rojas','maria-lugo','brayan-alexander'].includes(lead.pipeline_id)) max = Math.max(max, 80);
-  // 90%
-  if (/confirm/i.test(lead.etapa || '')) max = Math.max(max, 90);
   // 100%
   if (/asist|ENTREVISTADO|ENTREVISTADA/i.test(lead.etapa || '')) max = Math.max(max, 100);
   return max;

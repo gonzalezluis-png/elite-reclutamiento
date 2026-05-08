@@ -80,7 +80,17 @@ async function sbSaveLead(lead) {
 async function sbUpdateLead(id, fields) {
   const row = { ...fields, updated_at: new Date().toISOString() };
   if ('metaWa' in row) { row.meta_wa = row.metaWa; delete row.metaWa; }
-  await sbPatch('leads', `id=eq.${encodeURIComponent(id)}`, row);
+  try {
+    await sbPatch('leads', `id=eq.${encodeURIComponent(id)}`, row);
+  } catch (e) {
+    // If batch fails (e.g. unknown column), retry field-by-field so valid fields still save
+    console.warn(`[DB] Batch update failed for ${id}: ${e.message} — retrying field-by-field`);
+    for (const [k, v] of Object.entries(row)) {
+      if (k === 'updated_at') continue;
+      try { await sbPatch('leads', `id=eq.${encodeURIComponent(id)}`, { [k]: v, updated_at: row.updated_at }); }
+      catch (fe) { console.warn(`[DB] Could not save field "${k}" for lead ${id}: ${fe.message}`); }
+    }
+  }
 }
 
 async function sbDeleteLead(id) {

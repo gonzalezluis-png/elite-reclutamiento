@@ -56,7 +56,7 @@
       <div id="pipe-list"></div>
     </div>
     <div class="sidebar-bottom">
-      <div class="sidebar-item" onclick="showConversations()" id="nav-conversations">📞 &nbsp;Conversaciones</div>
+      <div class="sidebar-item" onclick="showConversations()" id="nav-conversations">📞 &nbsp;Llamadas</div>
       <div class="sidebar-item" onclick="showMessaging()" id="nav-messaging">💬 &nbsp;Mensajería</div>
       <div class="sidebar-item" onclick="showWAInbox()" id="nav-wa-inbox">📥 &nbsp;Entradas WhatsApp</div>
       <div class="sidebar-item" onclick="showMonitor()" id="nav-monitor">📊 &nbsp;Monitor de Leads</div>
@@ -245,6 +245,11 @@
           <select class="mlh-sel" id="ml-etapa"></select>
         </div>
       </div>
+      <div class="mlh-nav" id="mlh-nav">
+        <button class="mlh-nav-btn" onclick="_leadNavPrev()" title="Lead anterior (←)">&#8249;</button>
+        <span class="mlh-nav-pos" id="mlh-nav-pos"></span>
+        <button class="mlh-nav-btn" onclick="_leadNavNext()" title="Lead siguiente (→)">&#8250;</button>
+      </div>
       <button class="mlh-close" onclick="closeLead()">✕</button>
     </div>
 
@@ -320,7 +325,10 @@
       <div class="ml-info-col">
         <div class="ml-left-inner">
           <div class="info-compact">
-            <div class="ml-section-label">Contacto</div>
+            <div class="ml-section-label" style="display:flex;align-items:center;justify-content:space-between;">
+              Contacto
+              <button class="ml-extract-btn" id="ml-extract-btn" onclick="mlExtractFromChat()" title="Pedir a Ana que lea la conversación y actualice los datos del contacto">🤖 Leer chat</button>
+            </div>
             <div class="field-row">
               <div class="field"><label>Nombre</label><input id="ml-contacto" placeholder="Juan Pérez" oninput="document.getElementById('ml-nombre').value=this.value;_mlUpdateAvatar()" /></div>
               <div class="field"><label>Correo</label><input type="email" id="ml-correo" placeholder="juan@email.com" /></div>

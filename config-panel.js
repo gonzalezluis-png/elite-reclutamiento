@@ -145,7 +145,54 @@ function renderConfig() {
         </div>
       </div>
 
+      ${currentUser?.role === 'developer' ? `
+      <!-- HERRAMIENTAS DEVELOPER -->
+      <div class="cfg-section" style="border-color:rgba(99,102,241,.4);background:rgba(99,102,241,.04);">
+        <div class="cfg-section-title" style="color:#818cf8;">🛠 Herramientas Developer</div>
+        <div style="display:flex;flex-direction:column;gap:10px;margin-top:10px;">
+          <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+            <div style="flex:1;min-width:200px;">
+              <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:2px;">Fusionar leads duplicados</div>
+              <div style="font-size:11px;color:var(--text3);">Encuentra leads con el mismo número y los fusiona en uno, conservando el más completo.</div>
+            </div>
+            <div style="display:flex;gap:8px;">
+              <button onclick="cfgPreviewDuplicates()" style="padding:7px 14px;background:var(--card2);border:1px solid var(--border);border-radius:7px;color:var(--text);font-size:12px;cursor:pointer;">🔍 Ver duplicados</button>
+              <button onclick="cfgMergeDuplicates()" style="padding:7px 14px;background:rgba(99,102,241,.15);border:1px solid rgba(99,102,241,.4);border-radius:7px;color:#818cf8;font-size:12px;font-weight:600;cursor:pointer;">⚡ Fusionar ahora</button>
+            </div>
+          </div>
+          <div id="cfg-dup-result" style="font-size:12px;color:var(--text3);padding:8px 12px;background:var(--bg);border-radius:6px;display:none;white-space:pre-wrap;"></div>
+        </div>
+      </div>` : ''}
+
     </div>`;
+}
+
+async function cfgPreviewDuplicates() {
+  const el = document.getElementById('cfg-dup-result');
+  el.style.display = 'block';
+  el.textContent = 'Buscando duplicados…';
+  try {
+    const d = await fetch(`${SERVER_URL}/admin/merge-duplicates?dryRun=1`, { method: 'POST', headers: { 'Content-Type': 'application/json' } }).then(r => r.json());
+    if (!d.ok) { el.textContent = 'Error: ' + d.error; return; }
+    if (!d.duplicateGroups) { el.textContent = '✅ No hay leads duplicados.'; return; }
+    el.textContent = `Encontrados ${d.duplicateGroups} grupos duplicados:\n\n` +
+      d.preview.map(g => g.map(l => `  • ${l.nombre} [${l.pipeline_id}] — ${l.id}`).join('\n')).join('\n---\n');
+  } catch (e) { el.textContent = 'Error: ' + e.message; }
+}
+
+async function cfgMergeDuplicates() {
+  if (!confirm('¿Fusionar todos los leads duplicados? Esta acción eliminará los duplicados y conservará el más completo.')) return;
+  const el = document.getElementById('cfg-dup-result');
+  el.style.display = 'block';
+  el.textContent = 'Fusionando…';
+  try {
+    const d = await fetch(`${SERVER_URL}/admin/merge-duplicates`, { method: 'POST', headers: { 'Content-Type': 'application/json' } }).then(r => r.json());
+    if (!d.ok) { el.textContent = 'Error: ' + d.error; return; }
+    el.textContent = `✅ Fusionados ${d.mergedGroups} grupos. Recargando leads…`;
+    const fresh = await fsLoadLeads();
+    if (fresh.length) { leads = fresh; renderKanban(); renderSidebar(); }
+    showToast(`✅ ${d.mergedGroups} grupos fusionados`);
+  } catch (e) { el.textContent = 'Error: ' + e.message; }
 }
 
 function saveConfigProfile() {

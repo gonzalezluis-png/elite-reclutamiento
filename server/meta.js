@@ -2,7 +2,7 @@ const crypto = require('crypto');
 const db = require('./db');
 const { handleAuthWAReply } = require('./auth-sessions');
 const { askClaude, conversationHistory } = require('./ai');
-const { fsLeadExists, fsCreateLeadWA, fsGetLeadByPhone, fsUpdateLeadFields, runWAPipeline, humanDelay, fsAppendLeadMetaWa, toE164 } = require('./pipeline');
+const { fsLeadExists, fsCreateLeadWA, fsGetLeadByPhone, fsGetLeadByEmail, fsUpdateLeadFields, runWAPipeline, humanDelay, fsAppendLeadMetaWa, toE164 } = require('./pipeline');
 const { triggerEscalation, cancelEscalation, handleManagerReply, checkTimeouts, isManagerPhone, logTeamMessage, loadManagers } = require('./escalation');
 const { pixelLead } = require('./pixel');
 const { loadInterviewConfig, getAvailableSlots, bookInterview, listInterviews, updateInterview, getCandidateTZ, formatSlotLabel, TEAM_TZ } = require('./interviews');
@@ -253,7 +253,7 @@ function _isDupSend(to, text) {
 }
 
 // ── Send WhatsApp message via Meta Cloud API ──────────────────────────────────
-async function sendWhatsApp(to, text) {
+async function sendWhatsApp(to, text, { noLog = false } = {}) {
   const cleanTo = to.replace(/^wa_meta:/, '').replace(/^whatsapp:/, '').replace(/^\+/, '');
   if (!_waToken || !META_WA_PHONE_ID) {
     console.warn('[Meta WA] Token o Phone ID no configurados');
@@ -263,7 +263,7 @@ async function sendWhatsApp(to, text) {
     console.warn(`[Meta WA] Envío duplicado ignorado → ${cleanTo}`);
     return false;
   }
-  const logId = await _logWAMessage(cleanTo, 'out', text);
+  const logId = noLog ? null : await _logWAMessage(cleanTo, 'out', text);
   const parts = splitMessage(text);
   let allOk = true;
   for (const part of parts) {
@@ -345,7 +345,7 @@ function splitMessage(text, maxLen = 1000) {
 }
 
 function sendWAToManager(phone, text) {
-  return sendWhatsApp(phone.replace(/^\+/, ''), text);
+  return sendWhatsApp(phone.replace(/^\+/, ''), text, { noLog: true });
 }
 
 setInterval(() => checkTimeouts(sendWAToManager).catch(e => console.error('[ESC-Timer]', e.message)), 60_000);
@@ -383,7 +383,10 @@ function registerMetaRoutes(app) {
 
     const combinedText = texts.join('\n');
     console.log(`[Meta WA] ← ${from} (${texts.length} msg): ${combinedText}`);
-    _logWAMessage(from, 'in', combinedText).catch(() => {});
+
+    // Don't log manager messages — they're internal escalation replies, not lead conversations
+    const _isManager = await isManagerPhone(from).catch(() => false);
+    if (!_isManager) _logWAMessage(from, 'in', combinedText).catch(() => {});
 
     try {
       // ── Detect Click-to-WhatsApp form data message ───────────────────────
@@ -403,9 +406,16 @@ function registerMetaRoutes(app) {
 
         console.log(`[Meta WA] Formulario WA detectado — ${formNombre} / ${formTelefono} / ${formCorreo}`);
 
-        // Ensure lead exists — create it now if first contact
+        // Ensure lead exists — try WA phone, form phone, email before creating
         let _fLead = await fsGetLeadByPhone(from).catch(() => null);
-        if (!_fLead) {
+        if (!_fLead && formTelefono) _fLead = await fsGetLeadByPhone(formTelefono).catch(() => null);
+        if (!_fLead && formCorreo)   _fLead = await fsGetLeadByEmail(formCorreo).catch(() => null);
+        if (_fLead) {
+          // Merge WA phone into existing lead so future lookups find it
+          if (!_fLead.telefono || _fLead.telefono.replace(/\D/g,'').slice(-10) !== from.replace(/\D/g,'').slice(-10)) {
+            await fsUpdateLeadFields(_fLead.id, { telefono: toE164(from) }).catch(() => {});
+          }
+        } else {
           await fsCreateLeadWA(`wa_meta:${from}`).catch(() => {});
           _fLead = await fsGetLeadByPhone(from).catch(() => null);
         }
@@ -441,7 +451,7 @@ function registerMetaRoutes(app) {
 
         // Run pipeline in background to update lead fields
         ;(async () => {
-          try { await runWAPipeline(`wa_meta:${from}`, conversationHistory, sendWhatsApp, { WEBINAR_URL }); } catch {}
+          try { await runWAPipeline(`wa_meta:${from}`, conversationHistory, sendWhatsApp, {}); } catch {}
         })();
         return;
       }
@@ -479,7 +489,7 @@ function registerMetaRoutes(app) {
       }
 
       // Check if message is from a manager responding to an escalation
-      if (await isManagerPhone(from)) {
+      if (_isManager) {
         const managers = await loadManagers().catch(() => []);
         const mgr = managers.find(m => m.phone.replace(/^\+/, '') === from.replace(/^\+/, ''));
         if (mgr) logTeamMessage(mgr.phone, mgr.name, 'in', combinedText).catch(() => {});
@@ -553,14 +563,6 @@ function registerMetaRoutes(app) {
         fsUpdateLeadFields(_leadId, { unread_msg: true, last_msg_ts: Date.now() }).catch(() => {});
       }
 
-      // If IA is paused: store message in history but don't reply
-      if (leadData?.ia_paused === true) {
-        if (!conversationHistory.has(convKey)) conversationHistory.set(convKey, []);
-        conversationHistory.get(convKey).push({ role: 'user', content: combinedText, ts: Date.now() });
-        console.log(`[Meta WA] IA pausada para ${from} — mensaje guardado en historial, sin respuesta`);
-        return;
-      }
-
       const _wasEmptyOnRestart = !conversationHistory.has(convKey) || conversationHistory.get(convKey).length === 0;
 
       // Inject / refresh context from Supabase
@@ -628,15 +630,21 @@ function registerMetaRoutes(app) {
 
       // ── Horario de atención ─────────────────────────────────────────────────
       const _histNow    = conversationHistory.get(convKey) || [];
-      const _isFirstMsg = _isFirstEverContact && _histNow.filter(m => m.role === 'user').length === 0;
       const _inHours    = await isWABusinessHours();
-      if (_isFirstMsg && !_inHours) {
+      if (!_inHours) {
         if (!conversationHistory.has(convKey)) conversationHistory.set(convKey, []);
         conversationHistory.get(convKey).push({ role: 'user', content: combinedText, ts: Date.now() });
-        const closedMsg = `¡Hola! 👋 Gracias por escribirnos. En este momento nuestras oficinas están cerradas, pero en cuanto abramos te respondemos. ¡Hasta pronto!`;
-        console.log(`[Meta WA] Fuera de horario — primer mensaje de ${from}, enviando mensaje de cierre`);
-        await humanDelay(closedMsg);
-        await sendWhatsApp(from, closedMsg);
+        // Only send the closed message once per out-of-hours session (not on every message)
+        const _lastAssistantTs = [...(_histNow)].reverse().find(m => m.role === 'assistant')?.ts || 0;
+        const _hoursSinceReply = (Date.now() - _lastAssistantTs) / 3600000;
+        if (_hoursSinceReply > 1) {
+          const closedMsg = `¡Hola! 👋 Gracias por escribirnos. En este momento nuestras oficinas están cerradas, pero en cuanto abramos te respondemos. ¡Hasta pronto!`;
+          console.log(`[Meta WA] Fuera de horario — ${from}, enviando mensaje de cierre`);
+          await humanDelay(closedMsg);
+          await sendWhatsApp(from, closedMsg);
+        } else {
+          console.log(`[Meta WA] Fuera de horario — ${from}, mensaje de cierre ya enviado recientemente, ignorando`);
+        }
         return;
       }
 
@@ -717,6 +725,16 @@ function registerMetaRoutes(app) {
         }
       }
 
+      // If IA is paused: store message in history but don't reply
+      // NOTE: this check MUST come after the interview state machine above,
+      // so candidates can still select slots when ia_paused was set by extraction.
+      if (leadData?.ia_paused === true) {
+        if (!conversationHistory.has(convKey)) conversationHistory.set(convKey, []);
+        conversationHistory.get(convKey).push({ role: 'user', content: combinedText, ts: Date.now() });
+        console.log(`[Meta WA] IA pausada para ${from} — mensaje guardado en historial, sin respuesta`);
+        return;
+      }
+
       // First-ever contact: short delay before Ana responds
       if (_isFirstEverContact) {
         console.log(`[Meta WA] Primer contacto de ${from} — Ana esperará 30s antes de responder`);
@@ -748,7 +766,8 @@ function registerMetaRoutes(app) {
       const rawReply = await askClaude(convKey, combinedText, 'wa');
       const escMatch = rawReply.match(/\[ESC:([^\]]+)\]/);
       const agendar  = rawReply.includes('[AGENDAR]');
-      const reply    = rawReply.replace(/\[ESC:[^\]]*\]\n?/g, '').replace(/\[AGENDAR\]\n?/g, '').trim();
+      const webinar  = rawReply.includes('[WEBINAR]');
+      const reply    = rawReply.replace(/\[ESC:[^\]]*\]\n?/g, '').replace(/\[AGENDAR\]\n?/g, '').replace(/\[WEBINAR\]\n?/g, '').trim();
 
       if (escMatch) {
         const leadName = leadData?.nombre || '';
@@ -765,6 +784,25 @@ function registerMetaRoutes(app) {
 
       if (_leadId) {
         fsUpdateLeadFields(_leadId, { unread_msg: false, last_msg_ts: Date.now() }).catch(() => {});
+      }
+
+      if (webinar) {
+        (async () => {
+          try {
+            const _wLead = await fsGetLeadByPhone(from);
+            if (_wLead && _wLead.correo && _wLead.pipeline_id !== 'en-webinar') {
+              const { moveLeadToWebinar } = require('./pipeline');
+              const _wNombre = (_wLead.nombre && !_wLead.nombre.startsWith('WA ') && !_wLead.nombre.startsWith('+'))
+                ? _wLead.nombre : 'Candidato';
+              await moveLeadToWebinar(_wLead.id, _wNombre, _wLead.correo, WEBINAR_URL);
+              console.log(`[WEBINAR] Lead ${_wLead.id} movido a en-webinar por token de Ana`);
+            } else if (_wLead && !_wLead.correo) {
+              // correo not yet saved — flag intent so pipeline saves it when correo arrives
+              await fsUpdateLeadFields(_wLead.id, { webinar_intent: true });
+              console.log(`[WEBINAR] Token detectado pero sin correo — webinar_intent guardado para ${_wLead.id}`);
+            }
+          } catch (e) { console.error('[WEBINAR token] Error:', e.message); }
+        })();
       }
 
       if (agendar) {
@@ -1161,6 +1199,8 @@ function registerMetaRoutes(app) {
   app.post('/meta/webhook/leadgen', async (req, res) => {
     res.sendStatus(200); // respond immediately to Meta
 
+    console.log('[LeadGen] Webhook recibido — body:', JSON.stringify(req.body).slice(0, 400));
+
     if (!verifySignature(req, META_APP_SECRET_IG)) {
       console.warn('[LeadGen] Firma inválida — evento rechazado');
       return;
@@ -1174,47 +1214,13 @@ function registerMetaRoutes(app) {
           const { leadgen_id, form_id, ad_id, ad_name, page_id } = change.value || {};
           if (!leadgen_id) continue;
 
-          console.log(`[LeadGen] Nuevo lead: ${leadgen_id} form:${form_id} ad:"${ad_name}"`);
-
-          // Fetch lead details from Graph API
-          const token = META_PAGE_ACCESS_TOKEN;
-          if (!token) { console.warn('[LeadGen] PAGE_ACCESS_TOKEN no configurado'); continue; }
-
-          const r    = await fetch(`${GRAPH_URL}/${leadgen_id}?fields=field_data,created_time&access_token=${token}`);
-          const data = await r.json();
-          if (data.error) { console.error('[LeadGen] Error API:', JSON.stringify(data.error)); continue; }
-
-          // Map field_data array to key→value
-          const fields = {};
-          for (const f of (data.field_data || [])) {
-            fields[f.name] = (f.values || [])[0] || '';
-          }
-
-          // Normalize to our lead schema
-          const nombre   = fields['full_name']    || fields['name']         || '';
-          const correo   = fields['email']         || fields['correo']       || '';
-          const telefono = fields['phone_number']  || fields['telefono']     || fields['phone'] || '';
-          const ubicacion= fields['city']          || fields['ubicacion']    || fields['state'] || '';
+          // Detect source: Instagram if ad_name contains 'Insta' or 'IG'
+          const isInstagram = /insta|_ig_/i.test(ad_name || '');
+          const fuente = isInstagram ? 'Instagram' : 'Meta / Facebook';
+          console.log(`[LeadGen] Nuevo lead: ${leadgen_id} form:${form_id} ad:"${ad_name}" fuente:${fuente}`);
 
           const now = new Date().toISOString();
           const uid = `meta_leadgen_${leadgen_id}`;
-
-          const lead = {
-            id:          uid,
-            nombre:      nombre   || `Lead Meta ${leadgen_id.slice(-6)}`,
-            correo:      correo,
-            telefono:    telefono,
-            ubicacion:   ubicacion,
-            fuente:      'Meta / Facebook',
-            pipeline_id: 'postulados-meta',
-            etapa:       'New Lead',
-            estado:      'abierto',
-            ad_nombre:   ad_name  || '',
-            ad_clid:     ad_id    || '',
-            meta_form_id: form_id || '',
-            created_at:  now,
-            updated_at:  now,
-          };
 
           // Dedup: skip if Make.com already created a lead for this leadgen_id
           const _makeId = `meta_make_${leadgen_id}`;
@@ -1223,22 +1229,68 @@ function registerMetaRoutes(app) {
             console.log(`[LeadGen] Omitido — Make.com ya creó ${_makeId}`);
             continue;
           }
-          // Dedup by phone if available
+
+          // Fetch lead details from Graph API
+          let nombre = '', correo = '', telefono = '', ubicacion = '';
+          const token = META_PAGE_ACCESS_TOKEN;
+          if (!token) {
+            console.warn('[LeadGen] PAGE_ACCESS_TOKEN no configurado — guardando lead parcial');
+          } else {
+            const r    = await fetch(`${GRAPH_URL}/${leadgen_id}?fields=field_data,created_time&access_token=${token}`);
+            const data = await r.json();
+            if (data.error) {
+              console.error('[LeadGen] Error Graph API:', JSON.stringify(data.error), '— guardando lead parcial');
+            } else {
+              const flds = {};
+              for (const f of (data.field_data || [])) flds[f.name] = (f.values || [])[0] || '';
+              nombre    = flds['full_name']   || flds['name']     || '';
+              correo    = flds['email']        || flds['correo']   || '';
+              telefono  = flds['phone_number'] || flds['telefono'] || flds['phone'] || '';
+              ubicacion = flds['city']         || flds['ubicacion']|| flds['state'] || '';
+            }
+          }
+
+          const lead = {
+            id:           uid,
+            nombre:       nombre || `Lead ${fuente} ${leadgen_id.slice(-6)}`,
+            correo:       correo,
+            telefono:     telefono,
+            ubicacion:    ubicacion,
+            fuente:       fuente,
+            pipeline_id:  'postulados-meta',
+            etapa:        'New Lead',
+            estado:       'abierto',
+            ad_nombre:    ad_name  || '',
+            ad_clid:      ad_id    || '',
+            meta_form_id: form_id  || '',
+            created_at:   now,
+            updated_at:   now,
+          };
+
+          // Dedup by phone: update existing lead instead of skipping
           if (telefono) {
             const _phoneExists = await db.sbGetLeadByPhone(telefono).catch(() => null);
             if (_phoneExists) {
-              console.log(`[LeadGen] Omitido — teléfono ya existe: ${telefono}`);
+              console.log(`[LeadGen] Teléfono ya existe (${telefono}) — actualizando lead ${_phoneExists.id}`);
+              await db.sbUpdateLead(_phoneExists.id, {
+                correo:       correo   || _phoneExists.correo,
+                ubicacion:    ubicacion || _phoneExists.ubicacion,
+                fuente:       fuente,
+                ad_nombre:    ad_name  || _phoneExists.ad_nombre,
+                meta_form_id: form_id  || _phoneExists.meta_form_id,
+              }).catch(e => console.warn('[LeadGen] No se pudo actualizar lead existente:', e.message));
+              _logWebhookEvent('leadgen', telefono || correo, `UPDATE ${nombre} — ${ad_name || 'sin anuncio'}`, JSON.stringify(change.value)).catch(() => {});
               continue;
             }
           }
 
           await db.sbSaveLead(lead);
-          console.log(`[LeadGen] Lead guardado: ${nombre} (${correo}) (${telefono})`);
+          console.log(`[LeadGen] Lead guardado: ${nombre} (${correo}) (${telefono}) [${fuente}]`);
           _logWebhookEvent('leadgen', telefono || correo, `${nombre} — ${ad_name || 'sin anuncio'}`, JSON.stringify(change.value)).catch(() => {});
         }
       }
     } catch (e) {
-      console.error('[LeadGen] Error procesando webhook:', e.message);
+      console.error('[LeadGen] Error procesando webhook:', e.message, e.stack);
     }
   });
 
@@ -1318,13 +1370,9 @@ function registerMetaRoutes(app) {
       // Fire Conversions API Lead event
       fireCapiLead({ email: correo, telefono, nombre, eventId: uid }).catch(() => {});
 
-      // Welcome WhatsApp if office hours
+      // Welcome WhatsApp — use same hours config as Ana
       if (telefono) {
-        const ct      = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' }));
-        const day     = ct.getDay();
-        const timeVal = ct.getHours() * 60 + ct.getMinutes();
-        const inOffice = (day >= 1 && day <= 5 && timeVal >= 540 && timeVal < 1080)
-                      || (day === 6 && timeVal >= 540 && timeVal < 720);
+        const inOffice  = await isWABusinessHours();
         const firstName = nombre.split(' ')[0] || nombre;
         const msg = inOffice
           ? `Hola ${firstName}, hemos recibido tu solicitud para Grupo Elite. Es un placer tenerte con nosotros, en breve te estaremos llamando para darte más información.`

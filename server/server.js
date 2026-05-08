@@ -18,9 +18,6 @@ const { registerIvrRoutes } = require('./ivr');
 const WEBINAR_URL  = process.env.WEBINAR_URL || 'https://crm.grupoelitework.com/webinar.html';
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 
-// Track phones that already received webinar invite (resets on restart)
-const webinarInviteSent = new Set();
-
 const app  = express();
 const PORT = process.env.PORT || 3000;
 
@@ -481,7 +478,7 @@ app.post('/auth/login', async (req, res) => {
                         expires: Date.now() + 30 * 60 * 1000 }; // 30 min to verify
     // Auto-verify all users — WA is informational only
     session.verified = true;
-    session.expires  = Date.now() + 24 * 60 * 60 * 1000;
+    session.expires  = Date.now() + 7 * 24 * 60 * 60 * 1000;
     await fsSetSession(sessionId, session);
 
     // Send WA notification (non-blocking, informational)
@@ -489,7 +486,7 @@ app.post('/auth/login', async (req, res) => {
       try {
         const { sendWhatsApp: _authWA } = require('./meta');
         const phone = user.telefono.replace(/[^\d]/g, ''); // strip +, spaces, dashes
-        _authWA(phone, `🔐 *Grupo Elite Work*\n\nHola ${user.nombre.split(' ')[0]}, iniciaste sesión con tu cuenta (${user.correo}).`)
+        _authWA(phone, `🔐 *Grupo Elite Work*\n\nHola ${user.nombre.split(' ')[0]}, iniciaste sesión con tu cuenta (${user.correo}).`, { noLog: true })
           .catch(e => console.error('[Auth] WA error:', e.message));
       } catch(e) {}
     }
@@ -1123,6 +1120,7 @@ const LEAD_COLS = new Set([
   'tiene_experiencia','tiene_papeles','mayor_edad','vio_webinar','disponibilidad',
   'contacto','link_webinar','webinar_pausas','webinar_completado','webinar_ultima_sesion',
   'webinar_ultimo_evento','quiere_entrevista_fecha','created_at','updated_at','invisible',
+  'genero','solicita_entrevista','last_msg_ts',
 ]);
 const LEAD_TS_COLS = new Set([
   'webinar_email_enviado','fecha_inscripcion_webinar','quiere_entrevista_fecha',
@@ -1205,6 +1203,47 @@ app.delete('/leads/:id', requireSession(), async (req, res) => {
     res.json({ ok: true, deleted });
   } catch (e) {
     console.error('[Data Deletion] Error:', e.message);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// ── Force Ana to re-read conversation and update lead fields ─────────────────
+app.post('/leads/:id/extract', requireSession(), async (req, res) => {
+  const leadId = req.params.id;
+  try {
+    const lead = await db.sbGetLead(leadId);
+    if (!lead) return res.status(404).json({ ok: false, error: 'Lead no encontrado' });
+
+    const phone = (lead.telefono || '').replace(/^\+/, '').replace(/\D/g, '');
+    if (!phone) return res.status(400).json({ ok: false, error: 'Lead sin teléfono' });
+
+    // Rebuild conversation history from Supabase wa_messages
+    const stored  = await db.sbGetWAMessages(phone, 100);
+    const merged  = [];
+    for (const m of stored) {
+      const role = m.direction === 'out' ? 'assistant' : 'user';
+      if (merged.length && merged[merged.length - 1].role === role) {
+        merged[merged.length - 1].content += '\n' + m.text;
+      } else {
+        merged.push({ role, content: m.text, ts: m.ts });
+      }
+    }
+
+    if (merged.length < 2) return res.json({ ok: false, error: 'Sin historial suficiente' });
+
+    const { extractAndUpdateLead } = require('./pipeline');
+    const convKey = `wa_meta:${phone}`;
+
+    // Inject into in-memory history so extractAndUpdateLead can use it
+    const { conversationHistory } = require('./ai');
+    conversationHistory.set(convKey, merged);
+
+    await extractAndUpdateLead(convKey, merged, null);
+
+    const updated = await db.sbGetLead(leadId);
+    res.json({ ok: true, lead: updated });
+  } catch (e) {
+    console.error('[Extract] Error:', e.message);
     res.status(500).json({ ok: false, error: e.message });
   }
 });
@@ -1457,6 +1496,50 @@ app.post('/registrar-webinar', async (req, res) => {
     res.status(500).json({ ok: false, error: err.message });
   } finally {
     if (browser) await browser.close().catch(() => {});
+  }
+});
+
+// ── Merge duplicate leads (same phone) ───────────────────────────────────────
+app.post('/admin/merge-duplicates', requireSession('developer'), async (req, res) => {
+  try {
+    const allLeads = await db.sbGetLeads();
+    const byPhone  = {};
+    for (const l of allLeads) {
+      if (!l.telefono) continue;
+      const key = l.telefono.replace(/\D/g,'').slice(-10);
+      if (!key || key.length < 7) continue;
+      if (!byPhone[key]) byPhone[key] = [];
+      byPhone[key].push(l);
+    }
+    const dupes = Object.values(byPhone).filter(g => g.length > 1);
+    if (req.query.dryRun === '1') {
+      return res.json({ ok: true, duplicateGroups: dupes.length, preview: dupes.map(g => g.map(l => ({ id: l.id, nombre: l.nombre, pipeline_id: l.pipeline_id, created_at: l.created_at }))) });
+    }
+    let merged = 0;
+    for (const group of dupes) {
+      // Keep the most complete lead (prefer meta_make > lead-wa, or the one with more fields)
+      group.sort((a, b) => {
+        const scoreA = (a.correo?1:0) + (a.ubicacion?1:0) + (a.ad_nombre?1:0) + (a.id.startsWith('meta_make')?2:0);
+        const scoreB = (b.correo?1:0) + (b.ubicacion?1:0) + (b.ad_nombre?1:0) + (b.id.startsWith('meta_make')?2:0);
+        return scoreB - scoreA;
+      });
+      const [keep, ...rest] = group;
+      // Merge missing fields from duplicates into keep
+      const updates = {};
+      for (const dup of rest) {
+        if (!keep.correo    && dup.correo)    updates.correo    = dup.correo;
+        if (!keep.ubicacion && dup.ubicacion) updates.ubicacion = dup.ubicacion;
+        if (!keep.ad_nombre && dup.ad_nombre) updates.ad_nombre = dup.ad_nombre;
+        if (!keep.fuente    && dup.fuente)    updates.fuente    = dup.fuente;
+        // Delete duplicates
+        await db.sbDeleteLead(dup.id).catch(e => console.warn('[Merge] delete err:', e.message));
+      }
+      if (Object.keys(updates).length) await db.sbUpdateLead(keep.id, updates).catch(() => {});
+      merged++;
+    }
+    res.json({ ok: true, mergedGroups: merged });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
   }
 });
 

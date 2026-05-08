@@ -608,6 +608,14 @@ function doLogout() {
   document.getElementById('li-pass').value = '';
 }
 
+let _sessionExpiredShown = false;
+function _handleSessionExpired() {
+  if (_sessionExpiredShown) return;
+  _sessionExpiredShown = true;
+  showToast('⚠️ Sesión expirada — vuelve a iniciar sesión');
+  setTimeout(() => { _sessionExpiredShown = false; doLogout(); }, 2500);
+}
+
 // ════════════════════════════════════════════
 //  SIDEBAR
 // ════════════════════════════════════════════

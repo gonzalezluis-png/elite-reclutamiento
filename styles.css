@@ -259,6 +259,11 @@ tr.lead-resuelto td:last-child { pointer-events:auto;opacity:1; }
 .mlh-sel:hover { background:rgba(255,255,255,.12); }
 .mlh-close { background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);color:rgba(255,255,255,.5);font-size:16px;cursor:pointer;padding:0;border-radius:8px;line-height:1;width:30px;height:30px;display:flex;align-items:center;justify-content:center;transition:all .12s; }
 .mlh-close:hover { background:rgba(226,68,92,.2);border-color:rgba(226,68,92,.3);color:#e2445c; }
+.mlh-nav { display:flex;align-items:center;gap:4px;margin-right:6px; }
+.mlh-nav-btn { background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);color:rgba(255,255,255,.6);font-size:20px;line-height:1;cursor:pointer;border-radius:8px;width:28px;height:28px;display:flex;align-items:center;justify-content:center;transition:all .12s;padding:0; }
+.mlh-nav-btn:hover:not(:disabled) { background:rgba(99,102,241,.2);border-color:rgba(99,102,241,.4);color:#a5b4fc; }
+.mlh-nav-btn:disabled { opacity:.25;cursor:default; }
+.mlh-nav-pos { font-size:10px;color:rgba(255,255,255,.3);font-family:monospace;min-width:36px;text-align:center;letter-spacing:.3px; }
 
 /* ── 3-column body ── */
 .ml-body { display:flex;flex:1;overflow:hidden; }
@@ -290,6 +295,9 @@ tr.lead-resuelto td:last-child { pointer-events:auto;opacity:1; }
 /* ── Left section labels ── */
 .ml-section-label { font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:rgba(255,255,255,.3);margin:14px 0 8px;display:flex;align-items:center;gap:8px; }
 .ml-section-label::after { content:'';flex:1;height:1px;background:rgba(255,255,255,.06); }
+.ml-extract-btn { flex-shrink:0;background:rgba(99,102,241,.15);border:1px solid rgba(99,102,241,.3);color:#a5b4fc;font-size:10px;font-weight:600;padding:2px 8px;border-radius:6px;cursor:pointer;transition:all .12s;white-space:nowrap;letter-spacing:0;text-transform:none; }
+.ml-extract-btn:hover:not(:disabled) { background:rgba(99,102,241,.3);border-color:rgba(99,102,241,.5);color:#c7d2fe; }
+.ml-extract-btn:disabled { opacity:.5;cursor:default; }
 
 /* ── Info fields (compact) ── */
 .info-compact .field { margin-bottom:9px; }

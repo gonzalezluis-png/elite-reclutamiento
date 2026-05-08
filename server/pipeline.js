@@ -4,9 +4,6 @@ const Anthropic  = require('@anthropic-ai/sdk');
 const { pixelWebinar } = require('./pixel');
 const db = require('./db');
 
-// Phones that already received a webinar invite this session
-const webinarInviteSent = new Set();
-
 // ── Human-like typing delay ───────────────────────────────────────────────────
 function humanDelay(text) {
   const len    = (text || '').length;
@@ -50,6 +47,13 @@ async function fsGetLeadByPhone(phone) {
   const lead = await db.sbGetLeadByPhone(phone);
   if (lead) _cachePhone(phone, lead.id);
   return lead;
+}
+
+async function fsGetLeadByEmail(email) {
+  if (!email) return null;
+  const clean = email.trim().toLowerCase();
+  const rows  = await db.sbGet('leads', 'limit=500&order=created_at.desc');
+  return rows.find(l => (l.correo || '').trim().toLowerCase() === clean) || null;
 }
 
 async function fsLeadExists(phone) {
@@ -178,10 +182,18 @@ Si no hay información clara para un campo, pon null. SOLO JSON, nada más.`,
                                                          updates.mayor_edad      = extracted.mayor_edad;
     if (extracted.vio_webinar === true && lead.vio_webinar !== true) {
                                                          updates.vio_webinar = true;
+      // Advance etapa once candidate confirms they watched the webinar
+      if (lead.pipeline_id === 'en-webinar') updates.etapa = 'AS - Asistente';
     }
     if (extracted.quiere_entrevista === true && !lead.solicita_entrevista) {
                                                          updates.solicita_entrevista = true;
                                                          updates.ia_paused           = true;
+    }
+    // Disqualify leads who can't work legally or aren't of age
+    const _disqualified = extracted.tiene_papeles === false || extracted.mayor_edad === false;
+    if (_disqualified && lead.pipeline_id !== 'no-interesados' && lead.pipeline_id !== 'entrevistas-generales') {
+      updates.etapa       = 'No Califica';
+      updates.pipeline_id = 'no-interesados';
     }
 
     if (Object.keys(updates).length) {
@@ -206,24 +218,8 @@ Si no hay información clara para un campo, pon null. SOLO JSON, nada más.`,
       console.log(`[AI-Extract] Entrevista solicitada — Ana pausada: ${lead.id}`);
     }
 
-    const correoFinal     = updates.correo || lead.correo || '';
-    const nombreFinal     = updates.nombre || lead.nombre || '';
-    const pipelineId      = lead.pipeline_id || '';
-    const intentExistente = lead.webinar_intent || false;
-    const intentNuevo     = extracted.webinar_intent === true;
-    const hayIntent       = intentExistente || intentNuevo;
-    const nombreValido    = nombreFinal && !nombreFinal.startsWith('WA ') && !nombreFinal.startsWith('+');
-    const displayName     = nombreValido ? nombreFinal : 'Candidato';
-
-    if (hayIntent && correoFinal && pipelineId !== 'en-webinar') {
-      console.log(`[AI-Extract] Intención + correo — registrando en webinar: ${lead.id}`);
-      await fsUpdateLeadFields(lead.id, { webinar_intent: false });
-      const WEBINAR_URL = process.env.WEBINAR_URL || 'https://crm.grupoelitework.com/webinar.html';
-      await moveLeadToWebinar(lead.id, displayName, correoFinal, WEBINAR_URL);
-    } else if (intentNuevo && !correoFinal && !intentExistente) {
-      await fsUpdateLeadFields(lead.id, { webinar_intent: true });
-      console.log(`[AI-Extract] Intención webinar guardada para ${lead.id} — esperando correo`);
-    }
+    // Webinar move is handled exclusively by the [WEBINAR] token in meta.js.
+    // extractAndUpdateLead only updates fields — it never moves leads.
     return null;
   } catch (e) {
     console.error('[AI-Extract] Error:', e.message);
@@ -231,20 +227,8 @@ Si no hay información clara para un campo, pon null. SOLO JSON, nada más.`,
   return null;
 }
 
-// ── AI: detect webinar intent ─────────────────────────────────────────────────
-async function detectWebinarIntent(history) {
-  try {
-    const client   = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-    const messages = history.slice(-10).map(({ role, content }) => ({ role, content }));
-    const r = await client.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 10,
-      system: 'Analiza la conversación. Responde SOLO "SI" si el candidato aceptó o mostró interés claro en asistir al webinar/información virtual. Responde SOLO "NO" en cualquier otro caso.',
-      messages,
-    });
-    return r.content[0].text.trim().toUpperCase() === 'SI';
-  } catch { return false; }
-}
+// detectWebinarIntent removed — webinar trigger is now handled exclusively
+// by the [WEBINAR] token that Ana includes in her Paso 6 reply.
 
 // ── Email: send webinar invitation ────────────────────────────────────────────
 async function sendWebinarEmail(correo, nombre, webinarUrl) {
@@ -290,6 +274,13 @@ async function sendWebinarEmail(correo, nombre, webinarUrl) {
 // ── Move lead to webinar ──────────────────────────────────────────────────────
 async function moveLeadToWebinar(leadId, nombre, correo, baseWebinarUrl) {
   try {
+    // Guard: never send twice (survives server restarts — checked against DB)
+    const _existing = await db.sbGetLead(leadId);
+    if (_existing?.fecha_inscripcion_webinar) {
+      console.log(`[Webinar] Lead ${leadId} ya inscrito — omitiendo doble envío`);
+      return _existing.link_webinar || baseWebinarUrl;
+    }
+
     const now         = new Date().toISOString();
     const personalUrl = `${baseWebinarUrl}?id=${leadId}&nombre=${encodeURIComponent(nombre)}&correo=${encodeURIComponent(correo)}`;
 
@@ -319,40 +310,14 @@ async function moveLeadToWebinar(leadId, nombre, correo, baseWebinarUrl) {
   }
 }
 
-// ── Full background WA pipeline ───────────────────────────────────────────────
+// ── Background extraction pipeline ───────────────────────────────────────────
+// Sole responsibility: extract fields from conversation and update the lead.
+// Webinar move is handled by [WEBINAR] token in meta.js.
+// Interview scheduling is handled by [AGENDAR] token in meta.js.
 async function runWAPipeline(from, historyMap, sendFn, opts) {
-  const { WEBINAR_URL } = opts;
   const history = historyMap.get(from) || [];
-
   try {
     await extractAndUpdateLead(from, history, sendFn);
-
-    const phone = rawPhone(from);
-    const lead  = await fsGetLeadByPhone(phone);
-    if (!lead) return;
-
-    if (lead.pipeline_id === 'en-webinar' || webinarInviteSent.has(from)) return;
-
-    const webinarIntent = lead.webinar_intent || false;
-    const wantsWebinar  = webinarIntent || await detectWebinarIntent(history);
-
-    if (wantsWebinar) {
-      const nombreValido = lead.nombre && !lead.nombre.startsWith('WA ') && !lead.nombre.startsWith('+');
-      if (!lead.correo || !nombreValido) {
-        if (!webinarIntent) {
-          await fsUpdateLeadFields(lead.id, { webinar_intent: true });
-          console.log(`[Pipeline] Intención webinar guardada para ${from} — esperando correo`);
-        }
-        return;
-      }
-      webinarInviteSent.add(from);
-      await fsUpdateLeadFields(lead.id, { webinar_intent: false });
-      await moveLeadToWebinar(lead.id, lead.nombre, lead.correo, WEBINAR_URL);
-      const firstName = lead.nombre.split(' ')[0] || '';
-      const waMsg = `📧 ${firstName ? '¡'+firstName+'! ' : ''}Te acabo de enviar el enlace del webinar a tu correo *${lead.correo}*. Revísalo (también la carpeta de spam). 😊`;
-      await humanDelay(waMsg);
-      await sendFn(rawPhone(from), waMsg).catch(() => {});
-    }
   } catch (e) {
     console.error('[Pipeline] Error:', e.message);
   }
@@ -364,12 +329,11 @@ module.exports = {
   rawPhone,
   fsUpdateLeadFields,
   fsGetLeadByPhone,
+  fsGetLeadByEmail,
   fsLeadExists,
   fsCreateLeadWA,
   fsAppendLeadMetaWa,
-  webinarInviteSent,
   extractAndUpdateLead,
-  detectWebinarIntent,
   sendWebinarEmail,
   moveLeadToWebinar,
   runWAPipeline,
