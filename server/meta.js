@@ -833,18 +833,12 @@ function registerMetaRoutes(app) {
             const dayName = new Intl.DateTimeFormat('es-MX', { timeZone: TEAM_TZ, weekday: 'long' }).format(d1);
 
             const fmtSlotTime = (isoStr) => {
-              const d    = new Date(isoStr);
-              const etH  = parseInt(new Intl.DateTimeFormat('en-US', { timeZone: TEAM_TZ, hour: 'numeric', hour12: false }).format(d));
-              const h12  = etH % 12 || 12;
-              const ampm = etH >= 12 ? 'PM' : 'AM';
-              let label  = `${h12}:00 ${ampm} ET`;
-              if (candidateTZ && candidateTZ !== TEAM_TZ) {
-                const locH  = parseInt(new Intl.DateTimeFormat('en-US', { timeZone: candidateTZ, hour: 'numeric', hour12: false }).format(d));
-                const lh12  = locH % 12 || 12;
-                const lampm = locH >= 12 ? 'PM' : 'AM';
-                label += ` (${lh12}:00 ${lampm} tu hora)`;
-              }
-              return label;
+              const d   = new Date(isoStr);
+              const tz  = candidateTZ || TEAM_TZ;
+              const locH  = parseInt(new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: 'numeric', hour12: false }).format(d));
+              const lh12  = locH % 12 || 12;
+              const lampm = locH >= 12 ? 'PM' : 'AM';
+              return `${lh12}:00 ${lampm}`;
             };
 
             const t1    = day1Slots.map(s => fmtSlotTime(s.iso));
