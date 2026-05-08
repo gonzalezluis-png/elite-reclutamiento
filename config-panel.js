@@ -158,6 +158,38 @@ function renderConfig() {
         </div>
       </div>
 
+      <!-- RESPALDO DE DATOS -->
+      <div class="cfg-section" style="border-color:rgba(16,185,129,.3);background:rgba(16,185,129,.03);">
+        <div class="cfg-section-title" style="color:#10b981;">💾 Respaldo de Datos</div>
+        <p style="font-size:13px;color:var(--text3);margin-bottom:18px;line-height:1.6;">
+          Descarga una copia completa de todos los leads, pipelines y conversaciones de WhatsApp. Guárdala en un lugar seguro — puedes usarla para restablecer todo en caso de pérdida.
+        </p>
+        <div style="display:flex;flex-direction:column;gap:14px;">
+          <!-- DESCARGAR -->
+          <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:14px 16px;background:var(--bg);border-radius:10px;border:1px solid var(--border);">
+            <div style="flex:1;min-width:200px;">
+              <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:3px;">📥 Descargar respaldo</div>
+              <div style="font-size:11.5px;color:var(--text3);">Exporta todos los leads y conversaciones en un archivo JSON.</div>
+            </div>
+            <button onclick="cfgDownloadBackup()" id="cfg-backup-btn" style="padding:8px 18px;background:rgba(16,185,129,.15);border:1px solid rgba(16,185,129,.4);border-radius:8px;color:#10b981;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;">
+              💾 Descargar ahora
+            </button>
+          </div>
+          <!-- RESTAURAR -->
+          <div style="padding:14px 16px;background:var(--bg);border-radius:10px;border:1px solid var(--border);">
+            <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:3px;">📤 Restaurar respaldo</div>
+            <div style="font-size:11.5px;color:var(--text3);margin-bottom:10px;">Sube un archivo de respaldo para restablecer los datos. <strong style="color:#f87171;">Cuidado: esto sobreescribe datos existentes.</strong></div>
+            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+              <input type="file" id="cfg-restore-file" accept=".json" style="font-size:12px;color:var(--text2);flex:1;min-width:0;" />
+              <button onclick="cfgRestoreBackup()" style="padding:8px 16px;background:rgba(248,113,113,.12);border:1px solid rgba(248,113,113,.35);border-radius:8px;color:#f87171;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;">
+                ⚠️ Restaurar
+              </button>
+            </div>
+            <div id="cfg-restore-status" style="margin-top:10px;font-size:12px;color:var(--text3);display:none;"></div>
+          </div>
+        </div>
+      </div>
+
       <!-- HERRAMIENTAS DEVELOPER -->
       <div class="cfg-section" style="border-color:rgba(99,102,241,.4);background:rgba(99,102,241,.04);">
         <div class="cfg-section-title" style="color:#818cf8;">🛠 Herramientas Developer</div>
@@ -756,3 +788,56 @@ async function cfgToggleAutomation(id, currentlyEnabled) {
   }
 }
 
+
+// ── Backup / Restore ──────────────────────────────────────────────────────────
+async function cfgDownloadBackup() {
+  const btn = document.getElementById('cfg-backup-btn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Preparando…';
+  try {
+    const res = await fetch(`${SERVER_URL}/admin/backup`, { headers: _leadHeaders() });
+    if (!res.ok) throw new Error(`Error ${res.status}`);
+    const blob = await res.blob();
+    const date = new Date().toISOString().slice(0, 10);
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `elite-backup-${date}.json`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+    showToast('✅ Respaldo descargado');
+  } catch (e) {
+    showToast('❌ Error al descargar: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '💾 Descargar ahora';
+  }
+}
+
+async function cfgRestoreBackup() {
+  const fileInput = document.getElementById('cfg-restore-file');
+  const statusEl  = document.getElementById('cfg-restore-status');
+  if (!fileInput.files.length) { showToast('Selecciona un archivo de respaldo primero'); return; }
+  if (!confirm('¿Restaurar este respaldo? Los datos existentes serán sobreescritos con los del archivo.')) return;
+  statusEl.style.display = 'block';
+  statusEl.textContent = '⏳ Leyendo archivo…';
+  try {
+    const text = await fileInput.files[0].text();
+    const data = JSON.parse(text);
+    if (!data.version || !data.leads) throw new Error('Archivo inválido o corrupto');
+    statusEl.textContent = `⏳ Restaurando ${data.leads.length} leads y ${(data.wa_messages||[]).length} mensajes…`;
+    const res = await fetch(`${SERVER_URL}/admin/restore`, {
+      method: 'POST',
+      headers: { ...Object.fromEntries(Object.entries(_leadHeaders())), 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    const d = await res.json();
+    if (!d.ok) throw new Error(d.error);
+    statusEl.style.color = '#10b981';
+    statusEl.textContent = `✅ Restaurado: ${d.restoredLeads} leads, ${d.restoredMsgs} mensajes.`;
+    showToast('✅ Respaldo restaurado correctamente');
+  } catch (e) {
+    statusEl.style.color = '#f87171';
+    statusEl.textContent = '❌ Error: ' + e.message;
+    showToast('❌ Error al restaurar');
+  }
+}

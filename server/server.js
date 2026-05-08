@@ -1542,6 +1542,48 @@ app.post('/registrar-webinar', async (req, res) => {
 });
 
 // ── Merge duplicate leads (same phone) ───────────────────────────────────────
+// ── Backup / Restore ─────────────────────────────────────────────────────────
+app.get('/admin/backup', requireSession('developer'), async (req, res) => {
+  try {
+    const leads    = await db.sbGetLeads();
+    const messages = await db.sbGetAllWAMessages();
+    const config   = await db.sbGetConfig('automation_config').catch(() => null);
+    const backup = {
+      version:   2,
+      exportedAt: new Date().toISOString(),
+      leads,
+      wa_messages: messages,
+      automation_config: config,
+    };
+    res.setHeader('Content-Disposition', `attachment; filename="elite-backup-${new Date().toISOString().slice(0,10)}.json"`);
+    res.setHeader('Content-Type', 'application/json');
+    res.json(backup);
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+app.post('/admin/restore', requireSession('developer'), async (req, res) => {
+  try {
+    const { leads = [], wa_messages = [], automation_config } = req.body;
+    let restoredLeads = 0, restoredMsgs = 0;
+    for (const lead of leads) {
+      await db.sbSaveLead(lead).catch(e => console.warn('[Restore] lead', lead.id, e.message));
+      restoredLeads++;
+    }
+    for (const msg of wa_messages) {
+      await db.sbLogWAMessage(msg).catch(e => console.warn('[Restore] msg', msg.id, e.message));
+      restoredMsgs++;
+    }
+    if (automation_config) {
+      await db.sbSetConfig('automation_config', automation_config).catch(() => {});
+    }
+    res.json({ ok: true, restoredLeads, restoredMsgs });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
 app.post('/admin/fix-contratado-etapa', requireSession('developer'), async (req, res) => {
   try {
     const all = await db.sbGetLeads();

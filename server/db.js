@@ -118,6 +118,10 @@ async function sbGetWAMessages(phone, limit = 200) {
   return sbGet('wa_messages', `phone=eq.${clean}&order=ts.asc&limit=${limit}`);
 }
 
+async function sbGetAllWAMessages() {
+  return sbGet('wa_messages', 'order=ts.asc&limit=20000');
+}
+
 async function sbGetAllWAContacts() {
   const rows = await sbGet('wa_messages', 'order=phone.asc&limit=5000');
   const byPhone = {};
@@ -285,7 +289,7 @@ module.exports = {
   // Leads
   sbGetLead, sbGetLeads, sbGetLeadByPhone, sbSaveLead, sbUpdateLead, sbDeleteLead, sbAppendMetaWa,
   // WA Messages
-  sbLogWAMessage, sbGetWAMessages, sbUpdateWAMessage, sbGetAllWAContacts, sbDeleteWAMessages,
+  sbLogWAMessage, sbGetWAMessages, sbGetAllWAMessages, sbUpdateWAMessage, sbGetAllWAContacts, sbDeleteWAMessages,
   // Sessions
   sbGetSession, sbSaveSession, sbDeleteSession,
   // Users
