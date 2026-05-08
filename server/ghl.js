@@ -66,16 +66,17 @@ async function ghlFindOrCreateContact(phone, name, email) {
 }
 
 // Create appointment in GHL calendar; returns appointmentId or null
-async function ghlBookAppointment({ contactId, slotIso, leadName, durationMins = 30 }) {
+async function ghlBookAppointment({ contactId, slotIso, leadName, durationMins = 30, selectedTimezone = 'America/New_York' }) {
   const start   = new Date(slotIso);
   const end     = new Date(start.getTime() + durationMins * 60_000);
   const body = {
-    calendarId: GHL_CALENDAR_ID,
-    locationId: GHL_LOCATION_ID,
+    calendarId:        GHL_CALENDAR_ID,
+    locationId:        GHL_LOCATION_ID,
     contactId,
-    startTime:  start.toISOString(),
-    endTime:    end.toISOString(),
-    title:      `Entrevista RR.HH. con ${leadName || 'Candidato'}`,
+    startTime:         start.toISOString(),   // UTC — Z suffix
+    endTime:           end.toISOString(),
+    selectedTimezone,                          // tells GHL what TZ the slot was offered in
+    title:             `Entrevista RR.HH. con ${leadName || 'Candidato'}`,
     appointmentStatus: 'confirmed',
   };
   const r = await ghlRequest('POST', '/calendars/events/appointments', body, '2021-04-15');

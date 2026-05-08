@@ -307,8 +307,9 @@ async function bookInterview({ leadPhone, leadName, slotIso, convKey }) {
     const { fsGetLeadByPhone: _ghlLead } = require('./pipeline');
     const _lead2 = await _ghlLead(leadPhone).catch(() => null);
     const _email = _lead2?.correo || null;
+    const _tz    = getCandidateTZ(_lead2?.ubicacion) || TEAM_TZ;
     const ghlContactId = await ghlFindOrCreateContact(leadPhone, leadName, _email);
-    const ghlAppointmentId = await ghlBookAppointment({ contactId: ghlContactId, slotIso, leadName });
+    const ghlAppointmentId = await ghlBookAppointment({ contactId: ghlContactId, slotIso, leadName, selectedTimezone: _tz });
     if (ghlAppointmentId) {
       doc.ghlAppointmentId = ghlAppointmentId;
       await db.sbSaveInterview(id, interviewToRow(doc));
