@@ -578,7 +578,7 @@ app.post('/auth/users', requireSession('developer'), async (req, res) => {
 
 // ── PUT /auth/users/:id ───────────────────────────────────────────────────────
 app.put('/auth/users/:id', requireSession('developer'), async (req, res) => {
-  const allowed = ['nombre','correo','telefono','password','role','active'];
+  const allowed = ['nombre','correo','telefono','password','role','active','timezone'];
   const fields  = Object.fromEntries(Object.entries(req.body).filter(([k]) => allowed.includes(k)));
   try { await dbUpdateUser(req.params.id, fields); res.json({ ok: true }); }
   catch (e) { res.status(500).json({ ok: false, error: e.message }); }

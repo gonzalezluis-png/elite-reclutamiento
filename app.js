@@ -333,16 +333,18 @@ async function loadUsersList() {
     if (!data.ok) { el.innerHTML = `<div style="color:var(--red);font-size:12px">${data.error}</div>`; return; }
     const RL  = { developer:'Desarrollador', agente:'Agente', entrevistador:'Entrevistador' };
     const dev = currentUser?.role === 'developer';
+    const TZ_LABELS = {'America/New_York':'Eastern (Miami/NY)','America/Chicago':'Central (Dallas)','America/Denver':'Mountain','America/Los_Angeles':'Pacific (LA)','America/Caracas':'Venezuela (Caracas)'};
     el.innerHTML = data.users.map(u => `
       <div style="display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--bg);border-radius:8px;margin-bottom:6px;border:1px solid var(--border)">
         <div style="width:32px;height:32px;border-radius:50%;background:rgba(167,139,250,.2);color:#a78bfa;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0">${(u.nombre||'?')[0]}</div>
         <div style="flex:1;min-width:0">
           <div style="font-size:12px;font-weight:600;color:#fff">${u.nombre}</div>
           <div style="font-size:11px;color:var(--text3)">${u.correo} · ${u.telefono}</div>
+          ${u.timezone ? `<div style="font-size:10px;color:#a78bfa;margin-top:1px;">🕐 ${TZ_LABELS[u.timezone]||u.timezone}</div>` : ''}
         </div>
         <span style="font-size:10px;font-weight:600;padding:2px 8px;border-radius:10px;background:rgba(167,139,250,.15);color:#a78bfa;white-space:nowrap">${RL[u.role]||u.role}</span>
         ${dev ? `
-        <button onclick="openEditUser('${u.id}','${u.nombre}','${u.correo}','${u.role}')" style="background:rgba(79,127,255,.1);border:1px solid rgba(79,127,255,.3);color:var(--accent);border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer;white-space:nowrap">✏️ Editar</button>
+        <button onclick="openEditUser('${u.id}','${u.nombre}','${u.correo}','${u.role}','${u.timezone||''}')" style="background:rgba(79,127,255,.1);border:1px solid rgba(79,127,255,.3);color:var(--accent);border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer;white-space:nowrap">✏️ Editar</button>
         <button onclick="impersonateUser('${u.id}','${u.nombre}')" style="background:rgba(0,200,117,.1);border:1px solid rgba(0,200,117,.3);color:#00c875;border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer;white-space:nowrap">👁 Entrar</button>
         <button onclick="deleteUser('${u.id}','${u.nombre}')" style="background:rgba(226,68,92,.1);border:1px solid rgba(226,68,92,.25);color:var(--red);border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer">✕</button>
         ` : ''}
@@ -351,8 +353,16 @@ async function loadUsersList() {
 }
 
 // ── Edit user (admin) ─────────────────────────────────────────────────────────
-function openEditUser(id, nombre, correo, role) {
+function openEditUser(id, nombre, correo, role, timezone = '') {
   const RL = { developer:'Desarrollador', agente:'Agente', entrevistador:'Entrevistador' };
+  const tzOpts = [
+    ['', '— Sin especificar —'],
+    ['America/New_York',    'Eastern Time (Miami, Nueva York, Florida)'],
+    ['America/Chicago',     'Central Time (Dallas, Texas)'],
+    ['America/Denver',      'Mountain Time (Denver, Colorado)'],
+    ['America/Los_Angeles', 'Pacific Time (Los Ángeles, California)'],
+    ['America/Caracas',     'Venezuela (Caracas)'],
+  ].map(([v,l]) => `<option value="${v}" ${timezone===v?'selected':''}>${l}</option>`).join('');
   const overlay = document.createElement('div');
   overlay.id = 'edit-user-overlay';
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:10000;';
@@ -371,6 +381,8 @@ function openEditUser(id, nombre, correo, role) {
             <option value="agente" ${role==='agente'?'selected':''}>Agente</option>
             <option value="entrevistador" ${role==='entrevistador'?'selected':''}>Entrevistador</option>
           </select></div>
+        <div><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px;">Zona horaria</label>
+          <select id="eu-timezone" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:9px 12px;color:var(--text);font-size:13px;outline:none;box-sizing:border-box;">${tzOpts}</select></div>
         <div id="eu-error" style="font-size:12px;color:var(--red);display:none;"></div>
         <div style="display:flex;gap:8px;margin-top:4px;">
           <button onclick="saveEditUser('${id}')" style="flex:1;padding:10px;background:var(--accent);border:none;border-radius:8px;color:#fff;font-size:13px;font-weight:600;cursor:pointer;">Guardar</button>
@@ -389,7 +401,8 @@ async function saveEditUser(id) {
   const errEl  = document.getElementById('eu-error');
   errEl.style.display = 'none';
   if (!correo) { errEl.textContent = 'El correo es requerido.'; errEl.style.display = 'block'; return; }
-  const fields = { correo, role };
+  const timezone = document.getElementById('eu-timezone')?.value || '';
+  const fields = { correo, role, ...(timezone ? { timezone } : {}) };
   if (pass) fields.password = pass;
   try {
     const r = await fetch(`${SERVER_URL}/auth/users/${id}`, {

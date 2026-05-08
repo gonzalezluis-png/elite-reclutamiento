@@ -675,15 +675,48 @@ async function ivCancelBooking() {
 // ════════════════════════════════════════════
 let _acLead = null;
 
+function _detectCandidateTZ(ubicacion) {
+  if (!ubicacion) return null;
+  const u = ubicacion.toLowerCase();
+  if (u.includes('california') || u.includes(' ca') || u.includes('los angeles') || u.includes('san francisco')) return 'America/Los_Angeles';
+  if (u.includes('washington') || u.includes('oregon') || u.includes('nevada')) return 'America/Los_Angeles';
+  if (u.includes('texas') || u.includes(' tx') || u.includes('dallas') || u.includes('houston') || u.includes('austin')) return 'America/Chicago';
+  if (u.includes('illinois') || u.includes('chicago') || u.includes('minnesota') || u.includes('wisconsin')) return 'America/Chicago';
+  if (u.includes('colorado') || u.includes('denver') || u.includes('utah') || u.includes('arizona') || u.includes('new mexico')) return 'America/Denver';
+  if (u.includes('florida') || u.includes('miami') || u.includes('new york') || u.includes('nueva york') || u.includes('georgia') || u.includes('virginia') || u.includes('carolina')) return 'America/New_York';
+  if (u.includes('venezuela') || u.includes('caracas')) return 'America/Caracas';
+  return null;
+}
+
+function _fmtSlotInTZ(iso, tz) {
+  const d = new Date(iso);
+  return d.toLocaleString('es-MX', { timeZone: tz || 'America/New_York', weekday:'long', day:'numeric', month:'long', hour:'2-digit', minute:'2-digit', hour12:true });
+}
+
 async function openAgendarCitaModal(leadId) {
   document.querySelectorAll('.lt-accion-menu.open').forEach(m => m.classList.remove('open'));
   _acLead = leads.find(l => l.id === leadId);
   if (!_acLead) return;
 
+  const candidateTZ   = _detectCandidateTZ(_acLead.ubicacion);
+  const tzWarnEl      = document.getElementById('agendar-cita-tz-warn');
+  const tzNames       = { 'America/New_York':'Eastern (Miami/FL)', 'America/Chicago':'Central (Dallas/TX)', 'America/Denver':'Mountain', 'America/Los_Angeles':'Pacific (California)', 'America/Caracas':'Venezuela' };
+
   document.getElementById('agendar-cita-nombre').textContent = _acLead.nombre || _acLead.telefono || '';
   document.getElementById('agendar-cita-status').textContent = 'Cargando horarios disponibles...';
   document.getElementById('agendar-cita-slots').innerHTML = '';
   document.getElementById('agendar-cita-modal').classList.remove('hidden');
+
+  if (candidateTZ) {
+    const tzLabel = tzNames[candidateTZ] || candidateTZ;
+    const exampleD = new Date(); exampleD.setHours(13, 0, 0, 0);
+    const exHour = new Intl.DateTimeFormat('es-MX', { timeZone: candidateTZ, hour:'numeric', minute:'2-digit', hour12:true }).format(exampleD);
+    tzWarnEl.innerHTML = `⏰ <strong>Horarios en zona horaria del candidato</strong> (${tzLabel})<br>El candidato está en <strong>${_acLead.ubicacion}</strong>. Los horarios abajo están en su hora local.<br><span style="opacity:.75">Ej: si ves 1:00 PM → el candidato recibe la cita a la 1:00 PM su hora</span>`;
+    tzWarnEl.style.display = 'block';
+  } else {
+    tzWarnEl.innerHTML = `⏰ <strong>Zona horaria del candidato desconocida</strong> — los horarios se muestran en Eastern Time (ET). Confirma la hora con el candidato.`;
+    tzWarnEl.style.display = 'block';
+  }
 
   try {
     const res   = await fetch(`${SERVER_URL}/interviews/slots`);
@@ -694,9 +727,10 @@ async function openAgendarCitaModal(leadId) {
       return;
     }
     document.getElementById('agendar-cita-status').textContent = 'Selecciona un horario:';
+    const displayTZ = candidateTZ || 'America/New_York';
     document.getElementById('agendar-cita-slots').innerHTML = slots.map(s => {
       const iso = s.iso || s;
-      const lbl = s.label || new Date(iso).toLocaleString('es-MX', { weekday:'long', month:'long', day:'numeric', hour:'2-digit', minute:'2-digit' });
+      const lbl = _fmtSlotInTZ(iso, displayTZ);
       return `<button onclick="_acBookSlot('${iso}')" style="text-align:left;background:rgba(99,102,241,.12);border:1px solid rgba(99,102,241,.3);color:var(--text);border-radius:8px;padding:9px 14px;cursor:pointer;font-size:12.5px;font-family:var(--font);transition:background .15s;" onmouseover="this.style.background='rgba(99,102,241,.25)'" onmouseout="this.style.background='rgba(99,102,241,.12)'">📅 ${lbl}</button>`;
     }).join('');
   } catch(e) {
