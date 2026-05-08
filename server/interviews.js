@@ -1,5 +1,6 @@
 const db = require('./db');
 const { sendTemplateOrFallback } = require('./templates');
+const { ghlFindOrCreateContact, ghlBookAppointment } = require('./ghl');
 
 // ── Office hours check (America/Chicago — Central Time) ───────────────────────
 function isOfficeHours() {
@@ -290,6 +291,21 @@ async function bookInterview({ leadPhone, leadName, slotIso, convKey }) {
   };
   await db.sbSaveInterview(id, interviewToRow(doc));
 
+  // Sync to GHL calendar
+  try {
+    const { fsGetLeadByPhone: _ghlLead } = require('./pipeline');
+    const _lead2 = await _ghlLead(leadPhone).catch(() => null);
+    const _email = _lead2?.correo || null;
+    const ghlContactId = await ghlFindOrCreateContact(leadPhone, leadName, _email);
+    const ghlAppointmentId = await ghlBookAppointment({ contactId: ghlContactId, slotIso, leadName });
+    if (ghlAppointmentId) {
+      doc.ghlAppointmentId = ghlAppointmentId;
+      await db.sbSaveInterview(id, interviewToRow(doc));
+    }
+  } catch (e) {
+    console.error('[GHL] bookInterview sync error:', e.message);
+  }
+
   // Move lead to entrevistas-generales pipeline
   const { fsGetLeadByPhone, fsUpdateLeadFields } = require('./pipeline');
   const _lead = await fsGetLeadByPhone(leadPhone).catch(() => null);
@@ -298,11 +314,12 @@ async function bookInterview({ leadPhone, leadName, slotIso, convKey }) {
     const _hist = Array.isArray(_lead.historial) ? [..._lead.historial] : [];
     _hist.push({ icono: '🤝', accion: 'Entrevista agendada — movido a Entrevistas Generales', fecha: _now, usuario: 'Ana (IA)' });
     await fsUpdateLeadFields(_lead.id, {
-      pipeline_id:      'entrevistas-generales',
-      etapa:            'EN ENTREVISTA',
-      interview_slot:   slotIso,
-      inscrito_webinar: false,
-      historial:        _hist,
+      pipeline_id:        'entrevistas-generales',
+      etapa:              'EN ENTREVISTA',
+      interview_slot:     slotIso,
+      inscrito_webinar:   false,
+      historial:          _hist,
+      ...(doc.ghlAppointmentId ? { ghl_appointment_id: doc.ghlAppointmentId } : {}),
     }).catch(() => {});
   }
 
