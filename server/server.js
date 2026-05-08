@@ -1542,6 +1542,19 @@ app.post('/registrar-webinar', async (req, res) => {
 });
 
 // ── Merge duplicate leads (same phone) ───────────────────────────────────────
+app.post('/admin/fix-contratado-etapa', requireSession('developer'), async (req, res) => {
+  try {
+    const all = await db.sbGetLeads();
+    const broken = all.filter(l => l.etapa === 'CONTRATADO' && l.pipeline_id === 'entrevistas-generales');
+    for (const l of broken) {
+      await db.sbUpdateLead(l.id, { etapa: 'Contratados Personales' });
+    }
+    res.json({ ok: true, fixed: broken.length, ids: broken.map(l => l.id) });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
 app.post('/admin/merge-duplicates', requireSession('developer'), async (req, res) => {
   try {
     const allLeads = await db.sbGetLeads();
