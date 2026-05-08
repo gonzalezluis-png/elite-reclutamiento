@@ -243,6 +243,7 @@ function initAppWithUser(user) {
   document.getElementById('user-avatar').textContent = user.name[0];
   applyRolePermissions(user.role);
   populatePipelineSelects();
+  _populateUserSelects();
   renderSidebar();
   const allowed = getAllowedPipelines(user.role);
   const saved   = localStorage.getItem('er_active_pipeline');
@@ -324,6 +325,30 @@ async function openUsersModal() {
   await loadUsersList();
 }
 function closeUsersModal() { document.getElementById('users-modal').classList.add('hidden'); }
+async function _populateUserSelects() {
+  try {
+    const r    = await fetch(`${SERVER_URL}/auth/users`, { headers: { 'x-session-token': _sessionToken } });
+    const data = await r.json();
+    if (!data.ok) return;
+    const names = (data.users || []).map(u => u.nombre).filter(Boolean);
+    const ids   = ['ml-propietario', 'ml-inscrito-por', 'nml-propietario'];
+    for (const id of ids) {
+      const sel = document.getElementById(id);
+      if (!sel) continue;
+      const current = sel.value;
+      const first   = sel.options[0]; // "Sin asignar" / "— Sin especificar —"
+      sel.innerHTML = '';
+      sel.appendChild(first);
+      names.forEach(n => {
+        const opt = document.createElement('option');
+        opt.value = n; opt.textContent = n;
+        sel.appendChild(opt);
+      });
+      if (current) sel.value = current;
+    }
+  } catch(e) {}
+}
+
 async function loadUsersList() {
   const el = document.getElementById('users-list');
   el.innerHTML = '<div style="font-size:12px;color:var(--text3)">Cargando…</div>';

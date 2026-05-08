@@ -107,6 +107,10 @@ function openLead(id, tabName) {
   document.getElementById('ml-contacto').value = lead.contacto || lead.nombre || '';
   document.getElementById('ml-correo').value = lead.correo || '';
   document.getElementById('ml-telefono').value = lead.telefono || '';
+  if (typeof _populateUserSelects === 'function') _populateUserSelects().then(() => {
+    document.getElementById('ml-propietario').value = lead.propietario || '';
+    document.getElementById('ml-inscrito-por').value = lead.inscrito_por || '';
+  });
   document.getElementById('ml-propietario').value = lead.propietario || '';
   document.getElementById('ml-inscrito-por').value = lead.inscrito_por || '';
   document.getElementById('ml-ubicacion').value = lead.ubicacion || '';
