@@ -45,6 +45,7 @@ const DEFAULT_INTERVIEW_CONFIG = {
       trigger: 'hours_before',
       value:   1,
       message: '¿Podrías confirmarme si asistirás a tu entrevista de hoy a las {hora}?',
+      disabled: true,
     },
     {
       id:      'r3',
@@ -404,6 +405,7 @@ async function checkInterviewReminders(sendWA, sendInternal, sendManager) {
     const reminders = iv.reminders || {};
 
     for (const rem of cfg.reminders || []) {
+      if (rem.disabled) continue;
       if (reminders[rem.id]) continue;
 
       let shouldSend = false;
