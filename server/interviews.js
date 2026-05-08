@@ -1,6 +1,6 @@
 const db = require('./db');
 const { sendTemplateOrFallback } = require('./templates');
-const { ghlFindOrCreateContact, ghlBookAppointment } = require('./ghl');
+const { ghlFindOrCreateContact, ghlBookAppointment, ghlGetFreeSlots } = require('./ghl');
 
 // ── Office hours check (America/Chicago — Central Time) ───────────────────────
 function isOfficeHours() {
@@ -108,8 +108,18 @@ function deepMerge(defaults, override) {
   return out;
 }
 
-// ── Available slots ───────────────────────────────────────────────────────────
+// ── Available slots — pulled from GHL calendar (fallback: internal logic) ─────
 async function getAvailableSlots(cfg, fromDate) {
+  try {
+    const slots = await ghlGetFreeSlots(7, 'America/New_York');
+    if (slots.length) return slots;
+  } catch (e) {
+    console.error('[GHL] getAvailableSlots fallback to internal:', e.message);
+  }
+  return _getAvailableSlotsInternal(cfg, fromDate);
+}
+
+async function _getAvailableSlotsInternal(cfg, fromDate) {
   const now      = fromDate || new Date();
   const rules    = cfg.rules;
   const sched    = cfg.schedule;

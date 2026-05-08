@@ -91,4 +91,56 @@ async function ghlUpdateAppointment(appointmentId, updates) {
   return r.status === 200 || r.status === 201;
 }
 
-module.exports = { ghlFindOrCreateContact, ghlBookAppointment, ghlUpdateAppointment };
+// Get free slots from GHL calendar for the next `daysAhead` days
+// Returns array of { date, hour, iso, label } — same shape as internal getAvailableSlots()
+async function ghlGetFreeSlots(daysAhead = 7, timezone = 'America/New_York') {
+  const now   = Date.now();
+  const start = now;
+  const end   = now + daysAhead * 86_400_000;
+  const r = await ghlRequest('GET',
+    `/calendars/${GHL_CALENDAR_ID}/free-slots?startDate=${start}&endDate=${end}&timezone=${encodeURIComponent(timezone)}`,
+    null, '2021-04-15'
+  );
+  if (r.status !== 200 || !r.body || typeof r.body !== 'object') {
+    throw new Error(`GHL free-slots error ${r.status}: ${JSON.stringify(r.body)}`);
+  }
+
+  const results = [];
+  const days = Object.keys(r.body).filter(k => k !== 'traceId').sort();
+
+  for (const dateStr of days) {
+    const slots = r.body[dateStr]?.slots || [];
+    // Pick up to 3 spread slots per day (morning / midday / afternoon)
+    const picked = _pickSpread(slots, 3);
+    for (const iso of picked) {
+      const d = new Date(iso);
+      results.push({
+        date:  dateStr,
+        hour:  d.getHours(),
+        iso:   d.toISOString(),
+        label: _fmtGhlSlot(d, timezone),
+      });
+    }
+    if (results.length >= 9) break; // max 3 days × 3 slots
+  }
+  return results;
+}
+
+function _pickSpread(slots, n) {
+  if (!slots.length) return [];
+  if (slots.length <= n) return slots;
+  const step = Math.floor(slots.length / n);
+  return Array.from({ length: n }, (_, i) => slots[Math.min(i * step, slots.length - 1)]);
+}
+
+function _fmtGhlSlot(d, tz) {
+  const fmt = new Intl.DateTimeFormat('es-MX', {
+    timeZone: tz,
+    weekday: 'long', day: 'numeric', month: 'short',
+    hour: 'numeric', minute: '2-digit', hour12: true,
+  }).format(d);
+  const label = fmt.charAt(0).toUpperCase() + fmt.slice(1) + ' ET';
+  return label;
+}
+
+module.exports = { ghlFindOrCreateContact, ghlBookAppointment, ghlUpdateAppointment, ghlGetFreeSlots };
