@@ -284,11 +284,18 @@ function _msgRenderList() {
     const preview  = (last.direction==='outbound' ? '↗ ':'↙ ') + (last.body||'').slice(0,40);
     const t        = (last.dateSent || last.date) ? fmtDateTime(last.dateSent || last.date) : '';
     const isActive = _msgLeadId === lead.id;
+    const iaColor  = lead.ia_paused ? '#22c55e' : '#a855f7';
+    const iaTitle  = lead.ia_paused ? 'Ana pausada (modo manual)' : 'Ana activa';
+    const etapaLabel = lead.etapa ? esc(lead.etapa.length > 18 ? lead.etapa.slice(0,17)+'…' : lead.etapa) : '';
     return `<div class="msg-conv-item${isActive?' active':''}" onclick="_msgOpenConv('${lead.id}')">
-      <div class="msg-conv-avatar" style="background:${color}">${initials}</div>
+      <div style="position:relative;">
+        <div class="msg-conv-avatar" style="background:${color}">${initials}</div>
+        <span title="${iaTitle}" style="position:absolute;bottom:0;right:0;width:9px;height:9px;border-radius:50%;background:${iaColor};border:1.5px solid var(--card);display:block;"></span>
+      </div>
       <div class="msg-conv-info">
         <div class="msg-conv-name">${esc(lead.nombre||'Sin nombre')}</div>
         <div class="msg-conv-preview">${esc(preview)}</div>
+        ${etapaLabel ? `<div style="font-size:9.5px;color:var(--text3);margin-top:1px;opacity:.75;">${etapaLabel}</div>` : ''}
       </div>
       <div class="msg-conv-meta">
         <div class="msg-conv-time">${t}</div>
