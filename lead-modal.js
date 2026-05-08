@@ -190,6 +190,10 @@ function closeLead() {
   clearInterval(_lcPollInt);
   document.getElementById('lead-modal').classList.add('hidden');
   currentLeadId = null;
+  window._currentLeadLocked = false;
+  _mlEnforceChatLock();
+  // Remove banner if present
+  document.getElementById('ml-contratado-banner')?.remove();
 }
 
 // ── Extract lead data from chat ───────────────────────────────────────────────

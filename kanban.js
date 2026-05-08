@@ -468,6 +468,11 @@ function updateLeadField(leadId, field, value) {
   if (lead[field] === value) return;
   pushUndo('lead_change', JSON.parse(JSON.stringify(lead)));
   lead[field] = value;
+  // When marked as Contratado, also stamp etapa so the lock persists after page reload
+  if (field === 'resultado_entrevista' && value === 'Contratado') {
+    lead.etapa = 'CONTRATADO';
+    addHistorial(leadId, 'Marcado como CONTRATADO', '✅');
+  }
   saveLeads(leadId);
   renderKanban();
 }
