@@ -20,6 +20,7 @@ function showConfig() {
   ]).then(([ms]) => {
     cfgRenderManagers(ms.managers || [], ms.interviewer || null);
   });
+  cfgLoadAutomations();
 }
 
 function renderConfig() {
@@ -146,6 +147,17 @@ function renderConfig() {
       </div>
 
       ${currentUser?.role === 'developer' ? `
+      <!-- AUTOMATIZACIONES DE COMUNICACIÓN -->
+      <div class="cfg-section" id="cfg-automations-section">
+        <div class="cfg-section-title">⚡ Automatizaciones de Comunicación</div>
+        <p style="font-size:13px;color:var(--text3);margin-bottom:18px;line-height:1.6;">
+          Controla qué mensajes automáticos se envían. Los que están desactivados quedan silenciados — el resto del flujo continúa normal.
+        </p>
+        <div id="cfg-automations-list" style="display:flex;flex-direction:column;gap:10px;">
+          <div style="font-size:12px;color:var(--text3);">Cargando automatizaciones…</div>
+        </div>
+      </div>
+
       <!-- HERRAMIENTAS DEVELOPER -->
       <div class="cfg-section" style="border-color:rgba(99,102,241,.4);background:rgba(99,102,241,.04);">
         <div class="cfg-section-title" style="color:#818cf8;">🛠 Herramientas Developer</div>
@@ -674,3 +686,73 @@ async function renderCalendario() {
 }
 
 // ════════════════════════════════════════════
+//  AUTOMATIZACIONES DE COMUNICACIÓN
+// ════════════════════════════════════════════
+
+const _AUTOMATIONS_DEF = [
+  { id:'welcome_wa',             icon:'👋', name:'Mensaje de bienvenida',          desc:'Ana saluda al candidato en cuanto completa el formulario de Meta o WhatsApp.',                                     trigger:'Nuevo lead desde formulario Meta / WhatsApp', channel:'WhatsApp',        color:'#00c875' },
+  { id:'interview_confirmation', icon:'✅', name:'Confirmación de entrevista',      desc:'Se envía al candidato cuando se agenda una entrevista (manual o por Ana).',                                        trigger:'Al agendar una cita',                         channel:'WhatsApp',        color:'#4f7fff' },
+  { id:'interview_reminder_morning', icon:'🔔', name:'Recordatorio día de entrevista', desc:'Recuerda al candidato que hoy tiene su entrevista. Se envía a las 8:00 AM el mismo día.',                    trigger:'Día de la entrevista a las 8:00 AM',          channel:'WhatsApp',        color:'#fdab3d' },
+  { id:'interview_zoom_link',    icon:'🎥', name:'Link de Zoom al inicio',          desc:'Envía el enlace de Zoom al candidato exactamente cuando arranca la entrevista.',                                   trigger:'Al momento de iniciar la cita (±5 min)',      channel:'WhatsApp',        color:'#784bd1' },
+  { id:'interview_noshow_alert', icon:'⚠️', name:'Alerta no-show al equipo',        desc:'Notifica al entrevistador y manager si el candidato no confirmó asistencia 28 minutos después de la cita.',      trigger:'28 min después de la cita sin confirmación',  channel:'WhatsApp (interno)', color:'#f97316' },
+  { id:'webinar_email',          icon:'📧', name:'Email de link del webinar',        desc:'Envía al candidato un link personalizado del webinar por correo cuando Ana lo mueve a "En Webinar".',            trigger:'Al mover lead a "En Webinar"',                channel:'Email',           color:'#a78bfa' },
+  { id:'escalation_resolved',    icon:'✔️', name:'Notificación caso resuelto',      desc:'Avisa a los managers cuando un candidato confirma que su problema de escalación se resolvió.',                    trigger:'Candidato confirma resolución del caso',      channel:'WhatsApp (managers)', color:'#00bcd4' },
+];
+
+let _automationState = {};
+
+async function cfgLoadAutomations() {
+  const el = document.getElementById('cfg-automations-list');
+  if (!el) return;
+  try {
+    const r = await fetch(`${SERVER_URL}/automations/config`, { headers: { 'x-session-token': _sessionToken } });
+    const data = await r.json();
+    _automationState = data.config || {};
+  } catch { _automationState = {}; }
+  _renderAutomationsList();
+}
+
+function _renderAutomationsList() {
+  const el = document.getElementById('cfg-automations-list');
+  if (!el) return;
+  el.innerHTML = _AUTOMATIONS_DEF.map(a => {
+    const enabled = _automationState[a.id] !== false;
+    return `<div style="display:flex;align-items:flex-start;gap:14px;padding:14px 16px;background:var(--bg);border:1px solid ${enabled?'rgba(255,255,255,.08)':'rgba(248,113,113,.2)'};border-radius:10px;transition:border .2s;">
+      <div style="font-size:22px;margin-top:2px;flex-shrink:0;">${a.icon}</div>
+      <div style="flex:1;min-width:0;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap;">
+          <span style="font-size:13px;font-weight:700;color:#fff;">${a.name}</span>
+          <span style="font-size:10px;font-weight:600;padding:2px 8px;border-radius:20px;background:${a.color}22;color:${a.color};border:1px solid ${a.color}44;">${a.channel}</span>
+          <span style="font-size:10px;padding:2px 7px;border-radius:20px;background:rgba(255,255,255,.05);color:var(--text3);">⚡ ${a.trigger}</span>
+        </div>
+        <div style="font-size:12px;color:var(--text3);line-height:1.5;">${a.desc}</div>
+      </div>
+      <div style="flex-shrink:0;display:flex;align-items:center;gap:8px;margin-top:2px;">
+        <span style="font-size:11px;font-weight:600;color:${enabled?'#00c875':'#f87171'};">${enabled?'Activo':'Pausado'}</span>
+        <button onclick="cfgToggleAutomation('${a.id}',${enabled})" title="${enabled?'Pausar':'Activar'}"
+          style="position:relative;width:44px;height:24px;border-radius:12px;border:none;cursor:pointer;background:${enabled?'#00c875':'rgba(255,255,255,.15)'};transition:background .2s;flex-shrink:0;">
+          <span style="position:absolute;top:3px;left:${enabled?'22px':'3px'};width:18px;height:18px;border-radius:50%;background:#fff;transition:left .2s;display:block;"></span>
+        </button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function cfgToggleAutomation(id, currentlyEnabled) {
+  const newVal = !currentlyEnabled;
+  _automationState[id] = newVal;
+  _renderAutomationsList();
+  try {
+    await fetch(`${SERVER_URL}/automations/config`, {
+      method: 'POST',
+      headers: { 'Content-Type':'application/json', 'x-session-token': _sessionToken },
+      body: JSON.stringify({ [id]: newVal }),
+    });
+    showToast(`${newVal ? '✅ Activado' : '⏸ Pausado'}: ${_AUTOMATIONS_DEF.find(a=>a.id===id)?.name||id}`);
+  } catch {
+    _automationState[id] = currentlyEnabled;
+    _renderAutomationsList();
+    showToast('Error al guardar');
+  }
+}
+

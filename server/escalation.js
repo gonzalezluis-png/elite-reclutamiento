@@ -135,8 +135,11 @@ async function cancelEscalation(leadPhone, leadName, sendWAFn) {
         const mgr = managers.find(m => m.level === level);
         if (!mgr) continue;
         const fallback = `✅ Caso resuelto — El candidato ${leadName || leadPhone} confirmó que el problema se resolvió solo. No necesitas hacer nada.`;
-        await sendTemplateOrFallback(mgr.phone, 'caso_resuelto', [leadName || leadPhone], fallback, sendWAFn).catch(() => {});
-        logTeamMessage(mgr.phone, mgr.name, 'out', fallback).catch(() => {});
+        const { isEnabled: _autoEnabled } = require('./automations');
+        if (await _autoEnabled('escalation_resolved')) {
+          await sendTemplateOrFallback(mgr.phone, 'caso_resuelto', [leadName || leadPhone], fallback, sendWAFn).catch(() => {});
+          logTeamMessage(mgr.phone, mgr.name, 'out', fallback).catch(() => {});
+        }
       }
       console.log(`[ESC] Escalación ${esc._id} resuelta para ${leadPhone}`);
     }

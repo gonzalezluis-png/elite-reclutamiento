@@ -983,6 +983,21 @@ app.post('/ai/force-respond', requireSession(), async (req, res) => {
   })();
 });
 
+// ── Automations config ────────────────────────────────────────────────────────
+const { getAutomationConfig, setAutomationConfig } = require('./automations');
+
+app.get('/automations/config', requireSession(), async (req, res) => {
+  const cfg = await getAutomationConfig();
+  res.json({ ok: true, config: cfg });
+});
+
+app.post('/automations/config', requireSession('developer'), async (req, res) => {
+  try {
+    const cfg = await setAutomationConfig(req.body);
+    res.json({ ok: true, config: cfg });
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
 // ── Interview config ──────────────────────────────────────────────────────────
 app.get('/interviews/config', async (req, res) => {
   const cfg = await loadInterviewConfig();

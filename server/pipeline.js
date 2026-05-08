@@ -296,7 +296,8 @@ async function moveLeadToWebinar(leadId, nombre, correo, baseWebinarUrl) {
     hist.push({ icono: '🎥', accion: 'En Webinar sin actividad — link personalizado generado y enviado por correo', fecha: now, usuario: 'Ana (IA)' });
     await fsUpdateLeadFields(leadId, { historial: hist });
 
-    const emailOk = await sendWebinarEmail(correo, nombre, personalUrl);
+    const { isEnabled: _autoEnabled } = require('./automations');
+    const emailOk = await _autoEnabled('webinar_email') ? await sendWebinarEmail(correo, nombre, personalUrl) : false;
     if (emailOk) await fsUpdateLeadFields(leadId, { webinar_email_enviado: now });
 
     const telefono = lead?.telefono || '';

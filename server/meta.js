@@ -444,8 +444,11 @@ function registerMetaRoutes(app) {
 
         // Send personalized welcome using Ana
         const welcomeText = `¡Hola ${firstName}! 👋 Soy Ana de RRHH de Grupo Élite. Vi que completaste nuestro formulario — ¡me alegra que estés interesado/a! ¿Desde qué ciudad nos escribes?`;
-        await humanDelay(welcomeText);
-        await sendWhatsApp(from, welcomeText);
+        const { isEnabled: _autoEnabled } = require('./automations');
+        if (await _autoEnabled('welcome_wa')) {
+          await humanDelay(welcomeText);
+          await sendWhatsApp(from, welcomeText);
+        }
         _logWAMessage(from, 'out', welcomeText).catch(() => {});
         hist.push({ role: 'assistant', content: welcomeText, ts: Date.now() });
 

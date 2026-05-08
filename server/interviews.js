@@ -1,6 +1,7 @@
 const db = require('./db');
 const { sendTemplateOrFallback } = require('./templates');
 const { ghlFindOrCreateContact, ghlBookAppointment, ghlGetFreeSlots } = require('./ghl');
+const { isEnabled: _autoEnabled } = require('./automations');
 
 // ── Office hours check (America/Chicago — Central Time) ───────────────────────
 function isOfficeHours() {
@@ -343,7 +344,7 @@ async function bookInterview({ leadPhone, leadName, slotIso, convKey }) {
 
   const confFallback = `¡Hola ${firstName}! 🎉\n\nTu entrevista con Grupo Élite Work ha sido confirmada.\n\n📅 Fecha: ${fecha}\n🕐 Hora: ${hora}\n🔗 Enlace Zoom: ${cfg.zoomLink}\n\n¡Te esperamos!`;
   const { sendWhatsApp: _metaConfirmWA } = require('./meta');
-  if (isOfficeHours()) {
+  if (isOfficeHours() && await _autoEnabled('interview_confirmation')) {
     sendTemplateOrFallback(phoneClean, 'confirmacion_entrevista', [firstName, fecha, hora, cfg.zoomLink], confFallback, _metaConfirmWA).catch(() => {});
   }
 
@@ -429,6 +430,7 @@ async function checkInterviewReminders(sendWA, sendInternal, sendManager) {
       const { fecha, hora } = _fmtSlot(slotTime);
 
       if (rem.notifyManager || rem.notifyInterviewer) {
+        if (!await _autoEnabled('interview_noshow_alert')) { reminders[rem.id] = new Date().toISOString(); await updateInterview(iv.id, { reminders }); continue; }
         if (rem.notifyInterviewer && cfg.interviewer?.phone && sendInternal) {
           const ivPhone    = cfg.interviewer.phone.replace(/^\+/, '');
           const ivFallback = `⚠️ No-show: *${iv.leadName || 'candidato'}* no confirmó asistencia para la entrevista de las ${hora}.\n📞 ${iv.leadPhone || ''}\n🔗 ${iv.zoomLink}`;
@@ -446,7 +448,8 @@ async function checkInterviewReminders(sendWA, sendInternal, sendManager) {
             tplKey    = 'recordatorio_horas_antes';
             tplParams = [firstName, String(rem.value), iv.zoomLink || ''];
           }
-          if (isOfficeHours()) {
+          const autoId = rem.trigger === 'morning_of' ? 'interview_reminder_morning' : 'interview_reminder_before';
+          if (isOfficeHours() && await _autoEnabled(autoId)) {
             await sendTemplateOrFallback(phone, tplKey, tplParams, msg, sendWA).catch(() => {});
           }
         }
@@ -463,7 +466,7 @@ async function checkInterviewReminders(sendWA, sendInternal, sendManager) {
         if (phone) {
           const firstName    = (iv.leadName || 'Candidato').split(' ')[0];
           const zoomFallback = `🎥 Tu entrevista comienza ahora. Únete aquí:\n${iv.zoomLink}`;
-          if (isOfficeHours()) {
+          if (isOfficeHours() && await _autoEnabled('interview_zoom_link')) {
             await sendTemplateOrFallback(phone, 'enlace_zoom_inicio',
               [firstName, iv.zoomLink || ''], zoomFallback, sendWA
             ).catch(() => {});
