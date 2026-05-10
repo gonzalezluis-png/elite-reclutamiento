@@ -201,8 +201,13 @@ async function _msgSyncAllContacts() {
   } catch {}
 }
 
+function _msgMobBack() {
+  document.getElementById('messaging-view')?.classList.remove('mob-chat-open');
+}
+
 function _msgBuildPage() {
   const view = document.getElementById('messaging-view');
+  view.classList.remove('mob-chat-open'); // reset mobile state on rebuild
   view.innerHTML = `
     <div class="msg-sidebar">
       <div class="msg-sidebar-hdr">
@@ -312,6 +317,8 @@ function _msgOpenConv(leadId) {
   _msgLeadId = leadId;
   const lead = leads.find(l => l.id === leadId);
   if (!lead) return;
+  // Mobile: show chat pane
+  document.getElementById('messaging-view')?.classList.add('mob-chat-open');
   // Mark inbound as read
   (lead.sms||[]).forEach(m => { if(m.direction==='inbound') m.read = true; });
   (lead.whatsapp||[]).forEach(m => { if(m.direction==='inbound') m.read = true; });
@@ -319,6 +326,7 @@ function _msgOpenConv(leadId) {
   saveLeads();
   _msgRenderList();
   _msgRenderThread();
+  if (typeof mobUpdateUnreadBadge === 'function') mobUpdateUnreadBadge();
   // Fetch fresh messages from server (fills in metaWa if empty)
   if (lead.telefono) {
     lcFetchMessages(lead).then(() => {
@@ -378,13 +386,14 @@ function _msgRenderThread() {
 
   main.innerHTML = `
     <div class="msg-thread-hdr">
-      <div class="msg-conv-avatar" style="background:${color};width:36px;height:36px;font-size:13px;font-weight:700;">${initials}</div>
+      <button class="mob-back-btn" onclick="_msgMobBack()" aria-label="Volver">‹</button>
+      <div class="msg-conv-avatar" style="background:${color};width:36px;height:36px;font-size:13px;font-weight:700;flex-shrink:0;">${initials}</div>
       <div class="msg-thread-hdr-info">
         <div class="msg-thread-hdr-name">${esc(lead.nombre||'Sin nombre')}</div>
         <div class="msg-thread-hdr-sub">${esc(phone)} ${lead.ubicacion?'· '+esc(lead.ubicacion):''}</div>
       </div>
       <button onclick="_msgToggleIA('${lead.id}')" style="background:${_iaPaused?'rgba(34,197,94,.15)':'rgba(168,85,247,.15)'};border:1px solid ${_iaPaused?'rgba(34,197,94,.3)':'rgba(168,85,247,.3)'};border-radius:7px;color:${_iaColor};font-size:11px;font-family:var(--font);padding:5px 11px;cursor:pointer;font-weight:700;">${_iaPill}</button>
-      <button onclick="_msgForceAna('${lead.id}')" title="Fuerza a Ana a leer el historial y responder siguiendo el guión" style="background:rgba(251,191,36,.12);border:1px solid rgba(251,191,36,.3);border-radius:7px;color:#fbbf24;font-size:11px;font-family:var(--font);padding:5px 11px;cursor:pointer;font-weight:700;">⚡ Forzar Ana</button>
+      <button class="mob-hide" onclick="_msgForceAna('${lead.id}')" title="Fuerza a Ana a leer el historial y responder siguiendo el guión" style="background:rgba(251,191,36,.12);border:1px solid rgba(251,191,36,.3);border-radius:7px;color:#fbbf24;font-size:11px;font-family:var(--font);padding:5px 11px;cursor:pointer;font-weight:700;">⚡ Forzar Ana</button>
       <button onclick="openLead('${lead.id}')" style="background:rgba(255,255,255,.07);border:1px solid var(--border);border-radius:7px;color:var(--text);font-size:11.5px;font-family:var(--font);padding:5px 11px;cursor:pointer;">Ver Lead ↗</button>
     </div>
     <div style="padding:6px 14px;font-size:11px;color:${_iaColor};background:${_iaPaused?'rgba(34,197,94,.06)':'rgba(168,85,247,.06)'};border-bottom:1px solid var(--border);">${_iaLabel}</div>
@@ -456,17 +465,18 @@ async function _msgToggleIA(leadId) {
 async function _msgForceAna(leadId) {
   const lead = leads.find(l => l.id === leadId);
   if (!lead) return;
-  const phone = (lead.metaWa?.[0] || lead.whatsapp?.[0])?.replace(/^whatsapp:/, '') || lead.telefono;
+  const phone = lead.telefono;
   if (!phone) { showToast('⚠️ Sin número de WhatsApp para este lead'); return; }
   showToast('⚡ Forzando respuesta de Ana…');
   try {
-    await fetch(`${SERVER_URL}/ai/force-respond`, {
+    const res = await fetch(`${SERVER_URL}/ai/force-respond`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-session-token': _sessionToken || '' },
       body: JSON.stringify({ phone }),
     });
-    showToast('✅ Ana está respondiendo');
-    setTimeout(_msgRenderThread, 5000);
+    if (!res.ok) { const d = await res.json().catch(()=>{}); showToast('⚠️ Error: ' + (d?.error || res.status)); return; }
+    showToast('✅ Ana está respondiendo — mensaje en ~20 seg');
+    setTimeout(_msgRenderThread, 20000);
   } catch(e) {
     showToast('⚠️ Error al forzar respuesta: ' + e.message);
   }

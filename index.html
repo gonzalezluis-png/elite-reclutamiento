@@ -74,6 +74,7 @@
   <!-- MAIN -->
   <div id="main">
     <div id="topbar">
+      <button id="mob-hamburger" onclick="mobToggleSidebar()" aria-label="Menú">☰</button>
       <div id="board-title">POSTULADOS POR META</div>
       <button onclick="openGlobalSearch()" title="Buscar en todos los leads (Ctrl+K)" style="display:flex;align-items:center;gap:6px;padding:6px 12px;background:var(--card2);border:1px solid var(--border);border-radius:var(--radius);color:var(--text2);font-size:12px;font-family:var(--font);cursor:pointer;">
         🔍 <span>Buscar lead…</span> <kbd style="background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:1px 5px;font-size:10px;color:var(--text2);">Ctrl K</kbd>
@@ -185,6 +186,28 @@
     </div>
   </div>
 </div>
+
+<!-- ══════════ MOBILE OVERLAY + NAV ══════════ -->
+<div id="mob-backdrop" onclick="mobToggleSidebar()"></div>
+<nav id="mob-nav">
+  <button class="mob-nav-btn" id="mob-nav-msg" onclick="mobNavMsg()">
+    <span class="mob-nav-icon">💬</span>
+    <span class="mob-nav-label">Mensajería</span>
+    <span class="mob-nav-unread" id="mob-nav-unread"></span>
+  </button>
+  <button class="mob-nav-btn" id="mob-nav-wa" onclick="mobNavWa()">
+    <span class="mob-nav-icon">📥</span>
+    <span class="mob-nav-label">WhatsApp</span>
+  </button>
+  <button class="mob-nav-btn" id="mob-nav-leads" onclick="mobNavLeads()">
+    <span class="mob-nav-icon">🏠</span>
+    <span class="mob-nav-label">Leads</span>
+  </button>
+  <button class="mob-nav-btn" id="mob-nav-menu" onclick="mobToggleSidebar()">
+    <span class="mob-nav-icon">☰</span>
+    <span class="mob-nav-label">Menú</span>
+  </button>
+</nav>
 
 <!-- ══════════ MODAL: REGISTRO WEBINAR ══════════ -->
 <div class="modal-overlay hidden" id="registro-webinar-modal" onclick="closeRegistroWebinar(event)">

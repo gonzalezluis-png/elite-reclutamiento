@@ -90,7 +90,13 @@ REGLAS CRÍTICAS
 3. Si ya tienes datos del candidato en el contexto (nombre, ciudad, etc.), NO los vuelvas a pedir — úsalos y avanza al paso correspondiente.
 4. Si el candidato NO puede trabajar legalmente en EE.UU.: "Entiendo, en ese caso por ahora no tenemos una posición disponible para ti. ¡Mucho éxito!"
 5. Si pide llamada: "Claro, un manager se pondrá en contacto contigo pronto."
-5b. Si menciona que YA TIENE LICENCIA DE SEGUROS (life insurance license, licencia de vida, licencia de seguros): responde "¡Excelente! Eso es una gran ventaja. Un manager se pondrá en contacto contigo directamente para hablar sobre las oportunidades disponibles para ti. 😊" y añade [ESC:tiene-licencia] al final. No continúes el guión normal — el manager tomará el caso.
+5b. BUSCAR MANAGER — YA TIENE LICENCIA: Activa esto si el candidato dice o insinúa de cualquier forma que YA CUENTA CON LICENCIA DE SEGUROS. Señales que lo indican (no necesita decirlo exactamente así):
+   • Menciona explícitamente tener licencia (licencia de seguros, life insurance license, licencia de vida, licencia de salud, health license, P&C license, Series 6, etc.)
+   • Dice que ya trabaja o trabajó vendiendo seguros ("ya soy agente", "ya vendo seguros", "estoy en seguros", "llevo X años en seguros")
+   • Dice que ya es agente, broker, productor de seguros
+   • Menciona que ya tiene experiencia en el sector asegurador y hace entender que tiene la certificación
+   • Dice frases como "ya tengo mi licencia", "la saqué el año pasado", "tengo mi licencia activa", "ya estoy licenciado"
+   Cuando detectes cualquiera de estas señales: responde "¡Excelente! Eso es una gran ventaja. Un manager se pondrá en contacto contigo directamente para hablar sobre las oportunidades disponibles para ti. 😊" y añade [ESC:tiene-licencia] al final. NO continúes el guión normal — el manager tomará el caso desde ahí.
 6. NUNCA escribas párrafos largos. NUNCA inventes información. En WhatsApp puedes usar emojis con moderación; en voz o SMS no uses emojis.
 7. NUNCA digas que eres IA, robot, asistente virtual o chatbot.
 8. NO repitas la misma pregunta dos veces. Si ya ofreciste el webinar, ya pediste el correo, o ya preguntaste algo, NO lo preguntes de nuevo en el siguiente mensaje — espera la respuesta del candidato. Cada pregunta se hace una sola vez.
@@ -209,12 +215,14 @@ function loadConfig() {
 function reloadConfig() {
   _configCache = null;
   _entrevistasCache = null;
+  _promptConfigCache = null;
   return loadConfigFromFirestore().then(cfg => { _configCache = cfg; return cfg; });
 }
 
 async function saveConfig(config) {
   try {
     _configCache = config;
+    _promptConfigCache = null; // invalidate prompt cache
     await db.sbSetConfig('ai_config', config);
     return true;
   } catch { return false; }
@@ -235,17 +243,33 @@ async function loadEntrevistasConfig() {
 async function saveEntrevistasConfig(config) {
   try {
     _entrevistasCache = config;
+    _promptConfigCache = null; // invalidate prompt cache
     await db.sbSetConfig('ai_entrevistas_config', config);
     return true;
   } catch { return false; }
 }
 
-// ── Build system prompt from config ──────────────────────────────────────────
-async function buildSystemPrompt(channel = 'text') {
+// ── System prompt config cache (5-minute TTL) ─────────────────────────────────
+let _promptConfigCache  = null;
+let _promptConfigCacheTs = 0;
+const PROMPT_CACHE_TTL  = 5 * 60 * 1000;
+
+async function _getPromptConfig() {
+  if (_promptConfigCache && (Date.now() - _promptConfigCacheTs) < PROMPT_CACHE_TTL) {
+    return _promptConfigCache;
+  }
   const [entrevistasCfg, oldCfg] = await Promise.all([
     loadEntrevistasConfig().catch(() => ({})),
     loadConfigFromFirestore().catch(() => ({})),
   ]);
+  _promptConfigCache  = { entrevistasCfg, oldCfg };
+  _promptConfigCacheTs = Date.now();
+  return _promptConfigCache;
+}
+
+// ── Build system prompt from config ──────────────────────────────────────────
+async function buildSystemPrompt(channel = 'text') {
+  const { entrevistasCfg, oldCfg } = await _getPromptConfig();
   // ai_entrevistas_config has the admin-edited prompts (general, qa, cases, triggers, forbidden)
   // ai_config has webinar which isn't part of the entrevistas editor
   const cfg = { ...oldCfg, ...entrevistasCfg, webinar: oldCfg.webinar || entrevistasCfg.webinar || '' };
@@ -265,6 +289,15 @@ async function buildSystemPrompt(channel = 'text') {
   ).join('\n\n');
 
   return `${cfg.general}
+
+━━━ REGLA SIEMPRE ACTIVA — CANDIDATO CON LICENCIA ━━━
+Si el candidato dice o insinúa de CUALQUIER forma que YA TIENE LICENCIA DE SEGUROS, activa inmediatamente [ESC:tiene-licencia].
+Señales que lo indican (sin importar cómo lo diga):
+• Menciona tener licencia (licencia de seguros, life insurance license, licencia de vida, licencia de salud, health license, P&C license, Series 6, etc.)
+• Dice que ya trabaja o trabajó vendiendo seguros ("ya soy agente", "ya vendo seguros", "estoy en seguros", "llevo X años en seguros")
+• Dice ser o haber sido agente, broker, productor de seguros
+• Frases como "ya tengo mi licencia", "la saqué el año pasado", "tengo mi licencia activa", "ya estoy licenciado"
+Respuesta exacta: "¡Excelente! Eso es una gran ventaja. Un manager se pondrá en contacto contigo directamente para hablar sobre las oportunidades disponibles para ti. 😊" y añade [ESC:tiene-licencia] al final. NO continúes el guión normal.
 
 CANAL ACTUAL: ${channelNote}
 

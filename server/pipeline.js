@@ -154,10 +154,20 @@ Si no hay información clara para un campo, pon null. SOLO JSON, nada más.`,
         .replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
       const match = raw.match(/\{[\s\S]*\}/);
       if (match) raw = match[0];
-      extracted = JSON.parse(raw);
+      try {
+        extracted = JSON.parse(raw);
+      } catch {
+        // Repair common JSON issues: trailing commas, unclosed strings/braces
+        const repaired = raw
+          .replace(/,\s*([}\]])/g, '$1')     // trailing commas
+          .replace(/([^"\\])"([^"]*?)$/s, '$1"$2"') // unclosed string at end
+          .replace(/\{([^}]*)$/, '{$1}');    // unclosed object
+        const match2 = repaired.match(/\{[\s\S]*\}/);
+        if (match2) extracted = JSON.parse(match2[0]);
+      }
       console.log(`[AI-Extract] Extraído para ${from}:`, extracted);
     } catch (e) {
-      console.error(`[AI-Extract] JSON parse error:`, extraction.content[0]?.text?.slice(0, 200));
+      console.error(`[AI-Extract] JSON parse error (sin recuperación):`, extraction.content[0]?.text?.slice(0, 200));
       return;
     }
 

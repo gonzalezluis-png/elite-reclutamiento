@@ -844,4 +844,56 @@ function calGoToday() { calWeekStart = _getWeekStart(new Date()); renderCalendar
   _checkVersion();
 })();
 
-// ════════════════════════════════════════════
+// ── Mobile navigation ────────────────────────────────────────────────────────
+function mobToggleSidebar() {
+  const sidebar  = document.getElementById('sidebar');
+  const backdrop = document.getElementById('mob-backdrop');
+  const isOpen   = sidebar.classList.contains('mob-open');
+  sidebar.classList.toggle('mob-open', !isOpen);
+  backdrop.classList.toggle('visible', !isOpen);
+}
+
+function mobCloseSidebar() {
+  document.getElementById('sidebar')?.classList.remove('mob-open');
+  document.getElementById('mob-backdrop')?.classList.remove('visible');
+}
+
+function mobNavMsg() {
+  mobCloseSidebar();
+  showMessaging();
+  mobSetActive('mob-nav-msg');
+}
+
+function mobNavWa() {
+  mobCloseSidebar();
+  showWAInbox();
+  mobSetActive('mob-nav-wa');
+}
+
+function mobNavLeads() {
+  mobCloseSidebar();
+  selectPipeline(activePipelineId);
+  mobSetActive('mob-nav-leads');
+}
+
+function mobSetActive(id) {
+  document.querySelectorAll('.mob-nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById(id)?.classList.add('active');
+}
+
+function mobUpdateUnreadBadge() {
+  const unread = leads.reduce((n, l) => {
+    const msgs = [...(l.metaWa||[]), ...(l.sms||[]), ...(l.whatsapp||[])];
+    return n + msgs.filter(m => m.direction === 'inbound' && !m.read).length;
+  }, 0);
+  const badge = document.getElementById('mob-nav-unread');
+  if (!badge) return;
+  if (unread > 0) { badge.textContent = unread > 99 ? '99+' : unread; badge.classList.add('visible'); }
+  else badge.classList.remove('visible');
+}
+
+// Close sidebar when any sidebar nav item tapped on mobile
+document.addEventListener('click', e => {
+  const item = e.target.closest('.sidebar-item, .pipe-item, .pipe-subtab');
+  if (item && window.innerWidth <= 768) mobCloseSidebar();
+});

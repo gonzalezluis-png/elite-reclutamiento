@@ -369,26 +369,37 @@ function registerMetaRoutes(app) {
   app.get('/meta/webhook/ig-messenger', verifyWebhook);
 
   const _processedMsgIds = new Set();
-  const _msgBuffer   = new Map();
-  const _msgTimers   = new Map();
+  const _msgBuffer      = new Map();
+  const _msgTimers      = new Map();
+  const _processingLocks = new Set(); // prevents concurrent processing per phone
   const _DEBOUNCE_MS = 3000;
 
   const DIAS_FULL = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
 
   async function _processBufferedMessages(from, referralInfo, profileName, inboxNumber) {
+    // Prevent concurrent processing for the same phone (race condition guard)
+    if (_processingLocks.has(from)) {
+      // Reschedule — buffer still holds the messages, retry when lock clears
+      clearTimeout(_msgTimers.get(from));
+      _msgTimers.set(from, setTimeout(() =>
+        _processBufferedMessages(from, referralInfo, profileName, inboxNumber), 2000));
+      return;
+    }
+
     const texts = _msgBuffer.get(from) || [];
     _msgBuffer.delete(from);
     _msgTimers.delete(from);
     if (!texts.length) return;
 
+    _processingLocks.add(from);
+
+    try {
     const combinedText = texts.join('\n');
     console.log(`[Meta WA] ← ${from} (${texts.length} msg): ${combinedText}`);
 
     // Don't log manager messages — they're internal escalation replies, not lead conversations
     const _isManager = await isManagerPhone(from).catch(() => false);
     if (!_isManager) _logWAMessage(from, 'in', combinedText).catch(() => {});
-
-    try {
       // ── Detect Click-to-WhatsApp form data message ───────────────────────
       // Meta sends form fields as first WA message: "full_name: X phone: Y email: Z"
       if (/full_name\s*:/i.test(combinedText) && /phone\s*:/i.test(combinedText)) {
@@ -635,20 +646,26 @@ function registerMetaRoutes(app) {
       const _histNow    = conversationHistory.get(convKey) || [];
       const _inHours    = await isWABusinessHours();
       if (!_inHours) {
-        if (!conversationHistory.has(convKey)) conversationHistory.set(convKey, []);
-        conversationHistory.get(convKey).push({ role: 'user', content: combinedText, ts: Date.now() });
-        // Only send the closed message once per out-of-hours session (not on every message)
         const _lastAssistantTs = [...(_histNow)].reverse().find(m => m.role === 'assistant')?.ts || 0;
-        const _hoursSinceReply = (Date.now() - _lastAssistantTs) / 3600000;
-        if (_hoursSinceReply > 1) {
-          const closedMsg = `¡Hola! 👋 Gracias por escribirnos. En este momento nuestras oficinas están cerradas, pero en cuanto abramos te respondemos. ¡Hasta pronto!`;
-          console.log(`[Meta WA] Fuera de horario — ${from}, enviando mensaje de cierre`);
-          await humanDelay(closedMsg);
-          await sendWhatsApp(from, closedMsg);
+        const _minsSinceReply  = (Date.now() - _lastAssistantTs) / 60000;
+        // If Ana was actively responding in the last 2 hours, let her finish the conversation
+        if (_lastAssistantTs && _minsSinceReply < 120) {
+          console.log(`[Meta WA] Fuera de horario pero conversación activa (${Math.round(_minsSinceReply)}min) — Ana continúa con ${from}`);
+          // fall through to normal processing
         } else {
-          console.log(`[Meta WA] Fuera de horario — ${from}, mensaje de cierre ya enviado recientemente, ignorando`);
+          if (!conversationHistory.has(convKey)) conversationHistory.set(convKey, []);
+          conversationHistory.get(convKey).push({ role: 'user', content: combinedText, ts: Date.now() });
+          // Only send the closed message once per out-of-hours session
+          if (_minsSinceReply > 60 || !_lastAssistantTs) {
+            const closedMsg = `¡Hola! 👋 Gracias por escribirnos. En este momento nuestras oficinas están cerradas, pero en cuanto abramos te respondemos. ¡Hasta pronto!`;
+            console.log(`[Meta WA] Fuera de horario — ${from}, enviando mensaje de cierre`);
+            await humanDelay(closedMsg);
+            await sendWhatsApp(from, closedMsg);
+          } else {
+            console.log(`[Meta WA] Fuera de horario — ${from}, mensaje de cierre ya enviado recientemente, ignorando`);
+          }
+          return;
         }
-        return;
       }
 
       // ── Interview: slot selection state machine ─────────────────────────────
@@ -873,6 +890,8 @@ function registerMetaRoutes(app) {
       })();
     } catch (e) {
       console.error('[Meta WA] Error procesando mensajes de', from, ':', e.message);
+    } finally {
+      _processingLocks.delete(from);
     }
   }
 

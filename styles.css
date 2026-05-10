@@ -770,4 +770,249 @@ tr.lead-resuelto td:last-child { pointer-events:auto;opacity:1; }
 
 /* ── notification bell pulse ──────────────────────────────────────────────── */
 #notif-badge { animation:notif-pop .25s cubic-bezier(.175,.885,.32,1.275); }
+
+/* ── Mobile-only elements: hidden on desktop ─────────────────────────────── */
+#mob-hamburger { display: none; }
+#mob-nav       { display: none; }
+#mob-backdrop  { display: none; }
+.mob-back-btn  { display: none; }
+
+/* ══════════════════════════════════════════
+   MOBILE — max-width: 768px
+   ══════════════════════════════════════════ */
+@media (max-width: 768px) {
+
+  /* ── Core layout ── */
+  body { height: 100dvh; overflow: hidden; }
+  #app  { position: relative; }
+
+  /* ── Sidebar: off-canvas overlay ── */
+  #sidebar {
+    position: fixed;
+    top: 0; bottom: 0; left: 0;
+    transform: translateX(-100%);
+    transition: transform .25s cubic-bezier(.4,0,.2,1);
+    z-index: 300;
+    width: 272px;
+    min-width: 272px;
+    box-shadow: 6px 0 32px rgba(0,0,0,.6);
+  }
+  #sidebar.mob-open { transform: translateX(0); }
+
+  /* ── Sidebar backdrop ── */
+  #mob-backdrop {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,.5);
+    z-index: 299;
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
+  }
+  #mob-backdrop.visible { display: block; }
+
+  /* ── Main takes full width, leaves room for bottom nav ── */
+  #main { width: 100%; padding-bottom: 60px; }
+
+  /* ── Topbar: compact ── */
+  #topbar { padding: 0 10px; gap: 6px; height: 48px; min-height: 48px; }
+  #topbar #search-input    { display: none !important; }
+  #topbar #online-indicator { display: none !important; }
+  .topbar-user-role        { display: none; }
+  .topbar-user-name        { font-size: 11px; max-width: 72px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #board-title             { font-size: 13px; }
+
+  /* ── Show mobile-only elements ── */
+  #mob-hamburger { display: flex; }
+  #mob-nav       { display: flex; }
+
+  /* ── Hamburger ── */
+  #mob-hamburger {
+    flex-shrink: 0;
+    background: none; border: none;
+    color: var(--text); font-size: 22px;
+    padding: 8px 6px; cursor: pointer; line-height: 1;
+    border-radius: 8px; align-items: center;
+  }
+  #mob-hamburger:active { background: rgba(255,255,255,.06); }
+
+  /* ── Bottom navigation ── */
+  #mob-nav {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    height: 60px;
+    background: var(--sidebar);
+    border-top: 1px solid var(--border);
+    display: flex; align-items: stretch;
+    z-index: 100;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .mob-nav-btn {
+    flex: 1;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 2px;
+    background: none; border: none;
+    color: var(--text2);
+    cursor: pointer;
+    font-size: 10px; font-family: var(--font); font-weight: 600;
+    transition: color .12s; padding: 8px 2px;
+    position: relative;
+  }
+  .mob-nav-btn .mob-nav-icon { font-size: 19px; line-height: 1; }
+  .mob-nav-btn .mob-nav-label { line-height: 1; }
+  .mob-nav-btn.active { color: var(--accent); }
+  .mob-nav-btn.active::before {
+    content: '';
+    position: absolute; top: 0; left: 20%; right: 20%;
+    height: 2px; background: var(--accent);
+    border-radius: 0 0 3px 3px;
+  }
+  .mob-nav-unread {
+    position: absolute; top: 6px; right: calc(50% - 16px);
+    min-width: 16px; height: 16px;
+    background: #e2445c; border-radius: 8px;
+    font-size: 9px; font-weight: 700; color: #fff;
+    line-height: 16px; text-align: center; padding: 0 3px;
+    display: none;
+  }
+  .mob-nav-unread.visible { display: block; }
+
+  /* ── Toast & fab above bottom nav ── */
+  #toast       { bottom: 68px; }
+  #phone-fab   { bottom: 70px !important; }
+  #call-panel  { bottom: 70px !important; }
+
+  /* ── Pipeline tabs: scrollable, no wrap ── */
+  #pipeline-tabs    { overflow-x: auto; flex-wrap: nowrap !important; padding: 0 8px; }
+  #pipeline-subtabs { overflow-x: auto; flex-wrap: nowrap !important; padding: 0 8px; }
+  .ptab  { padding: 8px 12px; font-size: 11.5px; }
+  .ptab2 { padding: 6px 10px; font-size: 11px; }
+
+  /* ── Kanban ── */
+  #kanban-wrap { padding: 8px 6px; gap: 8px; }
+  .kanban-col  { min-width: 244px; width: 244px; }
+
+  /* ═══════════════════════════════════════
+     MENSAJERÍA — layout principal en móvil
+     ═══════════════════════════════════════ */
+  .msg-sidebar {
+    width: 100%; min-width: 0;
+    border-right: none;
+  }
+  .msg-main { display: none; }
+
+  /* Cuando hay conversación abierta: lista oculta, chat visible */
+  #messaging-view.mob-chat-open .msg-sidebar { display: none; }
+  #messaging-view.mob-chat-open .msg-main    { display: flex; }
+
+  /* Items de conversación: más grandes para tacto */
+  .msg-conv-item    { padding: 13px 14px; }
+  .msg-conv-avatar  { width: 46px; height: 46px; font-size: 16px; }
+  .msg-conv-name    { font-size: 14px; }
+  .msg-conv-preview { font-size: 12px; }
+  .msg-conv-time    { font-size: 11px; }
+
+  /* Barra de búsqueda y filtros más compactos */
+  .msg-sidebar-hdr h2   { font-size: 14px; margin-bottom: 8px; }
+  .msg-filters          { gap: 5px; }
+  .msg-filter           { font-size: 10.5px; padding: 4px 9px; }
+
+  /* Cabecera del hilo: botón volver */
+  .msg-thread-hdr {
+    padding: 10px 12px;
+    gap: 8px;
+    flex-wrap: nowrap;
+    overflow: hidden;
+  }
+  .mob-back-btn {
+    flex-shrink: 0;
+    background: none; border: none;
+    color: var(--accent); font-size: 26px;
+    padding: 0 6px; cursor: pointer;
+    line-height: 1; display: flex; align-items: center;
+  }
+  .msg-thread-hdr .mob-hide { display: none; }
+
+  /* Compose area */
+  .msg-textarea  { font-size: 14px; min-height: 44px; }
+  .msg-send-btn  { width: 44px; height: 44px; }
+  .msg-compose   { padding: 10px 12px; }
+  .msg-ch-btn    { font-size: 12px; padding: 6px 12px; }
+
+  /* Thread body */
+  .msg-thread-body { padding: 12px 14px; }
+  .msg-bubble      { max-width: 82%; font-size: 13.5px; }
+
+  /* ═══════════════════════════════════════
+     MODAL LEAD — pantalla completa
+     ═══════════════════════════════════════ */
+  .modal-overlay {
+    align-items: flex-end;
+    padding: 0;
+  }
+  .modal-lead {
+    width: 100%   !important;
+    max-width: 100% !important;
+    height: 96dvh !important;
+    max-height: 96dvh !important;
+    border-radius: 20px 20px 0 0 !important;
+    border: none !important;
+    border-left: none !important;
+    border-right: none !important;
+    border-bottom: none !important;
+  }
+
+  /* Modal header compacto */
+  .mlh              { padding: 12px 14px; gap: 10px; }
+  .mlh-avatar       { width: 38px; height: 38px; font-size: 13px; }
+  .mlh-name-inp     { font-size: 14px; }
+  .mlh-nav          { display: none; }   /* hide prev/next on mobile */
+  .mlh-nav-pos      { display: none; }
+
+  /* Modal body: columna única */
+  .ml-body          { flex-direction: column; overflow-y: auto; }
+  .ml-activity-col  { display: none; }  /* historial accesible en sidebar derecho */
+  .ml-conv-col      {
+    width: 100%; border-right: none;
+    min-height: 380px; max-height: 60dvh;
+    border-bottom: 1px solid rgba(255,255,255,.06);
+  }
+  .ml-info-col      {
+    width: 100%; min-width: 0;
+    overflow-y: unset;
+    border-top: none;
+    flex-shrink: 0;
+  }
+
+  /* Conversa dentro del modal: input */
+  .lc-compose  { padding: 10px 12px; }
+  .lc-textarea { font-size: 14px; }
+  .lc-send-btn { width: 42px; height: 42px; }
+  .lc-bubble   { max-width: 84%; font-size: 13px; }
+
+  /* Modal footer */
+  .ml-footer { border-radius: 0; padding: 10px 14px; }
+
+  /* ── Config: 1 columna ── */
+  .cfg-field-grid  { grid-template-columns: 1fr; }
+  .cfg-board-grid  { grid-template-columns: 1fr 1fr; }
+  .cfg-section     { padding: 18px 16px; }
+  #config-view     { padding: 16px; }
+
+  /* ── Team chat / AI / Monitor: padding ajustado ── */
+  #team-chat-view, #ai-view, #ai-entrevistas-view { padding: 16px; }
+
+  /* ── WA inbox: tabla responsive ── */
+  #wa-inbox-view { overflow-x: auto; }
+
+  /* ── Notif panel: más estrecho ── */
+  #notif-panel { width: 94vw !important; right: -10px !important; }
+
+  /* ── Quick modal (nuevo lead) ── */
+  .qmodal { width: 98vw !important; }
+
+  /* ── Global search: más compacto ── */
+  #global-search-overlay > div { width: 98vw !important; top: 8vh !important; }
+
+}
 @keyframes notif-pop { 0%{transform:scale(.5)} 100%{transform:scale(1)} }
