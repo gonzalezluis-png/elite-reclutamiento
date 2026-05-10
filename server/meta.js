@@ -400,6 +400,28 @@ function registerMetaRoutes(app) {
     // Don't log manager messages — they're internal escalation replies, not lead conversations
     const _isManager = await isManagerPhone(from).catch(() => false);
     if (!_isManager) _logWAMessage(from, 'in', combinedText).catch(() => {});
+
+    // ── Horario de atención — check BEFORE any response (form or normal) ─────
+    if (!_isManager) {
+      const _inHoursEarly = await isWABusinessHours();
+      if (!_inHoursEarly) {
+        if (!conversationHistory.has(convKey)) conversationHistory.set(convKey, []);
+        conversationHistory.get(convKey).push({ role: 'user', content: combinedText, ts: Date.now() });
+        const _lastClosedTs = [...(conversationHistory.get(convKey))].reverse()
+          .find(m => m.role === 'assistant' && m.content?.includes('oficinas están cerradas'))?.ts || 0;
+        if (Date.now() - _lastClosedTs > 60 * 60 * 1000) {
+          const closedMsg = `¡Hola! 👋 Gracias por escribirnos. En este momento nuestras oficinas están cerradas, pero en cuanto abramos te respondemos. ¡Hasta pronto!`;
+          console.log(`[Meta WA] Fuera de horario — ${from}, enviando mensaje de cierre`);
+          await humanDelay(closedMsg);
+          await sendWhatsApp(from, closedMsg);
+          conversationHistory.get(convKey).push({ role: 'assistant', content: closedMsg, ts: Date.now() });
+        } else {
+          console.log(`[Meta WA] Fuera de horario — ${from}, cierre ya enviado recientemente, ignorando`);
+        }
+        return;
+      }
+    }
+
       // ── Detect Click-to-WhatsApp form data message ───────────────────────
       // Meta sends form fields as first WA message: "full_name: X phone: Y email: Z"
       if (/full_name\s*:/i.test(combinedText) && /phone\s*:/i.test(combinedText)) {
@@ -642,31 +664,7 @@ function registerMetaRoutes(app) {
         }
       }
 
-      // ── Horario de atención ─────────────────────────────────────────────────
-      const _histNow    = conversationHistory.get(convKey) || [];
-      const _inHours    = await isWABusinessHours();
-      if (!_inHours) {
-        const _lastAssistantTs = [...(_histNow)].reverse().find(m => m.role === 'assistant')?.ts || 0;
-        const _minsSinceReply  = (Date.now() - _lastAssistantTs) / 60000;
-        // If Ana was actively responding in the last 2 hours, let her finish the conversation
-        if (_lastAssistantTs && _minsSinceReply < 120) {
-          console.log(`[Meta WA] Fuera de horario pero conversación activa (${Math.round(_minsSinceReply)}min) — Ana continúa con ${from}`);
-          // fall through to normal processing
-        } else {
-          if (!conversationHistory.has(convKey)) conversationHistory.set(convKey, []);
-          conversationHistory.get(convKey).push({ role: 'user', content: combinedText, ts: Date.now() });
-          // Only send the closed message once per out-of-hours session
-          if (_minsSinceReply > 60 || !_lastAssistantTs) {
-            const closedMsg = `¡Hola! 👋 Gracias por escribirnos. En este momento nuestras oficinas están cerradas, pero en cuanto abramos te respondemos. ¡Hasta pronto!`;
-            console.log(`[Meta WA] Fuera de horario — ${from}, enviando mensaje de cierre`);
-            await humanDelay(closedMsg);
-            await sendWhatsApp(from, closedMsg);
-          } else {
-            console.log(`[Meta WA] Fuera de horario — ${from}, mensaje de cierre ya enviado recientemente, ignorando`);
-          }
-          return;
-        }
-      }
+      const _histNow = conversationHistory.get(convKey) || [];
 
       // ── Interview: slot selection state machine ─────────────────────────────
       const _ivState = leadData?.interview_state;
