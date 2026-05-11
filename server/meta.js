@@ -943,6 +943,18 @@ function registerMetaRoutes(app) {
 
       if (!value?.messages?.length) return;
 
+      // ── Route messages from secondary number to GEW-CRM (Supabase) ────────
+      const _incomingPhoneId = value?.metadata?.phone_number_id;
+      const _GEW_PHONE_ID    = '622460600941720';
+      if (_incomingPhoneId && _incomingPhoneId === _GEW_PHONE_ID) {
+        fetch('https://vpwbczzmonboirjckpmy.supabase.co/functions/v1/twilio-webhook', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(req.body),
+        }).catch(e => console.error('[Route GEW]', e.message));
+        return;
+      }
+
       const msg  = value.messages[0];
       const from = msg.from;
 
