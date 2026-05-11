@@ -117,7 +117,7 @@ async function fsAppendLeadMetaWa(phone, message) {
 }
 
 // ── AI: extract lead data from conversation ───────────────────────────────────
-async function extractAndUpdateLead(from, history, sendFn) {
+async function extractAndUpdateLead(from, history, sendFn, opts) {
   try {
     const messages = history
       .filter(m => !m.content?.startsWith('[SISTEMA'))
@@ -217,6 +217,18 @@ Si no hay información clara para un campo, pon null. SOLO JSON, nada más.`,
     if (Object.keys(updates).length) {
       await fsUpdateLeadFields(lead.id, updates);
       console.log(`[AI-Extract] Lead ${lead.id} actualizado:`, updates);
+    }
+
+    // Webinar intent catch-up: correo arrived after [WEBINAR] token fired
+    if (updates.correo && lead.webinar_intent && lead.pipeline_id !== 'en-webinar') {
+      const _correo = updates.correo;
+      const _nombre = updates.nombre || lead.nombre || '';
+      const _validN = _nombre && !_nombre.startsWith('WA ') && !_nombre.startsWith('+') ? _nombre : 'Candidato';
+      const _wUrl   = (opts && opts.WEBINAR_URL) || process.env.WEBINAR_URL || 'https://crm.grupoelitework.com/webinar.html';
+      try {
+        await moveLeadToWebinar(lead.id, _validN, _correo, _wUrl);
+        console.log(`[WEBINAR intent] Correo llegó después — webinar enviado a ${lead.id}`);
+      } catch (e) { console.error('[WEBINAR intent] Error:', e.message); }
     }
 
     // Interview intent: send "dame unos minutos" + alert managers
@@ -336,7 +348,7 @@ async function moveLeadToWebinar(leadId, nombre, correo, baseWebinarUrl) {
 async function runWAPipeline(from, historyMap, sendFn, opts) {
   const history = historyMap.get(from) || [];
   try {
-    await extractAndUpdateLead(from, history, sendFn);
+    await extractAndUpdateLead(from, history, sendFn, opts);
   } catch (e) {
     console.error('[Pipeline] Error:', e.message);
   }
