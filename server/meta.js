@@ -1438,6 +1438,147 @@ function registerMetaRoutes(app) {
     }
   });
 
+  // ── Marketing Stats API ──────────────────────────────────────────────────────
+  app.get('/api/stats', async (req, res) => {
+    const token = req.query.token || req.headers['x-stats-token'];
+    if (token !== (process.env.STATS_TOKEN || 'gew_stats_2026')) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    try {
+      const leads = await db.sbGet('leads', 'select=id,pipeline_id,etapa,fuente,etiquetas,notas,created_at,webinar_email_enviado,fecha_inscripcion_webinar,vio_webinar&limit=2000&order=created_at.desc');
+
+      const parseMeta = (notas) => {
+        const result = { campaign: '', adset: '', ad: '', form: '', platform: '', formId: '' };
+        if (!Array.isArray(notas)) return result;
+        const txt = (notas[0]?.texto || '');
+        const get = (prefix) => {
+          const m = txt.match(new RegExp(prefix + ':?\\s*([^\\n]+)'));
+          return m ? m[1].trim() : '';
+        };
+        result.campaign = get('📢 Campaña') || get('Campaña');
+        result.adset    = get('🎯 Conjunto') || get('Conjunto');
+        result.ad       = get('📌 Anuncio') || get('Anuncio');
+        result.form     = get('📋 Formulario') || get('Formulario');
+        result.platform = get('📱 Plataforma') || get('Plataforma');
+        result.formId   = get('🆔 Form ID') || get('Form ID');
+        return result;
+      };
+
+      const PIPELINE_ORDER = [
+        'postulados-meta', 'postulados-whatsapp-meta',
+        'en-webinar', 'entrevistas-generales', 'vendidos',
+        'no-interesados', 'no-interesados-no-califica'
+      ];
+      const PIPELINE_LABEL = {
+        'postulados-meta':              'Nuevo Lead',
+        'postulados-whatsapp-meta':     'Nuevo Lead (WA)',
+        'en-webinar':                   'En Webinar',
+        'entrevistas-generales':        'En Entrevista',
+        'vendidos':                     'Vendido',
+        'no-interesados':               'No Interesado',
+        'no-interesados-no-califica':   'No Califica',
+      };
+      const PIPELINE_RANK = {};
+      PIPELINE_ORDER.forEach((p, i) => PIPELINE_RANK[p] = i);
+
+      // Group by campaign
+      const campaignMap = {};
+      const adMap    = {};
+      const formMap  = {};
+      const dailyMap = {};
+
+      for (const l of leads) {
+        const meta = parseMeta(l.notas);
+        // Fallback: use etiquetas for campaign name
+        const campaign = meta.campaign ||
+          (Array.isArray(l.etiquetas) ? l.etiquetas.find(e => e !== 'Meta Lead Ads') || '' : '');
+        const ad       = meta.ad   || l.ad_nombre || '';
+        const form     = meta.form || '';
+        const pid      = l.pipeline_id || 'unknown';
+        const day      = (l.created_at || '').slice(0, 10);
+
+        // Campaign stats
+        if (campaign) {
+          if (!campaignMap[campaign]) campaignMap[campaign] = { total: 0, pipeline: {}, webinar: 0, entrevista: 0, ads: new Set(), forms: new Set() };
+          campaignMap[campaign].total++;
+          campaignMap[campaign].pipeline[pid] = (campaignMap[campaign].pipeline[pid] || 0) + 1;
+          if (l.fecha_inscripcion_webinar) campaignMap[campaign].webinar++;
+          if (pid === 'entrevistas-generales' || pid === 'vendidos') campaignMap[campaign].entrevista++;
+          if (ad)   campaignMap[campaign].ads.add(ad);
+          if (form) campaignMap[campaign].forms.add(form);
+        }
+
+        // Ad stats
+        if (ad) {
+          if (!adMap[ad]) adMap[ad] = { total: 0, webinar: 0, entrevista: 0, campaign };
+          adMap[ad].total++;
+          if (l.fecha_inscripcion_webinar) adMap[ad].webinar++;
+          if (pid === 'entrevistas-generales' || pid === 'vendidos') adMap[ad].entrevista++;
+        }
+
+        // Form stats
+        if (form) {
+          if (!formMap[form]) formMap[form] = { total: 0, webinar: 0, entrevista: 0, formId: meta.formId };
+          formMap[form].total++;
+          if (l.fecha_inscripcion_webinar) formMap[form].webinar++;
+          if (pid === 'entrevistas-generales' || pid === 'vendidos') formMap[form].entrevista++;
+        }
+
+        // Daily
+        if (day) {
+          if (!dailyMap[day]) dailyMap[day] = 0;
+          dailyMap[day]++;
+        }
+      }
+
+      // Convert Sets to counts
+      for (const k of Object.keys(campaignMap)) {
+        campaignMap[k].numAds   = campaignMap[k].ads.size;
+        campaignMap[k].numForms = campaignMap[k].forms.size;
+        delete campaignMap[k].ads;
+        delete campaignMap[k].forms;
+      }
+
+      // Pipeline overall
+      const pipelineOverall = {};
+      for (const l of leads) {
+        const pid = l.pipeline_id || 'unknown';
+        pipelineOverall[pid] = (pipelineOverall[pid] || 0) + 1;
+      }
+
+      // Fuente
+      const fuenteMap = {};
+      for (const l of leads) {
+        const f = l.fuente || 'Desconocido';
+        fuenteMap[f] = (fuenteMap[f] || 0) + 1;
+      }
+
+      // Daily sorted
+      const daily = Object.entries(dailyMap)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([date, count]) => ({ date, count }));
+
+      res.json({
+        ok: true,
+        totals: {
+          leads: leads.length,
+          webinar: leads.filter(l => l.fecha_inscripcion_webinar).length,
+          entrevista: leads.filter(l => ['entrevistas-generales','vendidos'].includes(l.pipeline_id)).length,
+        },
+        fuente: fuenteMap,
+        pipeline: pipelineOverall,
+        pipelineLabels: PIPELINE_LABEL,
+        campaigns: campaignMap,
+        ads: adMap,
+        forms: formMap,
+        daily,
+        generatedAt: new Date().toISOString(),
+      });
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
   console.log('[Meta] Rutas registradas: /meta/webhook (GET), /meta/webhook/whatsapp, /meta/webhook/ig-messenger, /meta/webhook/leadgen, /meta/data-deletion');
 }
 
