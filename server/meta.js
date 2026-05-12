@@ -1229,6 +1229,34 @@ function registerMetaRoutes(app) {
     }
   });
 
+  // ── Send WhatsApp video ───────────────────────────────────────────────────
+  app.post('/meta/wa-send-video', async (req, res) => {
+    const { to, videoUrl, caption, leadId } = req.body;
+    if (!to || !videoUrl) return res.status(400).json({ ok: false, error: 'to y videoUrl requeridos' });
+    if (!_waToken || !META_WA_PHONE_ID) return res.status(503).json({ ok: false, error: 'Meta WA no configurado' });
+    try {
+      const cleanTo = to.replace(/^\+/, '').replace(/\D/g, '');
+      const r = await fetch(`${GRAPH_URL}/${META_WA_PHONE_ID}/messages`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${_waToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messaging_product: 'whatsapp',
+          to: cleanTo,
+          type: 'video',
+          video: { link: videoUrl, ...(caption ? { caption } : {}) },
+        }),
+      });
+      const json = await r.json();
+      if (json.error) throw new Error(json.error.message || JSON.stringify(json.error));
+      const ts = Date.now();
+      await _logWAMessage(cleanTo, 'out', `[VIDEO] ${videoUrl}${caption ? ' — ' + caption : ''}`);
+      if (leadId) fsUpdateLeadFields(leadId, { unread_msg: false, last_msg_ts: ts }).catch(() => {});
+      res.json({ ok: true, messageId: json.messages?.[0]?.id, ts });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
   // ── Meta Lead Ads webhook ─────────────────────────────────────────────────
   app.get('/meta/webhook/leadgen', verifyWebhook);
 

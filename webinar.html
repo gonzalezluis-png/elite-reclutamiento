@@ -297,7 +297,7 @@ footer {
   <div class="player-label">▶ Reproducir webinar</div>
   <div class="player-wrap">
     <video id="player" playsinline controls>
-      <source src="https://f005.backblazeb2.com/file/elite-webinar/Webinar+abril+2026.mp4" type="video/mp4" />
+      <source src="https://f005.backblazeb2.com/file/elite-webinar/Webinar+mayo+2026.mp4" type="video/mp4" />
     </video>
     <div class="fake-progress-bar">
       <div class="fake-progress-fill" id="custom-fill"></div>
@@ -349,7 +349,23 @@ footer {
       ¿Es necesario invertir dinero para empezar?
       <span class="faq-icon">+</span>
     </button>
-    <div class="faq-a">No. Unirte a nuestro equipo es completamente gratuito. No hay cuotas de inscripción, ni compras obligatorias. Solo necesitas disposición y ganas de crecer.</div>
+    <div class="faq-a">No. Unirte a nuestro equipo es completamente gratuito. No hay cuotas de inscripción, ni compras obligatorias. Solo necesitas disposición y ganas de crecer.<br><br><strong>Nota importante:</strong> Si aún no tienes licencia para vender productos financieros en el estado donde vives, deberás solicitarla directamente con el Departamento Financiero. Este proceso puede generar un pago administrativo pagadero directamente al departamento financiero — es un trámite estatal obligatorio, no un cobro de la empresa.<br><br>Los ingresos dependen de tu desempeño y dedicación. En el webinar explicamos con detalle el plan de compensación, que incluye comisiones, bonos y beneficios adicionales. Una persona promedio genera más de $63,000 al año (dependiendo de tu performance).</div>
+  </div>
+
+  <div class="faq-item">
+    <button class="faq-q" onclick="toggleFaq(this)">
+      ¿Cuándo podría comenzar si llego a la entrevista?
+      <span class="faq-icon">+</span>
+    </button>
+    <div class="faq-a">Depende de la velocidad con que tramites la licencia (en caso de no tenerla). El proceso completo puede tomar entre 7 y 8 días — durante ese tiempo estaremos contigo ayudándote a agilizar cada paso. Si ya tienes licencia, puedes comenzar de inmediato.</div>
+  </div>
+
+  <div class="faq-item">
+    <button class="faq-q" onclick="toggleFaq(this)">
+      ¿Tengo que pagar por leads o clientes?
+      <span class="faq-icon">+</span>
+    </button>
+    <div class="faq-a">No. Nuestro sistema se basa en apoyar a nuestros agentes con leads sin costo alguno, para que puedas generar producción desde el primer día. Además, podrás crear una red de referidos que impulsará tu carrera con Globe Life a largo plazo.</div>
   </div>
 
   <div class="faq-item">
@@ -450,6 +466,10 @@ footer {
         <svg width="19" height="19" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
         Escribir por WhatsApp
       </a>
+      <button class="btn-restart" style="margin-top:8px;color:#8890a4;border-color:#2a3040;" onclick="openExtModal()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+        Ver versión extendida
+      </button>
       <button class="btn-restart" onclick="reiniciarVideo()">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg>
         Comenzar el video desde el inicio
@@ -458,7 +478,18 @@ footer {
   </div>
 </div>
 
-<footer>© 2026 · Todos los derechos reservados</footer>
+<!-- ── MODAL VERSIÓN EXTENDIDA ── -->
+<div id="ext-modal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.92);align-items:center;justify-content:center;">
+  <div style="position:relative;width:90%;max-width:960px;">
+    <button onclick="closeExtModal()" style="position:absolute;top:-38px;right:0;background:none;border:none;color:#fff;font-size:28px;cursor:pointer;line-height:1;">✕</button>
+    <video id="ext-player" controls playsinline style="width:100%;border-radius:12px;max-height:80vh;">
+      <source src="https://f005.backblazeb2.com/file/elite-webinar/Webinar+abril+2026.mp4" type="video/mp4" />
+    </video>
+    <p style="color:#8890a4;font-size:12px;text-align:center;margin-top:10px;">Versión extendida — Webinar abril 2026</p>
+  </div>
+</div>
+
+<footer>© 2026 · All rights reserved · Developed by <a href="https://www.m2base.com" target="_blank" rel="noopener" style="color:#4f7fff;text-decoration:none;">M2Base Developers</a></footer>
 
 <script src="https://cdn.plyr.io/3.7.8/plyr.polyfilled.js"></script>
 <script>
@@ -472,6 +503,24 @@ document.addEventListener('click', e => {
   if (!e.target.closest('.sponsor-chip')) {
     document.querySelectorAll('.sponsor-chip.tip-open').forEach(c => c.classList.remove('tip-open'));
   }
+});
+
+// Versión extendida modal
+function openExtModal() {
+  const m = document.getElementById('ext-modal');
+  m.style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+}
+function closeExtModal() {
+  const m = document.getElementById('ext-modal');
+  m.style.display = 'none';
+  document.body.style.overflow = '';
+  const v = document.getElementById('ext-player');
+  v.pause();
+  v.currentTime = 0;
+}
+document.getElementById('ext-modal').addEventListener('click', function(e) {
+  if (e.target === this) closeExtModal();
 });
 
 // FAQ
