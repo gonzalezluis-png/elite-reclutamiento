@@ -1082,7 +1082,7 @@ function registerMetaRoutes(app) {
       const messages = rows
         .filter(m => m.text && m.direction)
         .map(m => ({
-          sid:        `meta_${m.ts}`,
+          sid:        m.id || `meta_${m.ts}`,
           body:       m.text,
           direction:  m.direction === 'out' ? 'outbound' : 'inbound',
           dateSent:   new Date(m.ts).toISOString(),
@@ -1217,12 +1217,13 @@ function registerMetaRoutes(app) {
         }
       }
       const cleanTo = to.replace(/^\+/, '').replace(/\D/g, '');
-      const ts = Date.now();
-      const ok = await sendWhatsApp(cleanTo, body);
+      const ts    = Date.now();
+      const msgId = await _logWAMessage(cleanTo, 'out', body);
+      await sendWhatsApp(cleanTo, body, { noLog: true });
       if (leadId) {
         fsUpdateLeadFields(leadId, { unread_msg: false, last_msg_ts: ts }).catch(() => {});
       }
-      res.json({ ok: true, via: 'meta', to: cleanTo, ts });
+      res.json({ ok: true, via: 'meta', to: cleanTo, ts, msgId });
     } catch (e) {
       res.status(500).json({ ok: false, error: e.message });
     }

@@ -521,7 +521,7 @@ async function _msgSend() {
       const data = await res.json();
       if (!data.ok) throw new Error(data.error);
       if (!lead.metaWa) lead.metaWa = [];
-      lead.metaWa.push({ direction:'outbound', body: displayBody, dateSent: new Date(data.ts||Date.now()).toISOString(), autor: currentUser?.name||'Agente', sid:`meta_${data.ts||Date.now()}`, status:'sent', ch:'wa' });
+      lead.metaWa.push({ direction:'outbound', body: displayBody, dateSent: new Date(data.ts||Date.now()).toISOString(), autor: currentUser?.name||'Agente', sid: data.msgId || `meta_${data.ts||Date.now()}`, status:'sent', ch:'wa' });
       addHistorial(lead.id, `WhatsApp: "${displayBody.slice(0,60)}"`, '💬');
     } else {
       const inp  = document.getElementById('msg-inp');
@@ -732,7 +732,7 @@ async function lcSend() {
       const metaData = await res.json().catch(()=>({}));
       if (!res.ok) throw new Error(metaData.error || `Error WhatsApp (${res.status})`);
       if (!lead.metaWa) lead.metaWa = [];
-      lead.metaWa.push({ body, direction:'outbound', dateSent: new Date(metaData.ts||Date.now()).toISOString(), autor: currentUser?.name||'Agente', sid:`meta_${metaData.ts||Date.now()}`, ch:'wa' });
+      lead.metaWa.push({ body, direction:'outbound', dateSent: new Date(metaData.ts||Date.now()).toISOString(), autor: currentUser?.name||'Agente', sid: metaData.msgId || `meta_${metaData.ts||Date.now()}`, ch:'wa' });
     }
     document.getElementById('lc-textarea').value = '';
     document.getElementById('lc-tpl-select').value = '';
