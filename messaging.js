@@ -767,7 +767,7 @@ const _TPL_NAMES = {
   'grupo_elite_bienvenida':                   '👋 Bienvenida — primer contacto',
   'grupo_elite_cerrado':                      '🕐 Oficina cerrada',
   'vi_que_completaste_nuestro_formulario_':   '📋 Completaste nuestro formulario',
-  'link_de_webinar_sin_inscripcion':          '🎥 Enviar link del webinar',
+  'link_de_webinar_sin_inscripcion':          '🎥 Enviar link del webinar (sin registrar)',
   '1er_intento_de_contacto_no_webinar':       '📲 1er intento — sin webinar',
   'no_recibimos_mas_repuestas_del_postualdo': '🔇 Sin respuesta del postulado',
   'ultimo_intento_de_contacto':               '🚪 Último intento de contacto',
