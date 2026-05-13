@@ -1287,57 +1287,6 @@ function registerMetaRoutes(app) {
     }
   });
 
-  // ── Temp: check WA message history for a phone ───────────────────────────
-  app.get('/admin/wa-msgs/:phone', async (req, res) => {
-    const msgs = await db.sbGetWAMessages(req.params.phone, 20).catch(e => ({ error: e.message }));
-    res.json(msgs);
-  });
-
-  // ── Temp: show env config ─────────────────────────────────────────────────
-  app.get('/admin/wa-config', (req, res) => {
-    res.json({ phoneId: META_WA_PHONE_ID, hasToken: !!_waToken, tokenStart: _waToken?.slice(0,10) });
-  });
-
-  // ── Temp: list WA templates ───────────────────────────────────────────────
-  app.get('/admin/wa-templates', async (req, res) => {
-    const wabaId = '1503820438112497';
-    const r = await fetch(`${GRAPH_URL}/${wabaId}/message_templates?fields=name,status,id,category&limit=30`, {
-      headers: { 'Authorization': `Bearer ${_waToken}` },
-    }).then(r => r.json());
-    res.json(r);
-  });
-
-  // ── Temp: create WA templates ────────────────────────────────────────────
-  app.post('/admin/create-wa-templates', async (req, res) => {
-    try {
-      const wabaId = '1503820438112497';
-
-      const templates = [
-        {
-          name: 'confirmacion_solicitud',
-          language: 'es',
-          category: 'UTILITY',
-          components: [
-            { type: 'BODY', text: 'Hola {{1}}, hemos recibido tu solicitud. Un representante de Grupo Elite te contactará pronto con más información.' },
-          ],
-        },
-      ];
-
-      const results = [];
-      for (const tpl of templates) {
-        const r = await fetch(`${GRAPH_URL}/${wabaId}/message_templates`, {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${_waToken}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify(tpl),
-        }).then(r => r.json());
-        results.push({ name: tpl.name, result: r });
-      }
-      res.json({ ok: true, wabaId, results });
-    } catch (e) {
-      res.status(500).json({ ok: false, error: e.message });
-    }
-  });
-
   // ── Meta Lead Ads webhook ─────────────────────────────────────────────────
   app.get('/meta/webhook/leadgen', verifyWebhook);
 
