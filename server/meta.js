@@ -1301,21 +1301,6 @@ function registerMetaRoutes(app) {
     try {
       const wabaId = '1503820438112497';
 
-      // Delete ALL rejected custom templates
-      const existing = await fetch(`${GRAPH_URL}/${wabaId}/message_templates?fields=name,status,id&limit=30`, {
-        headers: { 'Authorization': `Bearer ${_waToken}` },
-      }).then(r => r.json());
-
-      const deleteResults = [];
-      for (const t of (existing.data || [])) {
-        if (t.name === 'hello_world') continue;
-        const dr = await fetch(`${GRAPH_URL}/${wabaId}/message_templates?name=${t.name}`, {
-          method: 'DELETE',
-          headers: { 'Authorization': `Bearer ${_waToken}` },
-        }).then(r => r.json());
-        deleteResults.push({ name: t.name, id: t.id, deleted: dr });
-      }
-
       const templates = [
         {
           name: 'confirmacion_solicitud',
@@ -1344,7 +1329,7 @@ function registerMetaRoutes(app) {
         }).then(r => r.json());
         results.push({ name: tpl.name, result: r });
       }
-      res.json({ ok: true, wabaId, deleteResults, results });
+      res.json({ ok: true, wabaId, results });
     } catch (e) {
       res.status(500).json({ ok: false, error: e.message });
     }
