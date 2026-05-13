@@ -412,8 +412,8 @@ function _msgRenderThread() {
           <span style="font-size:11px;color:var(--text2);">${esc(phone)}</span>
         </div>
         ${_msgChannel==='wa' ? `
-        <div id="msg-24h-warning" style="display:none;background:rgba(251,191,36,.1);border:1px solid rgba(251,191,36,.35);border-radius:6px;padding:7px 10px;font-size:11px;color:#fbbf24;margin-bottom:6px">
-          ⚠️ Han pasado más de 24h sin respuesta. Solo puedes enviar <strong>una plantilla</strong> para reabrir la conversación. Una vez que respondan, podrás escribir libremente.
+        <div id="msg-24h-warning" style="display:none;padding:3px 8px;font-size:10px;color:rgba(251,191,36,.5);margin-bottom:4px">
+          Ventana 24h cerrada · usa una plantilla para reabrir
         </div>
         <div class="msg-tpl-row">
           <select class="msg-tpl-sel" id="msg-tpl-sel" onchange="_msgLoadTpl()">
