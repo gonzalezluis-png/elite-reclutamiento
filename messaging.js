@@ -763,6 +763,20 @@ async function _msgAddNota() {
 
 let _msgTemplates = [];
 
+const _TPL_NAMES = {
+  'grupo_elite_bienvenida':                   '👋 Bienvenida — primer contacto',
+  'grupo_elite_cerrado':                      '🕐 Oficina cerrada',
+  'vi_que_completaste_nuestro_formulario_':   '📋 Completaste nuestro formulario',
+  'link_de_webinar_sin_inscripcion':          '🎥 Enviar link del webinar',
+  '1er_intento_de_contacto_no_webinar':       '📲 1er intento — sin webinar',
+  'no_recibimos_mas_repuestas_del_postualdo': '🔇 Sin respuesta del postulado',
+  'ultimo_intento_de_contacto':               '🚪 Último intento de contacto',
+};
+function _tplLabel(name) {
+  if (_TPL_NAMES[name]) return _TPL_NAMES[name];
+  return name.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
+
 function _tplFavsKey() {
   return `tpl_favs_${currentUser?.email || 'default'}`;
 }
@@ -790,7 +804,7 @@ function _msgRebuildTplDropdown() {
     for (const t of favList) {
       const opt = document.createElement('option');
       opt.value = t.name;
-      opt.textContent = '⭐ ' + t.name.replace(/_/g,' ');
+      opt.textContent = '⭐ ' + _tplLabel(t.name);
       grp.appendChild(opt);
     }
     sel.appendChild(grp);
@@ -801,7 +815,7 @@ function _msgRebuildTplDropdown() {
     for (const t of otherList) {
       const opt = document.createElement('option');
       opt.value = t.name;
-      opt.textContent = t.name.replace(/_/g,' ');
+      opt.textContent = _tplLabel(t.name);
       grp.appendChild(opt);
     }
     sel.appendChild(grp);
