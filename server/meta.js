@@ -1287,13 +1287,56 @@ function registerMetaRoutes(app) {
     }
   });
 
-  // ── Temp: create templates ───────────────────────────────────────────────
-  app.get('/admin/mkpl', async (req, res) => {
-    const wabaId = '1503820438112497';
-    const r = await fetch(`${GRAPH_URL}/${wabaId}/message_templates?fields=name,status,id,category,language&limit=50`, {
-      headers: { 'Authorization': `Bearer ${_waToken}` },
-    }).then(r => r.json());
-    res.json(r.data || r);
+  // ── Fetch active WA templates for CRM dropdown ──────────────────────────
+  app.get('/meta/wa-templates', async (req, res) => {
+    try {
+      const wabaId = process.env.META_WA_WABA_ID || '1503820438112497';
+      const r = await fetch(`${GRAPH_URL}/${wabaId}/message_templates?fields=name,status,language,components&limit=50`, {
+        headers: { 'Authorization': `Bearer ${_waToken}` },
+      }).then(r => r.json());
+      const active = (r.data || [])
+        .filter(t => t.status === 'APPROVED' && t.name !== 'hello_world')
+        .map(t => {
+          const body = t.components?.find(c => c.type === 'BODY')?.text || '';
+          const header = t.components?.find(c => c.type === 'HEADER')?.text || '';
+          return { name: t.name, language: t.language, body, header };
+        });
+      res.json({ ok: true, templates: active });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  // ── Send WA template message ─────────────────────────────────────────────
+  app.post('/meta/wa-send-template', async (req, res) => {
+    const { to, templateName, language, params, leadId } = req.body;
+    if (!to || !templateName) return res.status(400).json({ ok: false, error: 'to y templateName requeridos' });
+    if (!_waToken || !META_WA_PHONE_ID) return res.status(503).json({ ok: false, error: 'Meta WA no configurado' });
+    try {
+      const cleanTo = to.replace(/^\+/, '').replace(/\D/g, '');
+      const components = [];
+      if (params?.length) {
+        components.push({ type: 'body', parameters: params.map(p => ({ type: 'text', text: p })) });
+      }
+      const r = await fetch(`${GRAPH_URL}/${META_WA_PHONE_ID}/messages`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${_waToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messaging_product: 'whatsapp',
+          to: cleanTo,
+          type: 'template',
+          template: { name: templateName, language: { code: language || 'es' }, components },
+        }),
+      });
+      const json = await r.json();
+      if (json.error) throw new Error(json.error.message || JSON.stringify(json.error));
+      const ts = Date.now();
+      await _logWAMessage(cleanTo, 'out', `[PLANTILLA: ${templateName}] ${params?.[0] || ''}`);
+      if (leadId) fsUpdateLeadFields(leadId, { unread_msg: false, last_msg_ts: ts }).catch(() => {});
+      res.json({ ok: true, messageId: json.messages?.[0]?.id, ts });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
   });
 
   // ── Meta Lead Ads webhook ─────────────────────────────────────────────────

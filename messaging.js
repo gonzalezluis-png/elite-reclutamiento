@@ -408,23 +408,15 @@ function _msgRenderThread() {
         <span style="font-size:11px;color:var(--text2);">${esc(phone)}</span>
       </div>
       ${_msgChannel==='wa' ? `
+      <div id="msg-24h-warning" style="display:none;background:rgba(251,191,36,.1);border:1px solid rgba(251,191,36,.35);border-radius:6px;padding:7px 10px;font-size:11px;color:#fbbf24;margin-bottom:6px">
+        ⚠️ Han pasado más de 24h sin respuesta. Solo puedes enviar <strong>una plantilla</strong> para reabrir la conversación. Una vez que respondan, podrás escribir libremente.
+      </div>
       <div class="msg-tpl-row">
         <select class="msg-tpl-sel" id="msg-tpl-sel" onchange="_msgLoadTpl()">
           <option value="">📋 Plantilla WhatsApp…</option>
-          <option value="aplicacante_registrado">✅ Aplicante registrado</option>
-          <option value="webinar_con_video">🎥 Webinar con video</option>
-          <option value="en_webinar_aplicantes">📩 En webinar — confirmación</option>
-          <option value="en_webinar_webinar_visto">👀 Webinar visto</option>
-          <option value="no_visto_webinar">⚠️ No vio el webinar</option>
-          <option value="registrado_en_una_entrevista">📅 Registrado en entrevista</option>
-          <option value="link_de_entrevista_con_globe_life">🔗 Link entrevista (5 min)</option>
-          <option value="aviso_entrevista_con_manager_30_minutos_antes">⏰ Aviso 30 min antes</option>
-          <option value="agenda_de_cita_para_manager">🗓️ Cita para manager</option>
-          <option value="3er_intento_de_contacto">📵 3er intento</option>
-          <option value="2do_intento_de_contacto_webinar_no_visto_eliminacion">🚫 2do intento eliminación</option>
-          <option value="eliminacion_por_webinar_visto">❌ Eliminación</option>
         </select>
       </div>
+      <div id="msg-tpl-preview" style="display:none;background:rgba(37,211,102,.06);border:1px solid rgba(37,211,102,.2);border-radius:6px;padding:8px 10px;font-size:12px;color:var(--text1,#fff);margin-top:4px;white-space:pre-wrap;line-height:1.5"></div>
       <div class="msg-tpl-vars" id="msg-tpl-vars"></div>` : ''}
       <div class="msg-input-row">
         <textarea class="msg-textarea" id="msg-inp" placeholder="${_msgChannel==='wa'?'Mensaje de WhatsApp… (Ctrl+Enter enviar)':'Mensaje SMS… (Ctrl+Enter enviar)'}" onkeydown="if(event.ctrlKey&&event.key==='Enter')_msgSend()" rows="2"></textarea>
@@ -448,6 +440,9 @@ function _msgRenderThread() {
     const tb = document.getElementById('msg-thread-body');
     if (tb) tb.scrollTop = tb.scrollHeight;
   }, 50);
+
+  // Load templates when WA channel is active
+  if (_msgChannel === 'wa') _msgLoadTemplates();
 }
 
 function _msgSetChannel(ch) {
@@ -493,22 +488,99 @@ async function _msgForceAna(leadId) {
   }
 }
 
+let _msgTemplates = [];
+
+async function _msgLoadTemplates() {
+  const sel = document.getElementById('msg-tpl-sel');
+  if (!sel) return;
+  try {
+    const res  = await fetch(`${SERVER_URL}/meta/wa-templates`);
+    const data = await res.json();
+    _msgTemplates = data.templates || [];
+    // Rebuild options
+    sel.innerHTML = '<option value="">📋 Plantilla WhatsApp…</option>';
+    for (const t of _msgTemplates) {
+      const opt = document.createElement('option');
+      opt.value = t.name;
+      opt.textContent = t.name.replace(/_/g,' ');
+      sel.appendChild(opt);
+    }
+  } catch(e) { console.warn('No se pudieron cargar plantillas:', e.message); }
+
+  // Check 24h window
+  const lead = leads.find(l => l.id === _msgLeadId);
+  const warn = document.getElementById('msg-24h-warning');
+  if (warn && lead) {
+    const allMsgs = [...(lead.metaWa||[]), ...(lead.whatsapp||[])];
+    const lastInbound = allMsgs.filter(m => m.direction === 'inbound').sort((a,b) => new Date(b.dateSent||b.date||0) - new Date(a.dateSent||a.date||0))[0];
+    const hoursSince = lastInbound ? (Date.now() - new Date(lastInbound.dateSent||lastInbound.date).getTime()) / 36e5 : 999;
+    warn.style.display = hoursSince > 24 ? 'block' : 'none';
+  }
+}
+
 function _msgLoadTpl() {
+  const sel     = document.getElementById('msg-tpl-sel');
+  const key     = sel?.value;
+  const tpl     = _msgTemplates.find(t => t.name === key);
+  const preview = document.getElementById('msg-tpl-preview');
+  const varsEl  = document.getElementById('msg-tpl-vars');
+  const inp     = document.getElementById('msg-inp');
+  if (!preview || !varsEl) return;
+  if (!key || !tpl) {
+    preview.style.display = 'none';
+    varsEl.innerHTML = '';
+    if (inp) { inp.value = ''; inp.style.opacity = '1'; }
+    return;
+  }
+  const lead     = leads.find(l => l.id === _msgLeadId);
+  const firstName = (lead?.nombre||'').split(' ')[0] || lead?.nombre || '';
+  // Show preview with {{1}} replaced by name
+  const previewText = tpl.body.replace(/\{\{1\}\}/g, firstName || '{{nombre}}');
+  preview.style.display = 'block';
+  preview.textContent = previewText;
+  // Var input for {{1}} (nombre)
+  varsEl.innerHTML = `<div class="msg-tpl-var" style="margin-top:6px">
+    <label style="font-size:11px;color:var(--text2);display:block;margin-bottom:3px">{{1}} Nombre</label>
+    <input id="msg-var-0" value="${esc(firstName)}" placeholder="Nombre" style="width:100%;background:var(--bg2,#1a1a2e);border:1px solid rgba(255,255,255,.12);color:#fff;border-radius:6px;padding:5px 8px;font-size:12px;box-sizing:border-box" oninput="_msgUpdateTplPreview()" />
+  </div>
+  <div style="margin-top:8px;display:flex;justify-content:flex-end">
+    <button onclick="_msgSendTemplate()" style="background:#25d366;color:#fff;border:none;padding:6px 16px;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer">Enviar plantilla ➤</button>
+  </div>`;
+  if (inp) { inp.value = ''; inp.style.opacity = '1'; }
+}
+
+function _msgUpdateTplPreview() {
+  const sel  = document.getElementById('msg-tpl-sel');
+  const tpl  = _msgTemplates.find(t => t.name === sel?.value);
+  const prev = document.getElementById('msg-tpl-preview');
+  const val  = document.getElementById('msg-var-0')?.value || '';
+  if (prev && tpl) prev.textContent = tpl.body.replace(/\{\{1\}\}/g, val || '{{nombre}}');
+}
+
+async function _msgSendTemplate() {
   const sel  = document.getElementById('msg-tpl-sel');
   const key  = sel?.value;
-  const tpl  = WA_TEMPLATES[key];
-  const varsEl = document.getElementById('msg-tpl-vars');
-  const inp  = document.getElementById('msg-inp');
-  if (!varsEl) return;
-  if (!key || !tpl) { varsEl.innerHTML=''; if(inp){inp.value='';inp.style.opacity='1';} return; }
+  const tpl  = _msgTemplates.find(t => t.name === key);
   const lead = leads.find(l => l.id === _msgLeadId);
-  const auto = { nombre: lead?.nombre||'', fuente: lead?.fuente||'', correo: lead?.correo||'', nombre_candidato: lead?.nombre||'' };
-  varsEl.innerHTML = tpl.vars.map((v,i) =>
-    `<div class="msg-tpl-var">
-      <label>{{${i+1}}} ${v}</label>
-      <input id="msg-var-${i}" value="${esc(auto[v]||'')}" placeholder="${v}" />
-    </div>`).join('');
-  if (inp) { inp.value='← Plantilla: '+key.replace(/_/g,' '); inp.style.opacity='.4'; }
+  if (!key || !tpl || !lead?.telefono) { showToast('⚠️ Selecciona una plantilla'); return; }
+  const param1 = document.getElementById('msg-var-0')?.value?.trim() || '';
+  const btn    = document.querySelector('[onclick="_msgSendTemplate()"]');
+  if (btn) { btn.disabled = true; btn.textContent = 'Enviando…'; }
+  try {
+    const res  = await fetch(`${SERVER_URL}/meta/wa-send-template`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ to: lead.telefono, templateName: key, language: tpl.language || 'es', params: param1 ? [param1] : [], leadId: lead.id }),
+    });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error);
+    showToast('✅ Plantilla enviada');
+    sel.value = '';
+    _msgLoadTpl();
+    setTimeout(_msgRenderThread, 1500);
+  } catch(e) {
+    showToast('⚠️ ' + e.message);
+  }
+  if (btn) { btn.disabled = false; btn.textContent = 'Enviar plantilla ➤'; }
 }
 
 async function _msgSend() {
