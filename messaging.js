@@ -434,13 +434,11 @@ function _msgRenderThread() {
         </div>
       </div>
       <div id="msg-video-panel" style="display:none;margin-top:8px;background:rgba(37,211,102,.06);border:1px solid rgba(37,211,102,.25);border-radius:8px;padding:10px 12px">
-        <div style="font-size:11px;color:#25d366;font-weight:600;margin-bottom:8px">🎬 Enviar link del webinar</div>
-        <textarea id="msg-video-url" rows="3" style="width:100%;background:var(--bg2,#1a1a2e);border:1px solid rgba(255,255,255,.12);color:#fff;border-radius:6px;padding:7px 10px;font-size:12px;margin-bottom:8px;box-sizing:border-box;resize:vertical">👋 ¡Hola! Te comparto el acceso a nuestro webinar donde podrás ver toda la información sobre la oportunidad laboral con Globe Life:
-
-🎬 https://crm.grupoelitework.com/webinar.html</textarea>
+        <div style="font-size:11px;color:#25d366;font-weight:600;margin-bottom:8px">🎬 Enviar video intro Globe Life</div>
+        <input id="msg-video-caption" placeholder="Caption (opcional)" style="width:100%;background:var(--bg2,#1a1a2e);border:1px solid rgba(255,255,255,.12);color:#fff;border-radius:6px;padding:7px 10px;font-size:12px;margin-bottom:8px;box-sizing:border-box" />
         <div style="display:flex;justify-content:space-between;align-items:center">
           <span id="msg-video-status" style="font-size:11px;color:#888"></span>
-          <button onclick="_msgSendVideoConfirm()" style="background:#25d366;color:#fff;border:none;padding:6px 14px;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer" id="msg-video-btn">Enviar</button>
+          <button onclick="_msgSendVideoConfirm()" style="background:#25d366;color:#fff;border:none;padding:6px 14px;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer" id="msg-video-btn">Enviar video</button>
         </div>
       </div>
     </div>`;
@@ -1222,26 +1220,24 @@ function _msgSendVideo() {
 }
 
 async function _msgSendVideoConfirm() {
-  const body   = document.getElementById('msg-video-url')?.value.trim();
-  const status = document.getElementById('msg-video-status');
-  const btn    = document.getElementById('msg-video-btn');
-  const lead   = leads.find(l => l.id === _msgLeadId);
-  if (!body) { if(status){status.textContent='Mensaje vacío';status.style.color='#e2445c';} return; }
+  const videoUrl = 'https://elite-webinar.b-cdn.net/file/elite-webinar/Video-Intro-Globe-Life-480p.mp4';
+  const caption  = document.getElementById('msg-video-caption')?.value.trim();
+  const status   = document.getElementById('msg-video-status');
+  const btn      = document.getElementById('msg-video-btn');
+  const lead     = leads.find(l => l.id === _msgLeadId);
   if (!lead?.telefono) { if(status){status.textContent='Lead sin teléfono';status.style.color='#e2445c';} return; }
   if(btn) btn.disabled = true;
   if(status){status.textContent='Enviando…';status.style.color='#888';}
   try {
-    const res = await fetch(`${SERVER_URL}/meta/wa-send`, {
+    const res = await fetch(`${SERVER_URL}/meta/wa-send-video`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ to: lead.telefono, body, leadId: lead.id }),
+      body: JSON.stringify({ to: lead.telefono, videoUrl, caption: caption||undefined, leadId: lead.id }),
     });
     const data = await res.json();
     if (!data.ok) throw new Error(data.error || 'Error');
-    if (!lead.metaWa) lead.metaWa = [];
-    lead.metaWa.push({ direction:'outbound', body, dateSent: new Date(data.ts||Date.now()).toISOString(), autor: currentUser?.name||'Agente', sid: data.msgId||`meta_${Date.now()}`, status:'sent', ch:'wa' });
-    addHistorial(lead.id, `WhatsApp webinar enviado`, '🎬');
-    if(status){status.textContent='✓ Mensaje enviado';status.style.color='#25d366';}
+    addHistorial(lead.id, `Video intro Globe Life enviado por WA`, '🎬');
+    if(status){status.textContent='✓ Video enviado';status.style.color='#25d366';}
     setTimeout(() => { const p=document.getElementById('msg-video-panel'); if(p)p.style.display='none'; if(status)status.textContent=''; }, 2000);
   } catch(e) {
     if(status){status.textContent='⚠️ '+e.message;status.style.color='#e2445c';}
