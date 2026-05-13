@@ -1287,6 +1287,46 @@ function registerMetaRoutes(app) {
     }
   });
 
+  // ── Temp: create WA templates ────────────────────────────────────────────
+  app.post('/admin/create-wa-templates', async (req, res) => {
+    try {
+      // Get WABA ID from phone number ID
+      const phoneInfo = await fetch(`${GRAPH_URL}/${META_WA_PHONE_ID}?fields=whatsapp_business_account`, {
+        headers: { 'Authorization': `Bearer ${_waToken}` },
+      }).then(r => r.json());
+      const wabaId = phoneInfo?.whatsapp_business_account?.id;
+      if (!wabaId) return res.status(500).json({ ok: false, error: 'No se pudo obtener WABA ID', phoneInfo });
+
+      const templates = [
+        {
+          name: 'solicitud_recibida_horario_abierto',
+          language: 'es',
+          category: 'UTILITY',
+          components: [{ type: 'BODY', text: 'Hola {{1}}, hemos recibido tu solicitud para Grupo Elite. Es un placer tenerte con nosotros, en breve te estaremos llamando para darte más información.' }],
+        },
+        {
+          name: 'solicitud_recibida_horario_cerrado',
+          language: 'es',
+          category: 'UTILITY',
+          components: [{ type: 'BODY', text: 'Hola {{1}}, hemos recibido tu solicitud para Grupo Elite. En este momento nuestras oficinas se encuentran cerradas, pero en cuanto abramos te contactaremos. ¡Gracias por tu interés!' }],
+        },
+      ];
+
+      const results = [];
+      for (const tpl of templates) {
+        const r = await fetch(`${GRAPH_URL}/${wabaId}/message_templates`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${_waToken}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify(tpl),
+        }).then(r => r.json());
+        results.push({ name: tpl.name, result: r });
+      }
+      res.json({ ok: true, wabaId, results });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
   // ── Meta Lead Ads webhook ─────────────────────────────────────────────────
   app.get('/meta/webhook/leadgen', verifyWebhook);
 
