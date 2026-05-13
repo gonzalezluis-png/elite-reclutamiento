@@ -1293,6 +1293,11 @@ function registerMetaRoutes(app) {
     res.json(msgs);
   });
 
+  // ── Temp: show env config ─────────────────────────────────────────────────
+  app.get('/admin/wa-config', (req, res) => {
+    res.json({ phoneId: META_WA_PHONE_ID, hasToken: !!_waToken, tokenStart: _waToken?.slice(0,10) });
+  });
+
   // ── Temp: list WA templates ───────────────────────────────────────────────
   app.get('/admin/wa-templates', async (req, res) => {
     const wabaId = '1503820438112497';
