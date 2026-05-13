@@ -1220,7 +1220,7 @@ function _msgSendVideo() {
 }
 
 async function _msgSendVideoConfirm() {
-  const videoUrl = 'https://elite-webinar.b-cdn.net/file/elite-webinar/Video-Intro-Globe-Life-480p.mp4';
+  const videoUrl = 'https://elite-webinar.b-cdn.net/file/elite-webinar/Video-Intro-Globe-Life-WA.mp4';
   const caption  = document.getElementById('msg-video-caption')?.value.trim();
   const status   = document.getElementById('msg-video-status');
   const btn      = document.getElementById('msg-video-btn');
