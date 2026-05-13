@@ -1287,6 +1287,15 @@ function registerMetaRoutes(app) {
     }
   });
 
+  // ── Temp: list WA templates ───────────────────────────────────────────────
+  app.get('/admin/wa-templates', async (req, res) => {
+    const wabaId = '1503820438112497';
+    const r = await fetch(`${GRAPH_URL}/${wabaId}/message_templates?fields=name,status,id,category&limit=30`, {
+      headers: { 'Authorization': `Bearer ${_waToken}` },
+    }).then(r => r.json());
+    res.json(r);
+  });
+
   // ── Temp: create WA templates ────────────────────────────────────────────
   app.post('/admin/create-wa-templates', async (req, res) => {
     try {
