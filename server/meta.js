@@ -1295,7 +1295,7 @@ function registerMetaRoutes(app) {
         headers: { 'Authorization': `Bearer ${_waToken}` },
       }).then(r => r.json());
       const active = (r.data || [])
-        .filter(t => t.status === 'APPROVED' && t.name !== 'hello_world')
+        .filter(t => t.status === 'APPROVED')
         .map(t => {
           const body = t.components?.find(c => c.type === 'BODY')?.text || '';
           const header = t.components?.find(c => c.type === 'HEADER')?.text || '';
