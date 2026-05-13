@@ -1290,13 +1290,10 @@ function registerMetaRoutes(app) {
   // ── Temp: create templates ───────────────────────────────────────────────
   app.get('/admin/mkpl', async (req, res) => {
     const wabaId = '1503820438112497';
-    // Test: try English UTILITY template to isolate if rejection is language or account issue
-    const r = await fetch(`${GRAPH_URL}/${wabaId}/message_templates`, {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${_waToken}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: 'elite_welcome_en', language: 'en_US', category: 'UTILITY', components: [{ type: 'BODY', text: 'Hello {{1}}, we received your application. A Grupo Elite representative will contact you shortly.' }] }),
+    const r = await fetch(`${GRAPH_URL}/${wabaId}/message_templates?fields=name,status,id,category,language&limit=50`, {
+      headers: { 'Authorization': `Bearer ${_waToken}` },
     }).then(r => r.json());
-    res.json(r);
+    res.json(r.data || r);
   });
 
   // ── Meta Lead Ads webhook ─────────────────────────────────────────────────
