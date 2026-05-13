@@ -1271,7 +1271,7 @@ app.post('/leads/:id/extract', requireSession(), async (req, res) => {
       }
     }
 
-    if (merged.length < 2) return res.json({ ok: false, error: 'Sin historial suficiente' });
+    if (merged.length < 1) return res.json({ ok: false, error: 'Este lead no tiene mensajes de WhatsApp registrados' });
 
     const { extractAndUpdateLead } = require('./pipeline');
     const convKey = `wa_meta:${phone}`;
