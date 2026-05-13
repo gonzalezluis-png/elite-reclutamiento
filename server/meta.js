@@ -1309,7 +1309,7 @@ function registerMetaRoutes(app) {
 
   // ── Send WA template message ─────────────────────────────────────────────
   app.post('/meta/wa-send-template', async (req, res) => {
-    const { to, templateName, language, params, leadId } = req.body;
+    const { to, templateName, language, params, leadId, renderedBody } = req.body;
     if (!to || !templateName) return res.status(400).json({ ok: false, error: 'to y templateName requeridos' });
     if (!_waToken || !META_WA_PHONE_ID) return res.status(503).json({ ok: false, error: 'Meta WA no configurado' });
     try {
@@ -1318,23 +1318,28 @@ function registerMetaRoutes(app) {
       if (params?.length) {
         components.push({ type: 'body', parameters: params.map(p => ({ type: 'text', text: p })) });
       }
+      const payload = {
+        messaging_product: 'whatsapp',
+        to: cleanTo,
+        type: 'template',
+        template: { name: templateName, language: { code: language || 'es' }, components },
+      };
+      console.log(`[WA-Template] Sending "${templateName}" to ${cleanTo} lang=${language} params=${JSON.stringify(params)}`);
       const r = await fetch(`${GRAPH_URL}/${META_WA_PHONE_ID}/messages`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${_waToken}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          messaging_product: 'whatsapp',
-          to: cleanTo,
-          type: 'template',
-          template: { name: templateName, language: { code: language || 'es' }, components },
-        }),
+        body: JSON.stringify(payload),
       });
       const json = await r.json();
+      console.log(`[WA-Template] Meta response:`, JSON.stringify(json));
       if (json.error) throw new Error(json.error.message || JSON.stringify(json.error));
       const ts = Date.now();
-      await _logWAMessage(cleanTo, 'out', `[PLANTILLA: ${templateName}] ${params?.[0] || ''}`);
+      const logBody = renderedBody || `📋 Plantilla: ${templateName}${params?.[0] ? ' — ' + params[0] : ''}`;
+      await _logWAMessage(cleanTo, 'out', logBody);
       if (leadId) fsUpdateLeadFields(leadId, { unread_msg: false, last_msg_ts: ts }).catch(() => {});
       res.json({ ok: true, messageId: json.messages?.[0]?.id, ts });
     } catch (e) {
+      console.error(`[WA-Template] Error:`, e.message);
       res.status(500).json({ ok: false, error: e.message });
     }
   });

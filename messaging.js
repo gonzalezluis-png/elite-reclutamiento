@@ -897,7 +897,7 @@ async function _msgSendTemplate() {
   try {
     const res  = await fetch(`${SERVER_URL}/meta/wa-send-template`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ to: lead.telefono, templateName: key, language: tpl.language || 'es', params: param1 ? [param1] : [], leadId: lead.id }),
+      body: JSON.stringify({ to: lead.telefono, templateName: key, language: tpl.language || 'es', params: param1 ? [param1] : [], leadId: lead.id, renderedBody: tpl.body.replace(/\{\{1\}\}/g, param1 || '') }),
     });
     const data = await res.json();
     if (!data.ok) throw new Error(data.error);
