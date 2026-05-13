@@ -401,6 +401,8 @@ function registerMetaRoutes(app) {
     const _isManager = await isManagerPhone(from).catch(() => false);
     if (!_isManager) _logWAMessage(from, 'in', combinedText).catch(() => {});
 
+    const convKey = `wa_meta:${from}`;
+
     // ── Horario de atención — check BEFORE any response (form or normal) ─────
     if (!_isManager) {
       const _inHoursEarly = await isWABusinessHours();
@@ -592,7 +594,6 @@ function registerMetaRoutes(app) {
       }
 
       const leadData = await fsGetLeadByPhone(from);
-      const convKey  = `wa_meta:${from}`;
       const _leadId  = leadData?.id;
 
       if (_leadId) {
