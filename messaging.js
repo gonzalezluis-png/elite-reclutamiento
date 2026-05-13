@@ -773,6 +773,7 @@ const _TPL_NAMES = {
   '1er_intento_de_contacto_no_webinar':       '📲 1er intento — sin webinar',
   'no_recibimos_mas_repuestas_del_postualdo': '🔇 Sin respuesta del postulado',
   'ultimo_intento_de_contacto':               '🚪 Último intento de contacto',
+  'hello_world':                              '🧪 Prueba de conectividad',
 };
 function _tplLabel(name) {
   if (_TPL_NAMES[name]) return _TPL_NAMES[name];

@@ -1315,8 +1315,9 @@ function registerMetaRoutes(app) {
     try {
       const cleanTo = to.replace(/^\+/, '').replace(/\D/g, '');
       const components = [];
-      if (params?.length) {
-        components.push({ type: 'body', parameters: params.map(p => ({ type: 'text', text: p })) });
+      const cleanParams = (params || []).filter(p => p && p.trim() !== '');
+      if (cleanParams.length) {
+        components.push({ type: 'body', parameters: cleanParams.map(p => ({ type: 'text', text: p })) });
       }
       const payload = {
         messaging_product: 'whatsapp',
