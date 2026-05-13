@@ -1321,14 +1321,6 @@ function registerMetaRoutes(app) {
             { type: 'BODY', text: 'Hola {{1}}, hemos recibido tu solicitud. Un representante de Grupo Elite te contactará pronto con más información.' },
           ],
         },
-        {
-          name: 'confirmacion_solicitud_cerrado',
-          language: 'es',
-          category: 'UTILITY',
-          components: [
-            { type: 'BODY', text: 'Hola {{1}}, hemos recibido tu solicitud. Nuestras oficinas están cerradas en este momento. Te contactaremos en horario de atención.' },
-          ],
-        },
       ];
 
       const results = [];
