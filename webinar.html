@@ -299,9 +299,6 @@ footer {
     <video id="player" playsinline webkit-playsinline controls preload="metadata">
       <source src="https://elite-webinar.b-cdn.net/file/elite-webinar/Webinar+mayo+2026.mp4" type="video/mp4" />
     </video>
-    <div class="fake-progress-bar">
-      <div class="fake-progress-fill" id="custom-fill"></div>
-    </div>
     <!-- End-of-video overlay -->
     <div id="end-overlay" style="display:none;position:absolute;inset:0;background:rgba(8,10,15,.88);z-index:20;display:none;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:20px;border-radius:12px;text-align:center">
       <div style="font-size:15px;font-weight:700;color:#f0f2ff;margin-bottom:2px">¿Te interesa esta oportunidad?</div>
@@ -570,7 +567,7 @@ let pauseCount = 0, watchedSecs = 0, maxPct = 0;
 let lastSave = 0, playing = false, completed = false;
 let sessionStart = new Date().toISOString();
 
-function updateBar(p) { document.getElementById('custom-fill').style.width = Math.min(p, 100).toFixed(1) + '%'; }
+function updateBar(p) {}
 
 async function saveProgress(final = false) {
   if (!leadId) return;
@@ -594,10 +591,13 @@ async function saveProgress(final = false) {
 }
 
 const player = new Plyr('#player', {
-  controls: ['play-large','play','mute','volume','fullscreen'],
+  controls: ['play-large','play','rewind','fast-forward','progress','current-time','duration','mute','volume','captions','settings','fullscreen'],
+  settings: ['captions','speed','quality'],
+  speed: { selected: 1, options: [0.5, 0.75, 1, 1.25, 1.5, 2] },
   playsinline: true,
   resetOnEnd: false,
   invertTime: false,
+  tooltips: { controls: true, seek: true },
 });
 player.on('play',  () => { playing = true; });
 player.on('pause', () => { if (playing) pauseCount++; playing = false; saveProgress(); });
