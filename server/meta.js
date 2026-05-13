@@ -1290,16 +1290,10 @@ function registerMetaRoutes(app) {
   // ── Temp: create templates ───────────────────────────────────────────────
   app.get('/admin/mkpl', async (req, res) => {
     const wabaId = '1503820438112497';
-    const tpls = [
-      { name: 'grupo_elite_bienvenida', language: 'es', category: 'UTILITY', components: [{ type: 'BODY', text: 'Hola {{1}}, hemos recibido tu solicitud. Un representante de Grupo Elite te contactará pronto.' }] },
-      { name: 'grupo_elite_cerrado', language: 'es', category: 'UTILITY', components: [{ type: 'BODY', text: 'Hola {{1}}, hemos recibido tu solicitud. Nuestras oficinas están cerradas. Te contactaremos en horario de atención.' }] },
-    ];
-    const results = [];
-    for (const t of tpls) {
-      const r = await fetch(`${GRAPH_URL}/${wabaId}/message_templates`, { method:'POST', headers:{'Authorization':`Bearer ${_waToken}`,'Content-Type':'application/json'}, body:JSON.stringify(t) }).then(r=>r.json());
-      results.push({ name: t.name, result: r });
-    }
-    res.json(results);
+    const r = await fetch(`${GRAPH_URL}/${wabaId}/message_templates?fields=name,status,id,category&limit=30`, {
+      headers: { 'Authorization': `Bearer ${_waToken}` },
+    }).then(r => r.json());
+    res.json(r.data || r);
   });
 
   // ── Meta Lead Ads webhook ─────────────────────────────────────────────────
