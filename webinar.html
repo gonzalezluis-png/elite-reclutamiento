@@ -594,6 +594,11 @@ player.on('timeupdate', () => {
   if (playing) watchedSecs += 0.25;
   updateBar(maxPct);
   saveProgress();
+  const remaining = player.duration ? player.duration - player.currentTime : 999;
+  if (remaining <= 5 && remaining > 0) {
+    const ov = document.getElementById('end-overlay');
+    if (ov && ov.style.display !== 'flex') ov.style.display = 'flex';
+  }
 });
 player.on('ended', () => {
   playing = false; completed = true; updateBar(100); saveProgress(true);
