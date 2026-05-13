@@ -1292,25 +1292,46 @@ function registerMetaRoutes(app) {
     try {
       const wabaId = '1503820438112497';
 
-      const templates = [
-        {
-          name: 'solicitud_recibida_horario_abierto',
-          language: 'es',
-          category: 'UTILITY',
-          components: [{ type: 'BODY', text: 'Hola {{1}}, hemos recibido tu solicitud para Grupo Elite. Es un placer tenerte con nosotros, en breve te estaremos llamando para darte más información.' }],
-        },
-        {
-          name: 'solicitud_recibida_horario_cerrado',
-          language: 'es',
-          category: 'UTILITY',
-          components: [{ type: 'BODY', text: 'Hola {{1}}, hemos recibido tu solicitud para Grupo Elite. En este momento nuestras oficinas se encuentran cerradas, pero en cuanto abramos te contactaremos. ¡Gracias por tu interés!' }],
-        },
-      ];
-
-      // Check existing templates status
-      const existing = await fetch(`${GRAPH_URL}/${wabaId}/message_templates?fields=name,status,components&limit=20`, {
+      // Get existing templates with IDs
+      const existing = await fetch(`${GRAPH_URL}/${wabaId}/message_templates?fields=name,status,id&limit=20`, {
         headers: { 'Authorization': `Bearer ${_waToken}` },
       }).then(r => r.json());
+
+      // Delete rejected templates so we can recreate them
+      const toDelete = (existing.data || []).filter(t =>
+        ['solicitud_recibida_horario_abierto','solicitud_recibida_horario_cerrado'].includes(t.name) && t.status === 'REJECTED'
+      );
+      const deleteResults = [];
+      for (const t of toDelete) {
+        const dr = await fetch(`${GRAPH_URL}/${wabaId}/message_templates?name=${t.name}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${_waToken}` },
+        }).then(r => r.json());
+        deleteResults.push({ name: t.name, deleted: dr });
+      }
+
+      const templates = [
+        {
+          name: 'bienvenida_horario_abierto',
+          language: 'es',
+          category: 'MARKETING',
+          components: [
+            { type: 'HEADER', format: 'TEXT', text: 'Grupo Elite' },
+            { type: 'BODY', text: 'Hola {{1}}, recibimos tu solicitud de empleo. Es un gusto tenerte con nosotros. En breve uno de nuestros reclutadores te contactará para darte más información.' },
+            { type: 'FOOTER', text: 'Grupo Elite Work' },
+          ],
+        },
+        {
+          name: 'bienvenida_horario_cerrado',
+          language: 'es',
+          category: 'MARKETING',
+          components: [
+            { type: 'HEADER', format: 'TEXT', text: 'Grupo Elite' },
+            { type: 'BODY', text: 'Hola {{1}}, recibimos tu solicitud de empleo. En este momento nuestras oficinas están cerradas. En horario de atención te contactaremos para darte más detalles.' },
+            { type: 'FOOTER', text: 'Grupo Elite Work' },
+          ],
+        },
+      ];
 
       const results = [];
       for (const tpl of templates) {
@@ -1321,7 +1342,7 @@ function registerMetaRoutes(app) {
         }).then(r => r.json());
         results.push({ name: tpl.name, result: r });
       }
-      res.json({ ok: true, wabaId, existing: existing.data, results });
+      res.json({ ok: true, wabaId, deleteResults, results });
     } catch (e) {
       res.status(500).json({ ok: false, error: e.message });
     }
