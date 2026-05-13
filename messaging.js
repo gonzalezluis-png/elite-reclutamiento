@@ -905,11 +905,12 @@ function _msgLoadTpl() {
   preview.textContent = previewText;
   // Var input for {{1}} (nombre)
   const isFav = _tplGetFavs().has(key);
-  varsEl.innerHTML = `<div class="msg-tpl-var" style="margin-top:6px">
+  const hasVar = tpl.body.includes('{{1}}');
+  varsEl.innerHTML = (hasVar ? `<div class="msg-tpl-var" style="margin-top:6px">
     <label style="font-size:11px;color:var(--text2);display:block;margin-bottom:3px">{{1}} Nombre</label>
     <input id="msg-var-0" value="${esc(firstName)}" placeholder="Nombre" style="width:100%;background:var(--bg2,#1a1a2e);border:1px solid rgba(255,255,255,.12);color:#fff;border-radius:6px;padding:5px 8px;font-size:12px;box-sizing:border-box" oninput="_msgUpdateTplPreview()" />
-  </div>
-  <div style="margin-top:8px;display:flex;justify-content:space-between;align-items:center">
+  </div>` : '') +
+  `<div style="margin-top:8px;display:flex;justify-content:space-between;align-items:center">
     <button onclick="_tplToggleFav('${esc(key)}')" title="${isFav ? 'Quitar de favoritas' : 'Marcar como favorita'}" style="background:${isFav ? 'rgba(251,191,36,.15)' : 'rgba(255,255,255,.06)'};border:1px solid ${isFav ? 'rgba(251,191,36,.4)' : 'rgba(255,255,255,.12)'};border-radius:6px;color:${isFav ? '#fbbf24' : 'var(--text2)'};font-size:13px;padding:5px 10px;cursor:pointer;line-height:1" id="msg-tpl-fav-btn">${isFav ? '⭐ Favorita' : '☆ Favorita'}</button>
     <button onclick="_msgSendTemplate()" style="background:#25d366;color:#fff;border:none;padding:6px 16px;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer">Enviar plantilla ➤</button>
   </div>`;
