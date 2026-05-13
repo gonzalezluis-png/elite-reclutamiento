@@ -423,10 +423,26 @@ function registerMetaRoutes(app) {
         const _lastClosedTs = [...(conversationHistory.get(convKey))].reverse()
           .find(m => m.role === 'assistant' && m.content?.includes('oficinas están cerradas'))?.ts || 0;
         if (Date.now() - _lastClosedTs > 60 * 60 * 1000) {
-          const closedMsg = `¡Hola! 👋 Gracias por escribirnos. En este momento nuestras oficinas están cerradas, pero en cuanto abramos te respondemos. ¡Hasta pronto!`;
+          const _closedLead = await fsGetLeadByPhone(from).catch(() => null);
+          const _closedName = _closedLead?.nombre ? _closedLead.nombre.split(' ')[0] : null;
+          const _greeting   = _closedName ? `Hola ${_closedName} 👋` : `Hola 👋`;
+          const closedMsg = `${_greeting} *Es un gusto que te interese la oportunidad de empleo.*\n\nEn este momento nuestras *oficinas se encuentran cerradas* 🕐\n\nSin embargo, puedes ver este *video resumen* 🎥 con información sobre la oferta laboral.\n\nEn horario de oficina te estaremos contactando para darte más detalles, o si prefieres, también puedes *dejarnos tu mejor horario* para llamarte pronto 📞`;
           console.log(`[Meta WA] Fuera de horario — ${from}, enviando mensaje de cierre`);
           await humanDelay(closedMsg);
           await sendWhatsApp(from, closedMsg);
+          // Send intro video after text message
+          try {
+            await fetch(`${GRAPH_URL}/${META_WA_PHONE_ID}/messages`, {
+              method: 'POST',
+              headers: { 'Authorization': `Bearer ${_waToken}`, 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                messaging_product: 'whatsapp',
+                to: from.replace(/^\+/, '').replace(/\D/g, ''),
+                type: 'video',
+                video: { link: 'https://elite-webinar.b-cdn.net/file/elite-webinar/Video-Intro-Globe-Life-WA.mp4' },
+              }),
+            });
+          } catch (_ve) { console.warn('[Meta WA] Off-hours video send failed:', _ve.message); }
           conversationHistory.get(convKey).push({ role: 'assistant', content: closedMsg, ts: Date.now() });
         } else {
           console.log(`[Meta WA] Fuera de horario — ${from}, cierre ya enviado recientemente, ignorando`);
