@@ -38,6 +38,7 @@ const REASON_LABELS = {
   'tiene-licencia':   '📋 Candidato ya tiene licencia de seguros',
   'sin-documentos':   '⚠️ Sin documentos legales para trabajar en EE.UU.',
   'quiere-entrevista':'🤝 Candidato listo para entrevista — requiere agendamiento',
+  'ya-entrevistado':  '🔄 Candidato ya tuvo entrevista con la compañía — requiere seguimiento',
 };
 
 const TIMEOUTS = {

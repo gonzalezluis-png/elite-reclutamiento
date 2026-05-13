@@ -143,6 +143,7 @@ Campos a extraer:
 - webinar_intent: true si mostró interés en ver el webinar o dio correo para el link. false si lo rechazó. null si no aplica.
 - vio_webinar: true si confirmó que ya vio el webinar. false si dijo que no. null si no se sabe.
 - quiere_entrevista: true ÚNICAMENTE si el candidato pidió explícitamente una entrevista, quiere agendar una cita, o dijo claramente que quiere continuar al proceso de entrevista DESPUÉS de haber visto el webinar (vio_webinar debe ser true). NO poner true solo porque quiere ver el webinar o porque está interesado en el trabajo. false si rechazó. null en cualquier otro caso.
+- ya_entrevistado: true si el candidato menciona que ya tuvo una entrevista, ya fue entrevistado, o ya conoce / ya habló con Globe Life, American Income Life, AIL, Quintero and Partners, Quintero & Partners, o Grupo Elite. false si dijo que no. null si no se sabe.
 Si no hay información clara para un campo, pon null. SOLO JSON, nada más.`,
       messages: [...messages, { role: 'assistant', content: '{' }],
     });
@@ -207,6 +208,10 @@ Si no hay información clara para un campo, pon null. SOLO JSON, nada más.`,
                                                          updates.solicita_entrevista = true;
                                                          updates.ia_paused           = true;
     }
+    if (extracted.ya_entrevistado === true && !lead.ya_entrevistado) {
+                                                         updates.ya_entrevistado     = true;
+                                                         updates.ia_paused           = true;
+    }
     // Disqualify leads who can't work legally or aren't of age
     const _disqualified = extracted.tiene_papeles === false || extracted.mayor_edad === false;
     if (_disqualified && lead.pipeline_id !== 'no-interesados' && lead.pipeline_id !== 'entrevistas-generales') {
@@ -246,6 +251,22 @@ Si no hay información clara para un campo, pon null. SOLO JSON, nada más.`,
         await triggerEscalation(rawPhone(from), nombreFinalIv || rawPhone(from), 'quiere-entrevista', '', sendFn || (() => {}));
       } catch(e) { console.error('[AI-Extract] escalation error:', e.message); }
       console.log(`[AI-Extract] Entrevista solicitada — Ana pausada: ${lead.id}`);
+    }
+
+    // Already interviewed: escalate to manager
+    if (updates.ya_entrevistado) {
+      const nombreFinalYa  = updates.nombre || lead.nombre || '';
+      const firstNameYa    = nombreFinalYa && !nombreFinalYa.startsWith('WA ') && !nombreFinalYa.startsWith('+') ? nombreFinalYa.split(' ')[0] : '';
+      const yaMsg = `Hola${firstNameYa ? ' ' + firstNameYa : ''}, entiendo que ya tuviste contacto con nosotros antes. 😊 Déjame un momento para conectarte con uno de nuestros managers para darte la mejor atención.`;
+      if (sendFn) {
+        await humanDelay(yaMsg);
+        await sendFn(rawPhone(from), yaMsg).catch(() => {});
+      }
+      try {
+        const { triggerEscalation } = require('./escalation');
+        await triggerEscalation(rawPhone(from), nombreFinalYa || rawPhone(from), 'ya-entrevistado', '', sendFn || (() => {}));
+      } catch(e) { console.error('[AI-Extract] ya-entrevistado escalation error:', e.message); }
+      console.log(`[AI-Extract] Ya entrevistado — manager buscado: ${lead.id}`);
     }
 
     // Webinar move is handled exclusively by the [WEBINAR] token in meta.js.
