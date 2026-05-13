@@ -1290,12 +1290,21 @@ function registerMetaRoutes(app) {
   // ── Temp: create WA templates ────────────────────────────────────────────
   app.post('/admin/create-wa-templates', async (req, res) => {
     try {
-      // Get WABA ID from phone number ID
+      // Get WABA ID — try multiple approaches
+      let wabaId = null;
+      // Approach 1: from phone number
       const phoneInfo = await fetch(`${GRAPH_URL}/${META_WA_PHONE_ID}?fields=whatsapp_business_account`, {
         headers: { 'Authorization': `Bearer ${_waToken}` },
       }).then(r => r.json());
-      const wabaId = phoneInfo?.whatsapp_business_account?.id;
-      if (!wabaId) return res.status(500).json({ ok: false, error: 'No se pudo obtener WABA ID', phoneInfo });
+      wabaId = phoneInfo?.whatsapp_business_account?.id;
+      // Approach 2: from businesses
+      if (!wabaId) {
+        const bizInfo = await fetch(`${GRAPH_URL}/me/businesses?fields=whatsapp_business_accounts`, {
+          headers: { 'Authorization': `Bearer ${_waToken}` },
+        }).then(r => r.json());
+        wabaId = bizInfo?.data?.[0]?.whatsapp_business_accounts?.data?.[0]?.id;
+        if (!wabaId) return res.status(500).json({ ok: false, error: 'No se pudo obtener WABA ID', phoneInfo, bizInfo });
+      }
 
       const templates = [
         {
