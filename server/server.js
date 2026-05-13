@@ -1187,6 +1187,14 @@ app.patch('/leads/:id', requireSession(), async (req, res) => {
     const fields = sanitizeLeadFields(
       Object.fromEntries(Object.entries(raw).filter(([k]) => LEAD_COLS.has(k)))
     );
+
+    // Auto-pause Ana when lead moves to interview pipeline or interview stage
+    const newPipeline = fields.pipeline_id || current?.pipeline_id || '';
+    const newEtapa    = (fields.etapa || current?.etapa || '').toLowerCase();
+    if (newPipeline === 'entrevistas-generales' || newEtapa.includes('entrevista')) {
+      fields.ia_paused = true;
+    }
+
     await db.sbUpdateLead(id, fields);
     res.json({ ok: true });
   } catch (e) {
