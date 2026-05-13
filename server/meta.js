@@ -403,6 +403,17 @@ function registerMetaRoutes(app) {
 
     const convKey = `wa_meta:${from}`;
 
+    // ── Auto-create lead BEFORE hours check so new contacts always appear in CRM ─
+    if (!_isManager) {
+      const _existsEarly = await fsLeadExists(from);
+      if (!_existsEarly) {
+        try {
+          await fsCreateLeadWA(convKey);
+          pixelLead({ telefono: from, correo: '' }).catch(() => {});
+        } catch (_e) { console.warn('[Meta WA] Early lead create failed:', _e.message); }
+      }
+    }
+
     // ── Horario de atención — check BEFORE any response (form or normal) ─────
     if (!_isManager) {
       const _inHoursEarly = await isWABusinessHours();
