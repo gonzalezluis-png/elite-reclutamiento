@@ -790,10 +790,44 @@ function _tplToggleFav(name) {
   if (favs.has(name)) favs.delete(name); else favs.add(name);
   localStorage.setItem(_tplFavsKey(), JSON.stringify([...favs]));
   _msgRebuildTplDropdown();
+  _lcRebuildTplDropdown();
   _msgLoadTpl();
+  lcLoadTpl();
 }
 function _msgRebuildTplDropdown() {
   const sel = document.getElementById('msg-tpl-sel');
+  if (!sel) return;
+  const favs = _tplGetFavs();
+  const favList   = _msgTemplates.filter(t => favs.has(t.name));
+  const otherList = _msgTemplates.filter(t => !favs.has(t.name));
+  const currentVal = sel.value;
+  sel.innerHTML = '<option value="">📋 Plantilla WhatsApp…</option>';
+  if (favList.length) {
+    const grp = document.createElement('optgroup');
+    grp.label = '⭐ Favoritas';
+    for (const t of favList) {
+      const opt = document.createElement('option');
+      opt.value = t.name;
+      opt.textContent = '⭐ ' + _tplLabel(t.name);
+      grp.appendChild(opt);
+    }
+    sel.appendChild(grp);
+  }
+  if (otherList.length) {
+    const grp = document.createElement('optgroup');
+    grp.label = favList.length ? 'Todas las plantillas' : 'Plantillas';
+    for (const t of otherList) {
+      const opt = document.createElement('option');
+      opt.value = t.name;
+      opt.textContent = _tplLabel(t.name);
+      grp.appendChild(opt);
+    }
+    sel.appendChild(grp);
+  }
+  if (currentVal) sel.value = currentVal;
+}
+function _lcRebuildTplDropdown() {
+  const sel = document.getElementById('lc-tpl-select');
   if (!sel) return;
   const favs = _tplGetFavs();
   const favList   = _msgTemplates.filter(t => favs.has(t.name));
@@ -1016,6 +1050,20 @@ function lcOpen() {
   lcUpdateIAState(lead.ia_paused);
   lcRenderActivity(lead);
   lcRenderTimeline(lead);
+  // Load dynamic templates and check 24h window
+  lcSetChannel('wa');
+  if (_msgTemplates.length) {
+    _lcRebuildTplDropdown();
+  } else {
+    fetch(`${SERVER_URL}/meta/wa-templates`).then(r => r.json()).then(data => {
+      if (data.templates) { _msgTemplates = data.templates; _lcRebuildTplDropdown(); _msgRebuildTplDropdown(); }
+    }).catch(() => {});
+  }
+  const allMsgs = [...(lead.metaWa||[]), ...(lead.whatsapp||[])];
+  const lastInbound = allMsgs.filter(m => m.direction === 'inbound').sort((a,b) => new Date(b.dateSent||b.date||0) - new Date(a.dateSent||a.date||0))[0];
+  const hoursSince = lastInbound ? (Date.now() - new Date(lastInbound.dateSent||lastInbound.date).getTime()) / 36e5 : 999;
+  const warn = document.getElementById('lc-24h-warning');
+  if (warn) warn.style.display = hoursSince > 24 ? 'block' : 'none';
   if (phone) {
     lcFetchCalls(lead);
     lcFetchMessages(lead);
@@ -1096,32 +1144,96 @@ async function lcToggleIA() {
 
 function lcSetChannel(ch) {
   _lcChannel = ch;
-  document.getElementById('lc-ch-sms').classList.toggle('active', ch === 'sms');
-  document.getElementById('lc-ch-sms').classList.toggle('sms',    ch === 'sms');
-  document.getElementById('lc-ch-wa').classList.toggle('active',  ch === 'wa');
-  document.getElementById('lc-ch-wa').classList.toggle('wa',      ch === 'wa');
-  const tplRow  = document.getElementById('lc-tpl-select');
+  document.getElementById('lc-ch-sms')?.classList.toggle('active', ch === 'sms');
+  document.getElementById('lc-ch-sms')?.classList.toggle('sms',    ch === 'sms');
+  document.getElementById('lc-ch-wa')?.classList.toggle('active',  ch === 'wa');
+  document.getElementById('lc-ch-wa')?.classList.toggle('wa',      ch === 'wa');
+  const tplRow  = document.getElementById('lc-tpl-row');
   const tplVars = document.getElementById('lc-tpl-vars');
-  tplRow.style.display  = ch === 'wa' ? '' : 'none';
-  tplVars.style.display = 'none';
-  tplRow.value = '';
+  const preview = document.getElementById('lc-tpl-preview');
+  if (tplRow) tplRow.style.display = ch === 'wa' ? '' : 'none';
+  if (tplVars) { tplVars.style.display = 'none'; tplVars.innerHTML = ''; }
+  if (preview) { preview.style.display = 'none'; preview.textContent = ''; }
+  const sel = document.getElementById('lc-tpl-select');
+  if (sel) sel.value = '';
   document.getElementById('lc-textarea').value = '';
   document.getElementById('lc-send-btn').style.background = ch === 'wa' ? '#128c7e' : '#0073ea';
 }
 
 function lcLoadTpl() {
-  const key  = document.getElementById('lc-tpl-select').value;
-  const lead = leads.find(l => l.id === currentLeadId);
+  const key     = document.getElementById('lc-tpl-select')?.value;
+  const lead    = leads.find(l => l.id === currentLeadId);
   const tplVars = document.getElementById('lc-tpl-vars');
-  if (!key) { tplVars.style.display = 'none'; tplVars.innerHTML = ''; return; }
-  const tpl = WA_TEMPLATES[key];
-  if (!tpl || !tpl.vars.length) { tplVars.style.display = 'none'; tplVars.innerHTML = ''; return; }
-  tplVars.style.display = 'flex';
-  tplVars.innerHTML = tpl.vars.map(v => {
-    const prefill = v === 'nombre' ? (lead?.nombre || '') : v === 'correo' ? (lead?.correo || '') : '';
-    return `<input data-var="${v}" placeholder="${v}" value="${esc(prefill)}"
-      style="background:rgba(255,255,255,.06);border:1px solid rgba(37,211,102,.2);border-radius:6px;color:#fff;font-size:11.5px;font-family:var(--font);padding:5px 9px;outline:none;width:100%;box-sizing:border-box;" />`;
-  }).join('');
+  const preview = document.getElementById('lc-tpl-preview');
+  const inp     = document.getElementById('lc-textarea');
+  if (!key) {
+    if (tplVars) { tplVars.style.display = 'none'; tplVars.innerHTML = ''; }
+    if (preview) { preview.style.display = 'none'; preview.textContent = ''; }
+    if (inp) { inp.value = ''; inp.style.opacity = '1'; }
+    return;
+  }
+  const tpl = _msgTemplates.find(t => t.name === key);
+  if (!tpl) return;
+  const firstName = (lead?.nombre || '').split(' ')[0] || lead?.nombre || '';
+  if (preview) {
+    preview.style.display = 'block';
+    preview.textContent = tpl.body.replace(/\{\{1\}\}/g, firstName || '{{nombre}}');
+  }
+  if (inp) { inp.value = ''; inp.style.opacity = '.4'; }
+  const isFav = _tplGetFavs().has(key);
+  if (tplVars) {
+    tplVars.style.display = 'flex';
+    tplVars.innerHTML = `
+      <div>
+        <label style="font-size:11px;color:var(--text2);display:block;margin-bottom:3px">{{1}} Nombre</label>
+        <input id="lc-var-0" value="${esc(firstName)}" placeholder="Nombre"
+          style="width:100%;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);color:#fff;border-radius:6px;padding:5px 8px;font-size:12px;box-sizing:border-box"
+          oninput="lcUpdateTplPreview()" />
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px">
+        <button onclick="_tplToggleFav('${esc(key)}')" id="lc-tpl-fav-btn"
+          title="${isFav ? 'Quitar de favoritas' : 'Marcar como favorita'}"
+          style="background:${isFav ? 'rgba(251,191,36,.15)' : 'rgba(255,255,255,.06)'};border:1px solid ${isFav ? 'rgba(251,191,36,.4)' : 'rgba(255,255,255,.12)'};border-radius:6px;color:${isFav ? '#fbbf24' : 'var(--text2)'};font-size:13px;padding:5px 10px;cursor:pointer"
+          >${isFav ? '⭐ Favorita' : '☆ Favorita'}</button>
+        <button onclick="lcSendTemplate()"
+          style="background:#25d366;color:#fff;border:none;padding:6px 16px;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer">Enviar plantilla ➤</button>
+      </div>`;
+  }
+}
+
+function lcUpdateTplPreview() {
+  const sel  = document.getElementById('lc-tpl-select');
+  const tpl  = _msgTemplates.find(t => t.name === sel?.value);
+  const prev = document.getElementById('lc-tpl-preview');
+  const val  = document.getElementById('lc-var-0')?.value || '';
+  if (prev && tpl) prev.textContent = tpl.body.replace(/\{\{1\}\}/g, val || '{{nombre}}');
+}
+
+async function lcSendTemplate() {
+  const key  = document.getElementById('lc-tpl-select')?.value;
+  const tpl  = _msgTemplates.find(t => t.name === key);
+  const lead = leads.find(l => l.id === currentLeadId);
+  if (!key || !tpl || !lead?.telefono) { showToast('⚠️ Selecciona una plantilla'); return; }
+  const param1 = document.getElementById('lc-var-0')?.value?.trim() || '';
+  const btn = document.querySelector('[onclick="lcSendTemplate()"]');
+  if (btn) { btn.disabled = true; btn.textContent = 'Enviando…'; }
+  try {
+    const res = await fetch(`${SERVER_URL}/meta/wa-send-template`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ to: lead.telefono, templateName: key, language: tpl.language || 'es', params: param1 ? [param1] : [], leadId: lead.id, renderedBody: tpl.body.replace(/\{\{1\}\}/g, param1 || '') }),
+    });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error);
+    if (!lead.metaWa) lead.metaWa = [];
+    lead.metaWa.push({ direction:'outbound', body: tpl.body.replace(/\{\{1\}\}/g, param1 || ''), dateSent: new Date().toISOString(), autor: currentUser?.name||'Agente', sid: `meta_tpl_${Date.now()}`, status:'sent', ch:'wa' });
+    saveLeads(lead.id);
+    lcRenderTimeline(lead);
+    showToast('✅ Plantilla enviada');
+    const sel = document.getElementById('lc-tpl-select');
+    if (sel) sel.value = '';
+    lcLoadTpl();
+  } catch(e) { showToast('⚠️ ' + e.message); }
+  if (btn) { btn.disabled = false; btn.textContent = 'Enviar plantilla ➤'; }
 }
 
 async function lcSend() {

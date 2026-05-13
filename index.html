@@ -318,28 +318,23 @@
 
         <div class="lc-compose">
           <div class="lc-channel-row">
-            <button class="lc-ch-btn wa active" id="lc-ch-wa"  onclick="lcSetChannel('wa')">📱 WhatsApp</button>
-            <select id="lc-tpl-select" class="lc-tpl-select" style="display:none" onchange="lcLoadTpl()">
-              <option value="">📋 Plantilla…</option>
-              <option value="aplicacante_registrado">✅ Aplicante registrado</option>
-              <option value="webinar_con_video">🎥 Webinar con video</option>
-              <option value="en_webinar_aplicantes">📩 En webinar — confirmación</option>
-              <option value="en_webinar_webinar_visto">👀 Webinar visto</option>
-              <option value="no_visto_webinar">⚠️ No vio el webinar</option>
-              <option value="registrado_en_una_entrevista">📅 Registrado en entrevista</option>
-              <option value="link_de_entrevista_con_globe_life">🔗 Link entrevista</option>
-              <option value="aviso_entrevista_con_manager_30_minutos_antes">⏰ Aviso entrevista 30 min</option>
-              <option value="agenda_de_cita_para_manager">🗓️ Cita manager</option>
-              <option value="3er_intento_de_contacto">📵 3er intento</option>
-              <option value="2do_intento_de_contacto_webinar_no_visto_eliminacion">🚫 2do intento elim.</option>
-              <option value="eliminacion_por_webinar_visto">❌ Eliminación</option>
+            <button class="lc-ch-btn" id="lc-ch-sms" onclick="lcSetChannel('sms')">📱 SMS</button>
+            <button class="lc-ch-btn wa active" id="lc-ch-wa" onclick="lcSetChannel('wa')">💬 WhatsApp</button>
+          </div>
+          <div id="lc-24h-warning" style="display:none;background:rgba(251,191,36,.1);border:1px solid rgba(251,191,36,.35);border-radius:6px;padding:7px 10px;font-size:11px;color:#fbbf24;margin-bottom:6px">
+            ⚠️ Han pasado más de 24h sin respuesta. Solo puedes enviar <strong>una plantilla</strong> para reabrir la conversación.
+          </div>
+          <div id="lc-tpl-row" style="display:none;margin-bottom:4px;">
+            <select id="lc-tpl-select" class="lc-tpl-select" onchange="lcLoadTpl()">
+              <option value="">📋 Plantilla WhatsApp…</option>
             </select>
           </div>
-          <div id="lc-tpl-vars" style="display:none;flex-direction:column;gap:4px;"></div>
+          <div id="lc-tpl-preview" style="display:none;background:rgba(37,211,102,.06);border:1px solid rgba(37,211,102,.2);border-radius:6px;padding:8px 10px;font-size:12px;color:rgba(255,255,255,.8);white-space:pre-wrap;margin-bottom:4px;"></div>
+          <div id="lc-tpl-vars" style="display:none;flex-direction:column;gap:6px;margin-bottom:4px;"></div>
           <div class="lc-input-row">
             <textarea id="lc-textarea" class="lc-textarea" placeholder="Escribe un mensaje… (Ctrl+Enter)" rows="2"
               onkeydown="if(event.ctrlKey&&event.key==='Enter')lcSend()"></textarea>
-            <button class="lc-send-btn" id="lc-send-btn" onclick="lcSend()" style="background:#0073ea;">➤</button>
+            <button class="lc-send-btn" id="lc-send-btn" onclick="lcSend()" style="background:#128c7e;">➤</button>
           </div>
         </div>
       </div>
