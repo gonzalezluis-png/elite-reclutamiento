@@ -490,6 +490,52 @@ async function _msgForceAna(leadId) {
 
 let _msgTemplates = [];
 
+function _tplFavsKey() {
+  return `tpl_favs_${currentUser?.email || 'default'}`;
+}
+function _tplGetFavs() {
+  try { return new Set(JSON.parse(localStorage.getItem(_tplFavsKey()) || '[]')); } catch { return new Set(); }
+}
+function _tplToggleFav(name) {
+  const favs = _tplGetFavs();
+  if (favs.has(name)) favs.delete(name); else favs.add(name);
+  localStorage.setItem(_tplFavsKey(), JSON.stringify([...favs]));
+  _msgRebuildTplDropdown();
+  _msgLoadTpl();
+}
+function _msgRebuildTplDropdown() {
+  const sel = document.getElementById('msg-tpl-sel');
+  if (!sel) return;
+  const favs = _tplGetFavs();
+  const favList   = _msgTemplates.filter(t => favs.has(t.name));
+  const otherList = _msgTemplates.filter(t => !favs.has(t.name));
+  const currentVal = sel.value;
+  sel.innerHTML = '<option value="">📋 Plantilla WhatsApp…</option>';
+  if (favList.length) {
+    const grp = document.createElement('optgroup');
+    grp.label = '⭐ Favoritas';
+    for (const t of favList) {
+      const opt = document.createElement('option');
+      opt.value = t.name;
+      opt.textContent = '⭐ ' + t.name.replace(/_/g,' ');
+      grp.appendChild(opt);
+    }
+    sel.appendChild(grp);
+  }
+  if (otherList.length) {
+    const grp = document.createElement('optgroup');
+    grp.label = favList.length ? 'Todas las plantillas' : 'Plantillas';
+    for (const t of otherList) {
+      const opt = document.createElement('option');
+      opt.value = t.name;
+      opt.textContent = t.name.replace(/_/g,' ');
+      grp.appendChild(opt);
+    }
+    sel.appendChild(grp);
+  }
+  if (currentVal) sel.value = currentVal;
+}
+
 async function _msgLoadTemplates() {
   const sel = document.getElementById('msg-tpl-sel');
   if (!sel) return;
@@ -497,14 +543,7 @@ async function _msgLoadTemplates() {
     const res  = await fetch(`${SERVER_URL}/meta/wa-templates`);
     const data = await res.json();
     _msgTemplates = data.templates || [];
-    // Rebuild options
-    sel.innerHTML = '<option value="">📋 Plantilla WhatsApp…</option>';
-    for (const t of _msgTemplates) {
-      const opt = document.createElement('option');
-      opt.value = t.name;
-      opt.textContent = t.name.replace(/_/g,' ');
-      sel.appendChild(opt);
-    }
+    _msgRebuildTplDropdown();
   } catch(e) { console.warn('No se pudieron cargar plantillas:', e.message); }
 
   // Check 24h window
@@ -539,11 +578,13 @@ function _msgLoadTpl() {
   preview.style.display = 'block';
   preview.textContent = previewText;
   // Var input for {{1}} (nombre)
+  const isFav = _tplGetFavs().has(key);
   varsEl.innerHTML = `<div class="msg-tpl-var" style="margin-top:6px">
     <label style="font-size:11px;color:var(--text2);display:block;margin-bottom:3px">{{1}} Nombre</label>
     <input id="msg-var-0" value="${esc(firstName)}" placeholder="Nombre" style="width:100%;background:var(--bg2,#1a1a2e);border:1px solid rgba(255,255,255,.12);color:#fff;border-radius:6px;padding:5px 8px;font-size:12px;box-sizing:border-box" oninput="_msgUpdateTplPreview()" />
   </div>
-  <div style="margin-top:8px;display:flex;justify-content:flex-end">
+  <div style="margin-top:8px;display:flex;justify-content:space-between;align-items:center">
+    <button onclick="_tplToggleFav('${esc(key)}')" title="${isFav ? 'Quitar de favoritas' : 'Marcar como favorita'}" style="background:${isFav ? 'rgba(251,191,36,.15)' : 'rgba(255,255,255,.06)'};border:1px solid ${isFav ? 'rgba(251,191,36,.4)' : 'rgba(255,255,255,.12)'};border-radius:6px;color:${isFav ? '#fbbf24' : 'var(--text2)'};font-size:13px;padding:5px 10px;cursor:pointer;line-height:1" id="msg-tpl-fav-btn">${isFav ? '⭐ Favorita' : '☆ Favorita'}</button>
     <button onclick="_msgSendTemplate()" style="background:#25d366;color:#fff;border:none;padding:6px 16px;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer">Enviar plantilla ➤</button>
   </div>`;
   if (inp) { inp.value = ''; inp.style.opacity = '1'; }
