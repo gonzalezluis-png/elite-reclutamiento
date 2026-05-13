@@ -428,7 +428,19 @@ function _msgRenderThread() {
       <div class="msg-tpl-vars" id="msg-tpl-vars"></div>` : ''}
       <div class="msg-input-row">
         <textarea class="msg-textarea" id="msg-inp" placeholder="${_msgChannel==='wa'?'Mensaje de WhatsApp… (Ctrl+Enter enviar)':'Mensaje SMS… (Ctrl+Enter enviar)'}" onkeydown="if(event.ctrlKey&&event.key==='Enter')_msgSend()" rows="2"></textarea>
-        <button class="msg-send-btn" id="msg-send-btn" onclick="_msgSend()" style="background:${_msgChannel==='wa'?'#25d366':'#0073ea'};">➤</button>
+        <div style="display:flex;flex-direction:column;gap:4px">
+          <button class="msg-send-btn" id="msg-send-btn" onclick="_msgSend()" style="background:${_msgChannel==='wa'?'#25d366':'#0073ea'};">➤</button>
+          ${_msgChannel==='wa' ? `<button onclick="_msgSendVideo()" title="Enviar video" style="background:rgba(37,211,102,.15);color:#25d366;border:1px solid rgba(37,211,102,.35);border-radius:6px;padding:4px 6px;font-size:13px;cursor:pointer;line-height:1">📹</button>` : ''}
+        </div>
+      </div>
+      <div id="msg-video-panel" style="display:none;margin-top:8px;background:rgba(37,211,102,.06);border:1px solid rgba(37,211,102,.25);border-radius:8px;padding:10px 12px">
+        <div style="font-size:11px;color:#25d366;font-weight:600;margin-bottom:8px">📹 Enviar video por WhatsApp</div>
+        <input id="msg-video-url" type="url" placeholder="URL del video" style="width:100%;background:var(--bg2,#1a1a2e);border:1px solid rgba(255,255,255,.12);color:#fff;border-radius:6px;padding:7px 10px;font-size:12px;margin-bottom:6px;box-sizing:border-box" value="https://elite-webinar.b-cdn.net/file/elite-webinar/Webinar+mayo+2026.mp4"/>
+        <input id="msg-video-caption" type="text" placeholder="Descripción opcional" style="width:100%;background:var(--bg2,#1a1a2e);border:1px solid rgba(255,255,255,.12);color:#fff;border-radius:6px;padding:7px 10px;font-size:12px;margin-bottom:8px;box-sizing:border-box"/>
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span id="msg-video-status" style="font-size:11px;color:#888"></span>
+          <button onclick="_msgSendVideoConfirm()" style="background:#25d366;color:#fff;border:none;padding:6px 14px;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer" id="msg-video-btn">Enviar video</button>
+        </div>
       </div>
     </div>`;
 
@@ -1202,3 +1214,34 @@ function _cvTimeAgo(iso) {
   return new Date(iso).toLocaleDateString('es-MX', {day:'2-digit',month:'short'});
 }
 
+
+function _msgSendVideo() {
+  const panel = document.getElementById('msg-video-panel');
+  if (panel) panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+}
+
+async function _msgSendVideoConfirm() {
+  const videoUrl = document.getElementById('msg-video-url')?.value.trim();
+  const caption  = document.getElementById('msg-video-caption')?.value.trim();
+  const status   = document.getElementById('msg-video-status');
+  const btn      = document.getElementById('msg-video-btn');
+  const lead = leads.find(l => l.id === _msgLeadId);
+  if (!videoUrl) { if(status){status.textContent='Ingresa URL del video';status.style.color='#e2445c';} return; }
+  if (!lead?.telefono) { if(status){status.textContent='Lead sin teléfono';status.style.color='#e2445c';} return; }
+  if(btn) btn.disabled = true;
+  if(status){status.textContent='Enviando…';status.style.color='#888';}
+  try {
+    const res = await fetch(`${SERVER_URL}/meta/wa-send-video`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ to: lead.telefono, videoUrl, caption: caption||undefined, leadId: lead.id }),
+    });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || 'Error');
+    if(status){status.textContent='✓ Video enviado';status.style.color='#25d366';}
+    setTimeout(() => { const p=document.getElementById('msg-video-panel'); if(p)p.style.display='none'; if(status)status.textContent=''; }, 2000);
+  } catch(e) {
+    if(status){status.textContent='⚠️ '+e.message;status.style.color='#e2445c';}
+  }
+  if(btn) btn.disabled = false;
+}
