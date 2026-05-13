@@ -1288,7 +1288,7 @@ function registerMetaRoutes(app) {
   });
 
   // ── Temp: create templates ───────────────────────────────────────────────
-  app.post('/admin/mkpl', async (req, res) => {
+  app.get('/admin/mkpl', async (req, res) => {
     const wabaId = '1503820438112497';
     const tpls = [
       { name: 'grupo_elite_bienvenida', language: 'es', category: 'UTILITY', components: [{ type: 'BODY', text: 'Hola {{1}}, hemos recibido tu solicitud. Un representante de Grupo Elite te contactará pronto.' }] },
