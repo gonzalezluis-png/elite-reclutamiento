@@ -170,7 +170,7 @@ function showMessaging() {
   _msgBuildPage();
   _msgSyncAllContacts();
   clearInterval(_msgPollInt);
-  _msgPollInt = setInterval(_msgPollActive, 8000);
+  _msgPollInt = setInterval(_msgPollActive, 4000);
 }
 
 async function _msgSyncAllContacts() {
@@ -984,7 +984,7 @@ async function _msgPollActive() {
       if (!ex2) { lead.metaWa.push({...m, ch:'wa'}); updated = true; }
       else if (m.status && ex2.status !== m.status) { ex2.status = m.status; ex2.error_code = m.error_code; updated = true; }
     }
-    if (updated) { saveLeads(); _msgRenderList(); _msgRenderThread(); }
+    if (updated) { saveLeads(lead.id); _msgRenderList(); _msgRenderThread(); lcRenderTimeline(lead); }
   } catch {}
 }
 
@@ -1199,8 +1199,7 @@ async function lcFetchMessages(lead) {
         else if (m.status && ex.status !== m.status) { ex.status = m.status; ex.error_code = m.error_code; updated = true; }
       }
     }
-    // Always re-render after fetch so messages appear even on first open
-    if (updated) saveLeads();
+    if (updated) saveLeads(lead.id);
     lcRenderTimeline(lead);
   } catch {}
 }
