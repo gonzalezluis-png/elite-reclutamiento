@@ -39,6 +39,7 @@ const DEFAULT_INTERVIEW_CONFIG = {
       trigger: 'morning_of',
       value:   8,
       message: 'Hola {nombre}, te recordamos que hoy tienes tu entrevista a las {hora} vía Zoom. ¡Te esperamos!',
+      disabled: true,
     },
     {
       id:      'r3',
@@ -334,12 +335,6 @@ async function bookInterview({ leadPhone, leadName, slotIso, convKey }) {
   const firstName  = _cleanName.split(' ')[0] || 'Candidato';
   const phoneClean = (leadPhone || '').replace(/^\+/, '');
 
-  const confFallback = `¡Hola ${firstName}! 🎉\n\nTu entrevista con Grupo Élite Work ha sido confirmada.\n\n📅 Fecha: ${fecha}\n🕐 Hora: ${hora}\n🔗 Enlace Zoom: ${cfg.zoomLink}\n\n¡Te esperamos!`;
-  const { sendWhatsApp: _metaConfirmWA } = require('./meta');
-  if (isOfficeHours() && await _autoEnabled('interview_confirmation')) {
-    sendTemplateOrFallback(phoneClean, 'confirmacion_entrevista', [firstName, fecha, hora, cfg.zoomLink], confFallback, _metaConfirmWA).catch(() => {});
-  }
-
   return { id, cfg, doc };
 }
 
@@ -433,19 +428,7 @@ async function checkInterviewReminders(sendWA, sendInternal, sendManager) {
           await sendManager(fillTemplate(rem.message, iv, slotTime)).catch(() => {});
         }
       } else {
-        const phone = (iv.leadPhone || '').replace(/^\+/, '');
-        if (phone) {
-          let tplKey    = 'recordatorio_dia_antes';
-          let tplParams = [firstName, fecha, hora, iv.zoomLink || ''];
-          if (rem.trigger === 'hours_before') {
-            tplKey    = 'recordatorio_horas_antes';
-            tplParams = [firstName, String(rem.value), iv.zoomLink || ''];
-          }
-          const autoId = rem.trigger === 'morning_of' ? 'interview_reminder_morning' : 'interview_reminder_before';
-          if (isOfficeHours() && await _autoEnabled(autoId)) {
-            await sendTemplateOrFallback(phone, tplKey, tplParams, msg, sendWA).catch(() => {});
-          }
-        }
+        // Candidate-facing messages disabled — manual communication only
       }
 
       reminders[rem.id] = new Date().toISOString();
@@ -455,16 +438,7 @@ async function checkInterviewReminders(sendWA, sendInternal, sendManager) {
     if (!reminders['zoom_sent']) {
       const diffMin = (now - slotTime) / (1000 * 60);
       if (diffMin >= 0 && diffMin < 5) {
-        const phone = (iv.leadPhone || '').replace(/^\+/, '');
-        if (phone) {
-          const firstName    = (iv.leadName || 'Candidato').split(' ')[0];
-          const zoomFallback = `🎥 Tu entrevista comienza ahora. Únete aquí:\n${iv.zoomLink}`;
-          if (isOfficeHours() && await _autoEnabled('interview_zoom_link')) {
-            await sendTemplateOrFallback(phone, 'enlace_zoom_inicio',
-              [firstName, iv.zoomLink || ''], zoomFallback, sendWA
-            ).catch(() => {});
-          }
-        }
+        // Zoom link auto-send to candidate disabled — send manually
         reminders['zoom_sent'] = new Date().toISOString();
         await updateInterview(iv.id, { reminders });
       }
