@@ -77,6 +77,11 @@ function postLoginInit() {
         if (activeView === 'monitor' && typeof renderMonitor === 'function') renderMonitor();
         // Notificar por cada lead nuevo
         newLeads.forEach(l => _notifyNewLead(l));
+        // Re-render messaging thread with fresh data if it's open
+        if (activeView === 'messaging') {
+          if (typeof _msgRenderList   === 'function') _msgRenderList();
+          if (typeof _msgRenderThread === 'function') _msgRenderThread();
+        }
       }
     } catch(e) {}
     // Sync WA messages from server (backup for when fsAppendLeadMetaWa misses)

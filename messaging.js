@@ -158,6 +158,7 @@ let _msgSearch   = '';
 let _msgLeadId   = null;
 let _msgChannel  = 'sms';   // sms | wa
 let _msgPollInt  = null;
+let _msgLastCount = 0;
 
 function showMessaging() {
   _hideAllViews();
@@ -315,6 +316,7 @@ function _msgRenderList() {
 
 function _msgOpenConv(leadId) {
   _msgLeadId = leadId;
+  _msgLastCount = 0;
   const lead = leads.find(l => l.id === leadId);
   if (!lead) return;
   // Mobile: show chat pane
@@ -984,7 +986,10 @@ async function _msgPollActive() {
       if (!ex2) { lead.metaWa.push({...m, ch:'wa'}); updated = true; }
       else if (m.status && ex2.status !== m.status) { ex2.status = m.status; ex2.error_code = m.error_code; updated = true; }
     }
-    if (updated) { saveLeads(lead.id); _msgRenderList(); _msgRenderThread(); lcRenderTimeline(lead); }
+    // Detect if 15s lead sync already added messages behind our back
+    const curCount = (lead.metaWa||[]).length + (lead.sms||[]).length;
+    if (!updated && curCount !== _msgLastCount) updated = true;
+    if (updated) { _msgLastCount = curCount; saveLeads(lead.id); _msgRenderList(); _msgRenderThread(); lcRenderTimeline(lead); }
   } catch {}
 }
 
