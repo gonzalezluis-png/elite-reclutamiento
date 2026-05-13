@@ -1307,6 +1307,11 @@ function registerMetaRoutes(app) {
         },
       ];
 
+      // Check existing templates status
+      const existing = await fetch(`${GRAPH_URL}/${wabaId}/message_templates?fields=name,status,components&limit=20`, {
+        headers: { 'Authorization': `Bearer ${_waToken}` },
+      }).then(r => r.json());
+
       const results = [];
       for (const tpl of templates) {
         const r = await fetch(`${GRAPH_URL}/${wabaId}/message_templates`, {
@@ -1316,7 +1321,7 @@ function registerMetaRoutes(app) {
         }).then(r => r.json());
         results.push({ name: tpl.name, result: r });
       }
-      res.json({ ok: true, wabaId, results });
+      res.json({ ok: true, wabaId, existing: existing.data, results });
     } catch (e) {
       res.status(500).json({ ok: false, error: e.message });
     }
