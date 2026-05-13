@@ -385,55 +385,61 @@ function _msgRenderThread() {
   const _iaPill   = _iaPaused ? 'MANUAL' : 'ACTIVA';
 
   main.innerHTML = `
-    <div class="msg-thread-hdr">
-      <button class="mob-back-btn" onclick="_msgMobBack()" aria-label="Volver">‹</button>
-      <div class="msg-conv-avatar" style="background:${color};width:36px;height:36px;font-size:13px;font-weight:700;flex-shrink:0;">${initials}</div>
-      <div class="msg-thread-hdr-info">
-        <div class="msg-thread-hdr-name">${esc(lead.nombre||'Sin nombre')}</div>
-        <div class="msg-thread-hdr-sub">${esc(phone)} ${lead.ubicacion?'· '+esc(lead.ubicacion):''}</div>
+  <div style="display:flex;height:100%;overflow:hidden;min-width:0">
+    <div style="flex:1;display:flex;flex-direction:column;min-width:0;overflow:hidden">
+      <div class="msg-thread-hdr">
+        <button class="mob-back-btn" onclick="_msgMobBack()" aria-label="Volver">‹</button>
+        <div class="msg-conv-avatar" style="background:${color};width:36px;height:36px;font-size:13px;font-weight:700;flex-shrink:0;">${initials}</div>
+        <div class="msg-thread-hdr-info">
+          <div class="msg-thread-hdr-name">${esc(lead.nombre||'Sin nombre')}</div>
+          <div class="msg-thread-hdr-sub">${esc(phone)} ${lead.ubicacion?'· '+esc(lead.ubicacion):''}</div>
+        </div>
+        <button onclick="_msgToggleIA('${lead.id}')" style="background:${_iaPaused?'rgba(34,197,94,.15)':'rgba(168,85,247,.15)'};border:1px solid ${_iaPaused?'rgba(34,197,94,.3)':'rgba(168,85,247,.3)'};border-radius:7px;color:${_iaColor};font-size:11px;font-family:var(--font);padding:5px 11px;cursor:pointer;font-weight:700;">${_iaPill}</button>
+        <button class="mob-hide" onclick="_msgForceAna('${lead.id}')" title="Fuerza a Ana a leer el historial y responder siguiendo el guión" style="background:rgba(251,191,36,.12);border:1px solid rgba(251,191,36,.3);border-radius:7px;color:#fbbf24;font-size:11px;font-family:var(--font);padding:5px 11px;cursor:pointer;font-weight:700;">⚡ Forzar Ana</button>
+        <button class="mob-hide" onclick="_msgToggleLeadPanel()" id="msg-lead-panel-btn" title="Ver datos del lead" style="background:${_msgLeadPanelOpen?'rgba(79,127,255,.2)':'rgba(255,255,255,.07)'};border:1px solid ${_msgLeadPanelOpen?'rgba(79,127,255,.4)':'var(--border)'};border-radius:7px;color:${_msgLeadPanelOpen?'#93c5fd':'var(--text)'};font-size:11px;font-family:var(--font);padding:5px 11px;cursor:pointer;font-weight:700;">📋 Lead</button>
       </div>
-      <button onclick="_msgToggleIA('${lead.id}')" style="background:${_iaPaused?'rgba(34,197,94,.15)':'rgba(168,85,247,.15)'};border:1px solid ${_iaPaused?'rgba(34,197,94,.3)':'rgba(168,85,247,.3)'};border-radius:7px;color:${_iaColor};font-size:11px;font-family:var(--font);padding:5px 11px;cursor:pointer;font-weight:700;">${_iaPill}</button>
-      <button class="mob-hide" onclick="_msgForceAna('${lead.id}')" title="Fuerza a Ana a leer el historial y responder siguiendo el guión" style="background:rgba(251,191,36,.12);border:1px solid rgba(251,191,36,.3);border-radius:7px;color:#fbbf24;font-size:11px;font-family:var(--font);padding:5px 11px;cursor:pointer;font-weight:700;">⚡ Forzar Ana</button>
-      <button onclick="openLead('${lead.id}')" style="background:rgba(255,255,255,.07);border:1px solid var(--border);border-radius:7px;color:var(--text);font-size:11.5px;font-family:var(--font);padding:5px 11px;cursor:pointer;">Ver Lead ↗</button>
+      <div style="padding:6px 14px;font-size:11px;color:${_iaColor};background:${_iaPaused?'rgba(34,197,94,.06)':'rgba(168,85,247,.06)'};border-bottom:1px solid var(--border);">${_iaLabel}</div>
+      <div class="msg-thread-body" id="msg-thread-body">${threadHtml}</div>
+      <div class="msg-compose">
+        <div class="msg-compose-top">
+          <div class="msg-channel-btns">
+            <button class="msg-ch-btn ${_msgChannel==='sms'?'active sms':''}" onclick="_msgSetChannel('sms')">📱 SMS</button>
+            <button class="msg-ch-btn ${_msgChannel==='wa'?'active wa':''}"  onclick="_msgSetChannel('wa')">💬 WhatsApp</button>
+          </div>
+          <div style="flex:1;"></div>
+          <span style="font-size:11px;color:var(--text2);">${esc(phone)}</span>
+        </div>
+        ${_msgChannel==='wa' ? `
+        <div id="msg-24h-warning" style="display:none;background:rgba(251,191,36,.1);border:1px solid rgba(251,191,36,.35);border-radius:6px;padding:7px 10px;font-size:11px;color:#fbbf24;margin-bottom:6px">
+          ⚠️ Han pasado más de 24h sin respuesta. Solo puedes enviar <strong>una plantilla</strong> para reabrir la conversación. Una vez que respondan, podrás escribir libremente.
+        </div>
+        <div class="msg-tpl-row">
+          <select class="msg-tpl-sel" id="msg-tpl-sel" onchange="_msgLoadTpl()">
+            <option value="">📋 Plantilla WhatsApp…</option>
+          </select>
+        </div>
+        <div id="msg-tpl-preview" style="display:none;background:rgba(37,211,102,.06);border:1px solid rgba(37,211,102,.2);border-radius:6px;padding:8px 10px;font-size:12px;color:var(--text1,#fff);margin-top:4px;white-space:pre-wrap;line-height:1.5"></div>
+        <div class="msg-tpl-vars" id="msg-tpl-vars"></div>` : ''}
+        <div class="msg-input-row">
+          <textarea class="msg-textarea" id="msg-inp" placeholder="${_msgChannel==='wa'?'Mensaje de WhatsApp… (Ctrl+Enter enviar)':'Mensaje SMS… (Ctrl+Enter enviar)'}" onkeydown="if(event.ctrlKey&&event.key==='Enter')_msgSend()" rows="2"></textarea>
+          <div style="display:flex;flex-direction:column;gap:4px">
+            <button class="msg-send-btn" id="msg-send-btn" onclick="_msgSend()" style="background:${_msgChannel==='wa'?'#25d366':'#0073ea'};">➤</button>
+            ${_msgChannel==='wa' ? `<button onclick="_msgSendVideo()" title="Enviar video intro" style="background:rgba(37,211,102,.15);color:#25d366;border:1px solid rgba(37,211,102,.35);border-radius:6px;padding:4px 6px;font-size:13px;cursor:pointer;line-height:1">🎬</button>` : ''}
+          </div>
+        </div>
+        <div id="msg-video-panel" style="display:none;margin-top:8px;background:rgba(37,211,102,.06);border:1px solid rgba(37,211,102,.25);border-radius:8px;padding:10px 12px">
+          <div style="font-size:11px;color:#25d366;font-weight:600;margin-bottom:8px">🎬 Enviar video intro Globe Life</div>
+          <input id="msg-video-caption" placeholder="Caption (opcional)" style="width:100%;background:var(--bg2,#1a1a2e);border:1px solid rgba(255,255,255,.12);color:#fff;border-radius:6px;padding:7px 10px;font-size:12px;margin-bottom:8px;box-sizing:border-box" />
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <span id="msg-video-status" style="font-size:11px;color:#888"></span>
+            <button onclick="_msgSendVideoConfirm()" style="background:#25d366;color:#fff;border:none;padding:6px 14px;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer" id="msg-video-btn">Enviar video</button>
+          </div>
+        </div>
+      </div>
     </div>
-    <div style="padding:6px 14px;font-size:11px;color:${_iaColor};background:${_iaPaused?'rgba(34,197,94,.06)':'rgba(168,85,247,.06)'};border-bottom:1px solid var(--border);">${_iaLabel}</div>
-    <div class="msg-thread-body" id="msg-thread-body">${threadHtml}</div>
-    <div class="msg-compose">
-      <div class="msg-compose-top">
-        <div class="msg-channel-btns">
-          <button class="msg-ch-btn ${_msgChannel==='sms'?'active sms':''}" onclick="_msgSetChannel('sms')">📱 SMS</button>
-          <button class="msg-ch-btn ${_msgChannel==='wa'?'active wa':''}"  onclick="_msgSetChannel('wa')">💬 WhatsApp</button>
-        </div>
-        <div style="flex:1;"></div>
-        <span style="font-size:11px;color:var(--text2);">${esc(phone)}</span>
-      </div>
-      ${_msgChannel==='wa' ? `
-      <div id="msg-24h-warning" style="display:none;background:rgba(251,191,36,.1);border:1px solid rgba(251,191,36,.35);border-radius:6px;padding:7px 10px;font-size:11px;color:#fbbf24;margin-bottom:6px">
-        ⚠️ Han pasado más de 24h sin respuesta. Solo puedes enviar <strong>una plantilla</strong> para reabrir la conversación. Una vez que respondan, podrás escribir libremente.
-      </div>
-      <div class="msg-tpl-row">
-        <select class="msg-tpl-sel" id="msg-tpl-sel" onchange="_msgLoadTpl()">
-          <option value="">📋 Plantilla WhatsApp…</option>
-        </select>
-      </div>
-      <div id="msg-tpl-preview" style="display:none;background:rgba(37,211,102,.06);border:1px solid rgba(37,211,102,.2);border-radius:6px;padding:8px 10px;font-size:12px;color:var(--text1,#fff);margin-top:4px;white-space:pre-wrap;line-height:1.5"></div>
-      <div class="msg-tpl-vars" id="msg-tpl-vars"></div>` : ''}
-      <div class="msg-input-row">
-        <textarea class="msg-textarea" id="msg-inp" placeholder="${_msgChannel==='wa'?'Mensaje de WhatsApp… (Ctrl+Enter enviar)':'Mensaje SMS… (Ctrl+Enter enviar)'}" onkeydown="if(event.ctrlKey&&event.key==='Enter')_msgSend()" rows="2"></textarea>
-        <div style="display:flex;flex-direction:column;gap:4px">
-          <button class="msg-send-btn" id="msg-send-btn" onclick="_msgSend()" style="background:${_msgChannel==='wa'?'#25d366':'#0073ea'};">➤</button>
-          ${_msgChannel==='wa' ? `<button onclick="_msgSendVideo()" title="Enviar webinar" style="background:rgba(37,211,102,.15);color:#25d366;border:1px solid rgba(37,211,102,.35);border-radius:6px;padding:4px 6px;font-size:13px;cursor:pointer;line-height:1">🎬</button>` : ''}
-        </div>
-      </div>
-      <div id="msg-video-panel" style="display:none;margin-top:8px;background:rgba(37,211,102,.06);border:1px solid rgba(37,211,102,.25);border-radius:8px;padding:10px 12px">
-        <div style="font-size:11px;color:#25d366;font-weight:600;margin-bottom:8px">🎬 Enviar video intro Globe Life</div>
-        <input id="msg-video-caption" placeholder="Caption (opcional)" style="width:100%;background:var(--bg2,#1a1a2e);border:1px solid rgba(255,255,255,.12);color:#fff;border-radius:6px;padding:7px 10px;font-size:12px;margin-bottom:8px;box-sizing:border-box" />
-        <div style="display:flex;justify-content:space-between;align-items:center">
-          <span id="msg-video-status" style="font-size:11px;color:#888"></span>
-          <button onclick="_msgSendVideoConfirm()" style="background:#25d366;color:#fff;border:none;padding:6px 14px;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer" id="msg-video-btn">Enviar video</button>
-        </div>
-      </div>
-    </div>`;
+    <div id="msg-lead-col" style="width:300px;min-width:280px;display:${_msgLeadPanelOpen?'flex':'none'};flex-direction:column;border-left:1px solid var(--border);overflow-y:auto;background:var(--card2,#181830);flex-shrink:0;">
+    </div>
+  </div>`;
 
   // Scroll to bottom
   setTimeout(() => {
@@ -443,6 +449,9 @@ function _msgRenderThread() {
 
   // Load templates when WA channel is active
   if (_msgChannel === 'wa') _msgLoadTemplates();
+
+  // Render lead info panel
+  if (_msgLeadPanelOpen) _msgRenderLeadPanel(lead);
 }
 
 function _msgSetChannel(ch) {
@@ -486,6 +495,270 @@ async function _msgForceAna(leadId) {
   } catch(e) {
     showToast('⚠️ Error al forzar respuesta: ' + e.message);
   }
+}
+
+let _msgLeadPanelOpen = true;
+
+function _msgToggleLeadPanel() {
+  _msgLeadPanelOpen = !_msgLeadPanelOpen;
+  const col = document.getElementById('msg-lead-col');
+  const btn = document.getElementById('msg-lead-panel-btn');
+  if (col) col.style.display = _msgLeadPanelOpen ? 'flex' : 'none';
+  if (btn) {
+    btn.style.background = _msgLeadPanelOpen ? 'rgba(79,127,255,.2)' : 'rgba(255,255,255,.07)';
+    btn.style.borderColor = _msgLeadPanelOpen ? 'rgba(79,127,255,.4)' : 'var(--border)';
+    btn.style.color = _msgLeadPanelOpen ? '#93c5fd' : 'var(--text)';
+  }
+  if (_msgLeadPanelOpen) {
+    const lead = leads.find(l => l.id === _msgLeadId);
+    if (lead) _msgRenderLeadPanel(lead);
+  }
+}
+
+function _msgRenderLeadPanel(lead) {
+  const col = document.getElementById('msg-lead-col');
+  if (!col || !lead) return;
+
+  // Pipeline / etapa selects
+  const pipelineOpts = (typeof PIPELINES !== 'undefined' ? PIPELINES : [])
+    .map(p => `<option value="${esc(p.id)}" ${p.id===lead.pipeline_id?'selected':''}>${esc(p.nombre)}</option>`).join('');
+  const currentPipe  = (typeof PIPELINES !== 'undefined' ? PIPELINES : []).find(p => p.id === lead.pipeline_id);
+  const etapaOpts    = (currentPipe?.etapas || []).map(e => `<option value="${esc(e)}" ${e===lead.etapa?'selected':''}>${esc(e)}</option>`).join('');
+
+  // Funnel progress
+  const progresoHtml = (() => {
+    const steps = [
+      { pct: 5,   label: 'Aplicó',             check: () => true },
+      { pct: 10,  label: 'Nombre y ciudad',     check: l => l.nombre && !l.nombre.startsWith('WA ') && !l.nombre.startsWith('+') && l.ubicacion },
+      { pct: 20,  label: 'Experiencia laboral', check: l => l.tiene_experiencia },
+      { pct: 45,  label: 'Interés en webinar',  check: l => l.webinar_intent },
+      { pct: 50,  label: 'Papeles y mayoría',   check: l => l.tiene_papeles && l.mayor_edad },
+      { pct: 60,  label: 'Correo registrado',   check: l => !!l.correo },
+      { pct: 70,  label: 'Vio el webinar',      check: l => l.webinar_visto || l.vio_webinar },
+      { pct: 80,  label: 'Entrevista agendada', check: l => !!(l.cita?.fecha) || l.pipeline_id === 'entrevistas-generales' },
+      { pct: 100, label: 'Asistió',             check: l => /asist|ENTREVISTADO|ENTREVISTADA/i.test(l.etapa||'') },
+    ];
+    const pct = typeof calcProgreso === 'function' ? calcProgreso(lead) : 0;
+    const barColor = pct >= 100 ? '#fbbf24' : pct >= 70 ? '#00c875' : '#4f7fff';
+    return `
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+        <div style="flex:1;height:5px;background:rgba(255,255,255,.08);border-radius:3px;overflow:hidden;">
+          <div style="height:100%;width:${pct}%;background:${barColor};border-radius:3px;"></div>
+        </div>
+        <span style="font-size:14px;font-weight:800;color:${barColor};">${pct}%</span>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:3px;">
+        ${steps.map(s => {
+          const done = s.check(lead);
+          return `<div style="display:flex;align-items:center;gap:7px;padding:4px 7px;border-radius:6px;background:${done?'rgba(0,200,117,.05)':'transparent'};">
+            <span style="font-size:11px;">${done?'✅':'⬜'}</span>
+            <span style="font-size:11px;color:${done?'#d1fae5':'var(--text2)'};">${s.label}</span>
+            <span style="margin-left:auto;font-size:9px;color:${done?'#00c875':'var(--text3,rgba(255,255,255,.2))'};">${s.pct}%</span>
+          </div>`;
+        }).join('')}
+      </div>`;
+  })();
+
+  // Notes
+  const notasHtml = (lead.notas || []).slice(0,8).map(n => `
+    <div style="display:flex;gap:8px;align-items:flex-start;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.05);">
+      <div style="width:26px;height:26px;border-radius:50%;background:#4f7fff;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff;flex-shrink:0;">${esc((n.autor||'?').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase())}</div>
+      <div style="min-width:0">
+        <div style="font-size:10px;color:var(--text2);">${esc(n.autor||'Sistema')} · ${n.fecha ? new Date(n.fecha).toLocaleDateString('es-MX',{month:'short',day:'numeric'}) : ''}</div>
+        <div style="font-size:12px;color:var(--text);margin-top:2px;word-break:break-word;">${esc(n.texto||'')}</div>
+      </div>
+    </div>`).join('') || '<div style="font-size:11px;color:var(--text2);padding:8px 0;text-align:center;opacity:.5">Sin notas</div>';
+
+  // Metadata
+  const fmtDate = v => v ? new Date(v).toLocaleString('es-MX',{dateStyle:'short',timeStyle:'short'}) : null;
+  const bool    = v => v === true ? '✅ Sí' : v === false ? '❌ No' : null;
+  const metaRow = (icon, label, value) => value
+    ? `<div style="display:flex;gap:6px;font-size:11px;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.04);">
+        <span style="opacity:.5;flex-shrink:0">${icon}</span>
+        <span style="color:var(--text2);flex-shrink:0;min-width:90px">${label}</span>
+        <span style="color:var(--text);word-break:break-all">${esc(String(value))}</span>
+       </div>` : '';
+
+  const metaHtml = [
+    metaRow('📣','Fuente', lead.fuente),
+    metaRow('📋','Anuncio', lead.ad_nombre || lead.campaign_name),
+    metaRow('📅','Creado', fmtDate(lead.created_at)),
+    metaRow('🆔','Lead ID', lead.id),
+    metaRow('🔑','Pipeline', lead.pipeline_id),
+    metaRow('🤖','IA pausada', bool(lead.ia_paused)),
+    metaRow('👁️','Vio webinar', bool(lead.vio_webinar)),
+    metaRow('📊','Progreso web.', lead.webinar_visto_pct != null ? Math.round(lead.webinar_visto_pct)+'%' : null),
+    metaRow('🔞','Mayor de edad', bool(lead.mayor_edad)),
+    metaRow('💼','Experiencia', bool(lead.tiene_experiencia)),
+    metaRow('📄','Tiene papeles', bool(lead.tiene_papeles)),
+  ].filter(Boolean).join('') || '<div style="font-size:11px;color:var(--text2);padding:4px 0;opacity:.5">Sin metadatos</div>';
+
+  const inp = s => `style="width:100%;background:var(--bg,#0f0f1e);border:1px solid rgba(255,255,255,.1);color:#fff;border-radius:6px;padding:5px 8px;font-size:12px;font-family:var(--font);outline:none;box-sizing:border-box;${s||''}"`;
+  const lbl = t => `<label style="font-size:10px;color:var(--text2);display:block;margin-bottom:3px;text-transform:uppercase;letter-spacing:.4px;">${t}</label>`;
+
+  const propietarioOpts = (() => {
+    const u = typeof users !== 'undefined' ? users : [];
+    return `<option value="">Sin asignar</option>` + u.map(u => `<option value="${esc(u.nombre)}" ${u.nombre===lead.propietario?'selected':''}>${esc(u.nombre)}</option>`).join('');
+  })();
+  const fuenteOpts = ['Meta / Facebook','Facebook','Instagram','WhatsApp','Indeed','Glassdoor','OCC / Indeed','Referido','LinkedIn','Otro']
+    .map(f => `<option value="${f}" ${f===lead.fuente?'selected':''}>${f}</option>`).join('');
+
+  col.innerHTML = `
+    <div style="padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
+      <span style="font-size:13px;font-weight:700;color:var(--text);">📋 Datos del Lead</span>
+      <button onclick="openLead('${esc(lead.id)}')" style="background:rgba(255,255,255,.07);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:11px;font-family:var(--font);padding:4px 10px;cursor:pointer;">Ver completo ↗</button>
+    </div>
+
+    <div style="padding:12px 16px;border-bottom:1px solid var(--border);flex-shrink:0;">
+      <div style="display:flex;gap:6px;margin-bottom:8px;">
+        <div style="flex:1;min-width:0">
+          ${lbl('Pipeline')}
+          <select id="msg-lead-pipeline" onchange="_msgUpdateEtapasSel()" ${inp()}>${pipelineOpts}</select>
+        </div>
+        <div style="flex:1;min-width:0">
+          ${lbl('Etapa')}
+          <select id="msg-lead-etapa" ${inp()}>${etapaOpts}</select>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <button onclick="_msgExtractFromChat()" id="msg-extract-btn" style="flex:1;background:rgba(251,191,36,.12);border:1px solid rgba(251,191,36,.3);border-radius:6px;color:#fbbf24;font-size:11.5px;font-family:var(--font);padding:6px 10px;cursor:pointer;font-weight:700;">🤖 Leer chat</button>
+        <button onclick="_msgSaveLeadInfo()" style="flex:1;background:#4f7fff;border:none;border-radius:6px;color:#fff;font-size:11.5px;font-family:var(--font);padding:6px 10px;cursor:pointer;font-weight:700;">💾 Guardar</button>
+      </div>
+    </div>
+
+    <div style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;flex-direction:column;gap:8px;flex-shrink:0;">
+      <div>
+        ${lbl('Nombre')}
+        <input id="msg-lead-nombre" value="${esc(lead.nombre||'')}" placeholder="Nombre" ${inp()} />
+      </div>
+      <div>
+        ${lbl('Correo')}
+        <input id="msg-lead-correo" value="${esc(lead.correo||'')}" placeholder="email@ejemplo.com" type="email" ${inp()} />
+      </div>
+      <div>
+        ${lbl('Teléfono')}
+        <input value="${esc(lead.telefono||'')}" readonly ${inp('opacity:.5;cursor:default')} />
+      </div>
+      <div>
+        ${lbl('Ubicación')}
+        <input id="msg-lead-ubicacion" value="${esc(lead.ubicacion||'')}" placeholder="Ciudad, Estado" ${inp()} />
+      </div>
+      <div style="display:flex;gap:6px;">
+        <div style="flex:1;min-width:0">
+          ${lbl('Fuente')}
+          <select id="msg-lead-fuente" ${inp()}>${fuenteOpts}</select>
+        </div>
+        <div style="flex:1;min-width:0">
+          ${lbl('Propietario')}
+          <select id="msg-lead-propietario" ${inp()}>${propietarioOpts}</select>
+        </div>
+      </div>
+    </div>
+
+    <div style="padding:12px 16px;border-bottom:1px solid var(--border);flex-shrink:0;">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text2);margin-bottom:10px;">Progreso del funnel</div>
+      ${progresoHtml}
+    </div>
+
+    <div style="padding:12px 16px;border-bottom:1px solid var(--border);flex-shrink:0;">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text2);margin-bottom:8px;">Notas</div>
+      <div style="margin-bottom:8px;">
+        <textarea id="msg-nota-inp" placeholder="Agregar nota…" rows="2" style="width:100%;background:var(--bg,#0f0f1e);border:1px solid rgba(255,255,255,.1);color:#fff;border-radius:6px;padding:6px 8px;font-size:12px;font-family:var(--font);resize:none;outline:none;box-sizing:border-box;"></textarea>
+        <button onclick="_msgAddNota()" style="margin-top:4px;width:100%;background:rgba(255,255,255,.07);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:11.5px;font-family:var(--font);padding:5px;cursor:pointer;">Guardar nota</button>
+      </div>
+      <div id="msg-notas-list">${notasHtml}</div>
+    </div>
+
+    <div style="padding:12px 16px;flex-shrink:0;">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text2);margin-bottom:8px;cursor:pointer;display:flex;justify-content:space-between;" onclick="const m=document.getElementById('msg-meta-body');const a=document.getElementById('msg-meta-arrow');const o=m.style.display==='none';m.style.display=o?'block':'none';a.textContent=o?'▾':'▸'">
+        <span>📊 Metadatos</span><span id="msg-meta-arrow">▸</span>
+      </div>
+      <div id="msg-meta-body" style="display:none;">${metaHtml}</div>
+    </div>`;
+}
+
+function _msgUpdateEtapasSel() {
+  const pid  = document.getElementById('msg-lead-pipeline')?.value;
+  const pipe = (typeof PIPELINES !== 'undefined' ? PIPELINES : []).find(p => p.id === pid);
+  const sel  = document.getElementById('msg-lead-etapa');
+  if (!sel) return;
+  const lead = leads.find(l => l.id === _msgLeadId);
+  sel.innerHTML = (pipe?.etapas || []).map(e => `<option value="${esc(e)}" ${e===lead?.etapa?'selected':''}>${esc(e)}</option>`).join('');
+}
+
+async function _msgSaveLeadInfo() {
+  const lead = leads.find(l => l.id === _msgLeadId);
+  if (!lead) return;
+  const g = id => document.getElementById(id)?.value?.trim() ?? '';
+  const fields = {
+    nombre:      g('msg-lead-nombre')     || lead.nombre,
+    correo:      g('msg-lead-correo'),
+    ubicacion:   g('msg-lead-ubicacion'),
+    fuente:      g('msg-lead-fuente')     || lead.fuente,
+    propietario: g('msg-lead-propietario'),
+    pipeline_id: g('msg-lead-pipeline')   || lead.pipeline_id,
+    etapa:       g('msg-lead-etapa')      || lead.etapa,
+  };
+  try {
+    const res = await fetch(`${SERVER_URL}/leads/${_msgLeadId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', 'x-session-token': _sessionToken || '' },
+      body: JSON.stringify(fields),
+    });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error);
+    Object.assign(lead, fields);
+    saveLeads();
+    showToast('✅ Lead actualizado');
+    _msgRenderLeadPanel(lead);
+    _msgRenderList();
+  } catch(e) {
+    showToast('⚠️ Error al guardar: ' + e.message);
+  }
+}
+
+async function _msgExtractFromChat() {
+  const lead = leads.find(l => l.id === _msgLeadId);
+  if (!lead) return;
+  const btn = document.getElementById('msg-extract-btn');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Leyendo…'; }
+  try {
+    const res = await fetch(`${SERVER_URL}/leads/${_msgLeadId}/extract`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-session-token': _sessionToken || '' },
+    });
+    const data = await res.json();
+    if (!data.ok) { showToast('⚠️ ' + (data.error || 'Sin historial')); return; }
+    const idx = leads.findIndex(l => l.id === _msgLeadId);
+    if (idx >= 0) leads[idx] = { ...leads[idx], ...data.lead };
+    showToast('✅ Datos actualizados desde el chat');
+    _msgRenderLeadPanel(leads.find(l => l.id === _msgLeadId));
+    _msgRenderList();
+  } catch(e) {
+    showToast('❌ Error: ' + e.message);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '🤖 Leer chat'; }
+  }
+}
+
+async function _msgAddNota() {
+  const lead = leads.find(l => l.id === _msgLeadId);
+  if (!lead) return;
+  const ta    = document.getElementById('msg-nota-inp');
+  const texto = ta?.value?.trim();
+  if (!texto) return;
+  const nota = { texto, autor: currentUser?.name || 'Agente', fecha: new Date().toISOString() };
+  if (!lead.notas) lead.notas = [];
+  lead.notas.unshift(nota);
+  saveLeads();
+  ta.value = '';
+  await fetch(`${SERVER_URL}/leads/${_msgLeadId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', 'x-session-token': _sessionToken || '' },
+    body: JSON.stringify({ notas: lead.notas }),
+  }).catch(() => {});
+  _msgRenderLeadPanel(lead);
+  showToast('✅ Nota guardada');
 }
 
 let _msgTemplates = [];
