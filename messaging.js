@@ -835,12 +835,17 @@ async function _msgLoadTemplates() {
 
   // Check 24h window
   const lead = leads.find(l => l.id === _msgLeadId);
-  const warn = document.getElementById('msg-24h-warning');
-  if (warn && lead) {
+  const warn    = document.getElementById('msg-24h-warning');
+  const sendBtn = document.getElementById('msg-send-btn');
+  const inp     = document.getElementById('msg-inp');
+  if (lead) {
     const allMsgs = [...(lead.metaWa||[]), ...(lead.whatsapp||[])];
     const lastInbound = allMsgs.filter(m => m.direction === 'inbound').sort((a,b) => new Date(b.dateSent||b.date||0) - new Date(a.dateSent||a.date||0))[0];
     const hoursSince = lastInbound ? (Date.now() - new Date(lastInbound.dateSent||lastInbound.date).getTime()) / 36e5 : 999;
-    warn.style.display = hoursSince > 24 ? 'block' : 'none';
+    const over24 = hoursSince > 24;
+    if (warn) warn.style.display = over24 ? 'block' : 'none';
+    if (sendBtn) { sendBtn.disabled = over24; sendBtn.style.opacity = over24 ? '.3' : '1'; sendBtn.title = over24 ? 'Ventana 24h cerrada — usa una plantilla' : ''; }
+    if (inp)     { inp.disabled = over24; inp.style.opacity = over24 ? '.4' : '1'; inp.placeholder = over24 ? 'Ventana 24h cerrada — selecciona una plantilla arriba' : inp.placeholder; }
   }
 }
 
