@@ -847,7 +847,7 @@ app.post('/ai/pause', async (req, res) => {
   if (!phone) return res.status(400).json({ ok: false, error: 'phone requerido' });
   try {
     const doc = await fsGetLeadByPhone(phone);
-    if (doc) await fsUpdateLeadFields(doc.name?.split('/').pop(), { ia_paused: paused });
+    if (doc) await fsUpdateLeadFields(doc.id, { ia_paused: paused });
     res.json({ ok: true });
 
     // On resume: reconstruct history from Firestore then respond to last unanswered user message
