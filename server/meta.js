@@ -1287,6 +1287,12 @@ function registerMetaRoutes(app) {
     }
   });
 
+  // ── Temp: check WA message history for a phone ───────────────────────────
+  app.get('/admin/wa-msgs/:phone', async (req, res) => {
+    const msgs = await db.sbGetWAMessages(req.params.phone, 20).catch(e => ({ error: e.message }));
+    res.json(msgs);
+  });
+
   // ── Temp: list WA templates ───────────────────────────────────────────────
   app.get('/admin/wa-templates', async (req, res) => {
     const wabaId = '1503820438112497';
