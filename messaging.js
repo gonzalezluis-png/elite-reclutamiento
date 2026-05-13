@@ -1183,16 +1183,17 @@ function lcLoadTpl() {
   }
   if (inp) { inp.value = ''; inp.style.opacity = '.4'; }
   const isFav = _tplGetFavs().has(key);
+  const hasVar = tpl.body.includes('{{1}}');
   if (tplVars) {
     tplVars.style.display = 'flex';
-    tplVars.innerHTML = `
+    tplVars.innerHTML = (hasVar ? `
       <div>
         <label style="font-size:11px;color:var(--text2);display:block;margin-bottom:3px">{{1}} Nombre</label>
         <input id="lc-var-0" value="${esc(firstName)}" placeholder="Nombre"
           style="width:100%;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);color:#fff;border-radius:6px;padding:5px 8px;font-size:12px;box-sizing:border-box"
           oninput="lcUpdateTplPreview()" />
-      </div>
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px">
+      </div>` : '') +
+      `<div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px">
         <button onclick="_tplToggleFav('${esc(key)}')" id="lc-tpl-fav-btn"
           title="${isFav ? 'Quitar de favoritas' : 'Marcar como favorita'}"
           style="background:${isFav ? 'rgba(251,191,36,.15)' : 'rgba(255,255,255,.06)'};border:1px solid ${isFav ? 'rgba(251,191,36,.4)' : 'rgba(255,255,255,.12)'};border-radius:6px;color:${isFav ? '#fbbf24' : 'var(--text2)'};font-size:13px;padding:5px 10px;cursor:pointer"
