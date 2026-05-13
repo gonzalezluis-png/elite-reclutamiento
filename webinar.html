@@ -296,7 +296,7 @@ footer {
 <div class="player-section">
   <div class="player-label">▶ Reproducir webinar</div>
   <div class="player-wrap">
-    <video id="player" playsinline controls>
+    <video id="player" playsinline webkit-playsinline controls preload="metadata">
       <source src="https://elite-webinar.b-cdn.net/file/elite-webinar/Webinar+mayo+2026.mp4" type="video/mp4" />
     </video>
     <div class="fake-progress-bar">
@@ -583,6 +583,9 @@ async function saveProgress(final = false) {
 
 const player = new Plyr('#player', {
   controls: ['play-large','play','mute','volume','fullscreen'],
+  playsinline: true,
+  resetOnEnd: false,
+  invertTime: false,
 });
 player.on('play',  () => { playing = true; });
 player.on('pause', () => { if (playing) pauseCount++; playing = false; saveProgress(); });
