@@ -41,14 +41,6 @@ const DEFAULT_INTERVIEW_CONFIG = {
       message: 'Hola {nombre}, te recordamos que hoy tienes tu entrevista a las {hora} vía Zoom. ¡Te esperamos!',
     },
     {
-      id:      'r2',
-      label:   'Recordatorio 1h antes',
-      trigger: 'hours_before',
-      value:   1,
-      message: '¿Podrías confirmarme si asistirás a tu entrevista de hoy a las {hora}?',
-      disabled: true,
-    },
-    {
       id:      'r3',
       label:   'Sin confirmación',
       trigger: 'minutes_after',
@@ -408,6 +400,7 @@ async function checkInterviewReminders(sendWA, sendInternal, sendManager) {
 
     for (const rem of cfg.reminders || []) {
       if (rem.disabled) continue;
+      if (rem.id === 'r2') continue; // removed per user request
       if (reminders[rem.id]) continue;
 
       let shouldSend = false;
