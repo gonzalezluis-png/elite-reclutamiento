@@ -276,19 +276,21 @@ function initResizableCols(tableKey) {
 
 function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
-// Deduplicate messages by body+direction within a 30-second window.
-// Handles stale localStorage data where the same message may be in both
-// lead.whatsapp and lead.metaWa after the array-separation migration.
 function dedupMsgs(msgs) {
   const normDir = d => (d === 'out' ? 'outbound' : d === 'in' ? 'inbound' : d || '');
+  const seenSids = new Set();
   const seen = [];
   return msgs.filter(m => {
+    if (m.sid) {
+      if (seenSids.has(m.sid)) return false;
+      seenSids.add(m.sid);
+    }
     const ts  = new Date(m.dateSent || m.date || 0).getTime();
     const dir = normDir(m.direction);
     const dup = seen.find(s =>
       s.dir  === dir &&
       s.body === (m.body || '') &&
-      Math.abs(s.ts - ts) < 60000
+      Math.abs(s.ts - ts) < 5000
     );
     if (dup) return false;
     seen.push({ dir, body: m.body || '', ts });
