@@ -288,7 +288,7 @@ footer {
 <div class="player-section">
   <div class="player-label">▶ Reproducir webinar</div>
   <div class="player-wrap">
-    <video id="player" playsinline webkit-playsinline controls preload="metadata">
+    <video id="player" playsinline webkit-playsinline controls preload="auto" autoplay muted>
       <source src="https://elite-webinar.b-cdn.net/file/elite-webinar/Webinar+mayo+2026.mp4" type="video/mp4" />
     </video>
     <!-- End-of-video overlay -->
@@ -587,9 +587,15 @@ const player = new Plyr('#player', {
   settings: ['captions','speed','quality'],
   speed: { selected: 1, options: [0.5, 0.75, 1, 1.25, 1.5, 2] },
   playsinline: true,
+  autoplay: true,
+  muted: true,
   resetOnEnd: false,
   invertTime: false,
   tooltips: { controls: true, seek: true },
+});
+player.on('ready', () => {
+  player.muted = true;
+  player.play().catch(() => {});
 });
 player.on('play',  () => { playing = true; });
 player.on('pause', () => { if (playing) pauseCount++; playing = false; saveProgress(); });
