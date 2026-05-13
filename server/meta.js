@@ -1301,43 +1301,36 @@ function registerMetaRoutes(app) {
     try {
       const wabaId = '1503820438112497';
 
-      // Get existing templates with IDs
-      const existing = await fetch(`${GRAPH_URL}/${wabaId}/message_templates?fields=name,status,id&limit=20`, {
+      // Delete ALL rejected custom templates
+      const existing = await fetch(`${GRAPH_URL}/${wabaId}/message_templates?fields=name,status,id&limit=30`, {
         headers: { 'Authorization': `Bearer ${_waToken}` },
       }).then(r => r.json());
 
-      // Delete rejected templates so we can recreate them
-      const toDelete = (existing.data || []).filter(t =>
-        ['solicitud_recibida_horario_abierto','solicitud_recibida_horario_cerrado'].includes(t.name) && t.status === 'REJECTED'
-      );
       const deleteResults = [];
-      for (const t of toDelete) {
+      for (const t of (existing.data || [])) {
+        if (t.name === 'hello_world') continue;
         const dr = await fetch(`${GRAPH_URL}/${wabaId}/message_templates?name=${t.name}`, {
           method: 'DELETE',
           headers: { 'Authorization': `Bearer ${_waToken}` },
         }).then(r => r.json());
-        deleteResults.push({ name: t.name, deleted: dr });
+        deleteResults.push({ name: t.name, id: t.id, deleted: dr });
       }
 
       const templates = [
         {
-          name: 'bienvenida_horario_abierto',
+          name: 'confirmacion_solicitud',
           language: 'es',
-          category: 'MARKETING',
+          category: 'UTILITY',
           components: [
-            { type: 'HEADER', format: 'TEXT', text: 'Grupo Elite' },
-            { type: 'BODY', text: 'Hola {{1}}, recibimos tu solicitud de empleo. Es un gusto tenerte con nosotros. En breve uno de nuestros reclutadores te contactará para darte más información.' },
-            { type: 'FOOTER', text: 'Grupo Elite Work' },
+            { type: 'BODY', text: 'Hola {{1}}, hemos recibido tu solicitud. Un representante de Grupo Elite te contactará pronto con más información.' },
           ],
         },
         {
-          name: 'bienvenida_horario_cerrado',
+          name: 'confirmacion_solicitud_cerrado',
           language: 'es',
-          category: 'MARKETING',
+          category: 'UTILITY',
           components: [
-            { type: 'HEADER', format: 'TEXT', text: 'Grupo Elite' },
-            { type: 'BODY', text: 'Hola {{1}}, recibimos tu solicitud de empleo. En este momento nuestras oficinas están cerradas. En horario de atención te contactaremos para darte más detalles.' },
-            { type: 'FOOTER', text: 'Grupo Elite Work' },
+            { type: 'BODY', text: 'Hola {{1}}, hemos recibido tu solicitud. Nuestras oficinas están cerradas en este momento. Te contactaremos en horario de atención.' },
           ],
         },
       ];
