@@ -602,6 +602,10 @@ function _msgRenderLeadPanel(lead) {
     const u = typeof users !== 'undefined' ? users : [];
     return `<option value="">Sin asignar</option>` + u.map(u => `<option value="${esc(u.nombre)}" ${u.nombre===lead.propietario?'selected':''}>${esc(u.nombre)}</option>`).join('');
   })();
+  const inscritoPorOpts = (() => {
+    const u = typeof users !== 'undefined' ? users : [];
+    return `<option value="">— Sin especificar —</option>` + u.map(u => `<option value="${esc(u.nombre)}" ${u.nombre===lead.inscrito_por?'selected':''}>${esc(u.nombre)}</option>`).join('');
+  })();
   const fuenteOpts = ['Meta / Facebook','Facebook','Instagram','WhatsApp','Indeed','Glassdoor','OCC / Indeed','Referido','LinkedIn','Otro']
     .map(f => `<option value="${f}" ${f===lead.fuente?'selected':''}>${f}</option>`).join('');
 
@@ -655,6 +659,20 @@ function _msgRenderLeadPanel(lead) {
           <select id="msg-lead-propietario" ${inp()}>${propietarioOpts}</select>
         </div>
       </div>
+      <div style="display:flex;gap:6px;margin-top:8px;">
+        <div style="flex:1;min-width:0">
+          ${lbl('Inscrito por')}
+          <select id="msg-lead-inscrito-por" ${inp()}>${inscritoPorOpts}</select>
+        </div>
+        <div style="flex:1;min-width:0">
+          ${lbl('Fecha Webinar')}
+          <input id="msg-lead-fecha-webinar" type="date" value="${esc(lead.fecha_inscripcion_webinar||'')}" ${inp()} />
+        </div>
+      </div>
+      <div style="margin-top:8px;">
+        ${lbl('Seguidores')}
+        <input id="msg-lead-seguidores" value="${esc((lead.seguidores||[]).join(', '))}" placeholder="Nombres separados por coma" ${inp()} />
+      </div>
     </div>
 
     <div style="padding:12px 16px;border-bottom:1px solid var(--border);flex-shrink:0;">
@@ -692,14 +710,18 @@ async function _msgSaveLeadInfo() {
   const lead = leads.find(l => l.id === _msgLeadId);
   if (!lead) return;
   const g = id => document.getElementById(id)?.value?.trim() ?? '';
+  const seguidoresRaw = g('msg-lead-seguidores');
   const fields = {
-    nombre:      g('msg-lead-nombre')     || lead.nombre,
-    correo:      g('msg-lead-correo'),
-    ubicacion:   g('msg-lead-ubicacion'),
-    fuente:      g('msg-lead-fuente')     || lead.fuente,
-    propietario: g('msg-lead-propietario'),
-    pipeline_id: g('msg-lead-pipeline')   || lead.pipeline_id,
-    etapa:       g('msg-lead-etapa')      || lead.etapa,
+    nombre:                    g('msg-lead-nombre')        || lead.nombre,
+    correo:                    g('msg-lead-correo'),
+    ubicacion:                 g('msg-lead-ubicacion'),
+    fuente:                    g('msg-lead-fuente')        || lead.fuente,
+    propietario:               g('msg-lead-propietario'),
+    pipeline_id:               g('msg-lead-pipeline')     || lead.pipeline_id,
+    etapa:                     g('msg-lead-etapa')        || lead.etapa,
+    inscrito_por:              g('msg-lead-inscrito-por'),
+    fecha_inscripcion_webinar: g('msg-lead-fecha-webinar'),
+    seguidores:                seguidoresRaw ? seguidoresRaw.split(',').map(s => s.trim()).filter(Boolean) : lead.seguidores,
   };
   try {
     const res = await fetch(`${SERVER_URL}/leads/${_msgLeadId}`, {
