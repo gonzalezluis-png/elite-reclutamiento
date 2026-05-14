@@ -1315,7 +1315,18 @@ function registerMetaRoutes(app) {
     try {
       const cleanTo = to.replace(/^\+/, '').replace(/\D/g, '');
       const components = [];
-      const cleanParams = (params || []).filter(p => p && p.trim() !== '');
+      // Fetch template body from Meta to know how many variables it actually has
+      let tplBodyVarCount = 0;
+      try {
+        const wabaId = process.env.META_WA_WABA_ID || '1503820438112497';
+        const tplR = await fetch(`${GRAPH_URL}/${wabaId}/message_templates?fields=name,components&limit=50&name_contains=${templateName}`, {
+          headers: { 'Authorization': `Bearer ${_waToken}` },
+        }).then(r => r.json());
+        const tplData = (tplR.data || []).find(t => t.name === templateName);
+        const bodyText = tplData?.components?.find(c => c.type === 'BODY')?.text || '';
+        tplBodyVarCount = (bodyText.match(/\{\{[0-9]+\}\}/g) || []).length;
+      } catch(e) { console.warn('[WA-Template] Could not verify template vars:', e.message); }
+      const cleanParams = (params || []).filter(p => p && p.trim() !== '').slice(0, tplBodyVarCount || 0);
       if (cleanParams.length) {
         components.push({ type: 'body', parameters: cleanParams.map(p => ({ type: 'text', text: p })) });
       }
