@@ -1291,7 +1291,7 @@ function registerMetaRoutes(app) {
   app.get('/meta/wa-templates', async (req, res) => {
     try {
       const wabaId = process.env.META_WA_WABA_ID || '1503820438112497';
-      const r = await fetch(`${GRAPH_URL}/${wabaId}/message_templates?fields=name,status,language,components&limit=50`, {
+      const r = await fetch(`${GRAPH_URL}/${wabaId}/message_templates?fields=name,status,category,language,components&limit=50`, {
         headers: { 'Authorization': `Bearer ${_waToken}` },
       }).then(r => r.json());
       const active = (r.data || [])
@@ -1299,7 +1299,7 @@ function registerMetaRoutes(app) {
         .map(t => {
           const body = t.components?.find(c => c.type === 'BODY')?.text || '';
           const header = t.components?.find(c => c.type === 'HEADER')?.text || '';
-          return { name: t.name, language: t.language, body, header };
+          return { name: t.name, language: t.language, body, header, category: t.category || '' };
         });
       res.json({ ok: true, templates: active });
     } catch (e) {
