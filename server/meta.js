@@ -1032,10 +1032,15 @@ function registerMetaRoutes(app) {
       if (!text) return;
 
       if (msg.id && _processedMsgIds.has(msg.id)) {
-        console.log(`[Meta WA] Mensaje duplicado ignorado: ${msg.id}`);
+        console.log(`[Meta WA] Mensaje duplicado ignorado (memoria): ${msg.id}`);
         return;
       }
       if (msg.id) {
+        const claimed = await db.sbTryClaimMsgId(msg.id);
+        if (!claimed) {
+          console.log(`[Meta WA] Mensaje duplicado ignorado (Supabase): ${msg.id}`);
+          return;
+        }
         _processedMsgIds.add(msg.id);
         setTimeout(() => _processedMsgIds.delete(msg.id), 10 * 60 * 1000);
       }

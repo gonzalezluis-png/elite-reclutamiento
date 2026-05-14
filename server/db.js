@@ -285,6 +285,25 @@ async function sbMarkAllNotificationsRead(userId) {
   await sbPatch('notifications', `user_id=eq.${encodeURIComponent(userId)}&read=eq.false`, { read: true });
 }
 
+// Returns true if this wamid is new (claim succeeded), false if duplicate
+async function sbTryClaimMsgId(wamid) {
+  try {
+    const r = await fetch(rest('/wa_messages'), {
+      method: 'POST',
+      headers: { ...SB_HEADERS, 'Prefer': 'return=minimal' },
+      body: JSON.stringify({
+        id:        'dedup_' + wamid,
+        phone:     'dedup',
+        direction: 'dedup',
+        text:      '',
+        ts:        Date.now(),
+      }),
+    });
+    // 201 = inserted (new), 409 = conflict/duplicate PK
+    return r.status === 201;
+  } catch { return true; } // on error, allow processing
+}
+
 module.exports = {
   // Leads
   sbGetLead, sbGetLeads, sbGetLeadByPhone, sbSaveLead, sbUpdateLead, sbDeleteLead, sbAppendMetaWa,
@@ -309,4 +328,5 @@ module.exports = {
   // Notifications
   sbCreateNotification, sbGetNotifications, sbMarkNotificationRead, sbMarkAllNotificationsRead,
   sbGet,
+  sbTryClaimMsgId,
 };
