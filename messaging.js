@@ -788,18 +788,82 @@ async function _msgAddNota() {
 let _msgTemplates = [];
 
 const _TPL_NAMES = {
-  'grupo_elite_bienvenida':                   '👋 Bienvenida — primer contacto',
-  'grupo_elite_cerrado':                      '🕐 Oficina cerrada',
-  'vi_que_completaste_nuestro_formulario_':   '📋 Completaste nuestro formulario',
-  'link_de_webinar_sin_inscripcion':          '🎥 Enviar link del webinar (sin registrar)',
-  '1er_intento_de_contacto_no_webinar':       '📲 1er intento — sin webinar',
-  'no_recibimos_mas_repuestas_del_postualdo': '🔇 Sin respuesta del postulado',
-  'ultimo_intento_de_contacto':               '🚪 Último intento de contacto',
-  'hello_world':                              '🧪 Prueba de conectividad',
+  '1_1_grupo_elite_cerrado_sin_video':                         '🔒 Oficina cerrada — sin video',
+  '1_2_oficina_cerrada_por_whastapp':                          '🔒 Oficina cerrada — WhatsApp',
+  '1_3_soliciutd_recibida_por_cuestionario__oficina_abierta':  '✅ Solicitud recibida — oficina abierta',
+  '2_1_1er_intento_de_contacto':                               '1️⃣ 1er intento de contacto',
+  '2_2_2do_intento_de_contacto':                               '2️⃣ 2do intento de contacto',
+  '2_3_3er_intento_de_contacto':                               '3️⃣ 3er intento (último)',
+  '3_2_1er_intento_de_contacto_no_vio_el_webinar':             '1️⃣ No vio el webinar — 1er intento',
+  '3_2_2do_intento_de_contacto_webinar_no_visto_':             '2️⃣ No vio el webinar — 2do intento',
+  '3_3_weibnar_visto':                                         '✅ Webinar visto',
+  'hello_world':                                               '🧪 Prueba de conectividad',
+};
+const _TPL_GROUP_LABELS = {
+  '1': '📥 Primer Contacto',
+  '2': '📲 Intentos de Contacto',
+  '3': '🎥 Seguimiento Webinar',
 };
 function _tplLabel(name) {
   if (_TPL_NAMES[name]) return _TPL_NAMES[name];
   return name.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
+function _tplGroup(name) {
+  const m = name.match(/^(\d+)_/);
+  return m ? m[1] : null;
+}
+function _buildTplDropdown(sel, currentVal) {
+  const favs = _tplGetFavs();
+  const favList = _msgTemplates.filter(t => favs.has(t.name));
+  const nonFavs = _msgTemplates.filter(t => !favs.has(t.name));
+  sel.innerHTML = '<option value="">📋 Plantilla WhatsApp…</option>';
+  if (favList.length) {
+    const grp = document.createElement('optgroup');
+    grp.label = '⭐ Favoritas';
+    for (const t of favList) {
+      const opt = document.createElement('option');
+      opt.value = t.name;
+      opt.textContent = '⭐ ' + _tplLabel(t.name);
+      grp.appendChild(opt);
+    }
+    sel.appendChild(grp);
+  }
+  // Group non-favourites by numeric prefix
+  const grouped = {};
+  const ungrouped = [];
+  for (const t of nonFavs) {
+    const g = _tplGroup(t.name);
+    if (g && _TPL_GROUP_LABELS[g]) {
+      if (!grouped[g]) grouped[g] = [];
+      grouped[g].push(t);
+    } else {
+      ungrouped.push(t);
+    }
+  }
+  for (const key of Object.keys(_TPL_GROUP_LABELS)) {
+    if (!grouped[key]?.length) continue;
+    const grp = document.createElement('optgroup');
+    grp.label = _TPL_GROUP_LABELS[key];
+    for (const t of grouped[key]) {
+      const opt = document.createElement('option');
+      opt.value = t.name;
+      opt.textContent = _tplLabel(t.name);
+      grp.appendChild(opt);
+    }
+    sel.appendChild(grp);
+  }
+  if (ungrouped.length) {
+    const grp = document.createElement('optgroup');
+    grp.label = '🔧 Otras';
+    for (const t of ungrouped) {
+      const opt = document.createElement('option');
+      opt.value = t.name;
+      opt.textContent = _tplLabel(t.name);
+      grp.appendChild(opt);
+    }
+    sel.appendChild(grp);
+  }
+  if (currentVal) sel.value = currentVal;
 }
 
 function _tplFavsKey() {
@@ -820,66 +884,12 @@ function _tplToggleFav(name) {
 function _msgRebuildTplDropdown() {
   const sel = document.getElementById('msg-tpl-sel');
   if (!sel) return;
-  const favs = _tplGetFavs();
-  const favList   = _msgTemplates.filter(t => favs.has(t.name));
-  const otherList = _msgTemplates.filter(t => !favs.has(t.name));
-  const currentVal = sel.value;
-  sel.innerHTML = '<option value="">📋 Plantilla WhatsApp…</option>';
-  if (favList.length) {
-    const grp = document.createElement('optgroup');
-    grp.label = '⭐ Favoritas';
-    for (const t of favList) {
-      const opt = document.createElement('option');
-      opt.value = t.name;
-      opt.textContent = '⭐ ' + _tplLabel(t.name);
-      grp.appendChild(opt);
-    }
-    sel.appendChild(grp);
-  }
-  if (otherList.length) {
-    const grp = document.createElement('optgroup');
-    grp.label = favList.length ? 'Todas las plantillas' : 'Plantillas';
-    for (const t of otherList) {
-      const opt = document.createElement('option');
-      opt.value = t.name;
-      opt.textContent = _tplLabel(t.name);
-      grp.appendChild(opt);
-    }
-    sel.appendChild(grp);
-  }
-  if (currentVal) sel.value = currentVal;
+  _buildTplDropdown(sel, sel.value);
 }
 function _lcRebuildTplDropdown() {
   const sel = document.getElementById('lc-tpl-select');
   if (!sel) return;
-  const favs = _tplGetFavs();
-  const favList   = _msgTemplates.filter(t => favs.has(t.name));
-  const otherList = _msgTemplates.filter(t => !favs.has(t.name));
-  const currentVal = sel.value;
-  sel.innerHTML = '<option value="">📋 Plantilla WhatsApp…</option>';
-  if (favList.length) {
-    const grp = document.createElement('optgroup');
-    grp.label = '⭐ Favoritas';
-    for (const t of favList) {
-      const opt = document.createElement('option');
-      opt.value = t.name;
-      opt.textContent = '⭐ ' + _tplLabel(t.name);
-      grp.appendChild(opt);
-    }
-    sel.appendChild(grp);
-  }
-  if (otherList.length) {
-    const grp = document.createElement('optgroup');
-    grp.label = favList.length ? 'Todas las plantillas' : 'Plantillas';
-    for (const t of otherList) {
-      const opt = document.createElement('option');
-      opt.value = t.name;
-      opt.textContent = _tplLabel(t.name);
-      grp.appendChild(opt);
-    }
-    sel.appendChild(grp);
-  }
-  if (currentVal) sel.value = currentVal;
+  _buildTplDropdown(sel, sel.value);
 }
 
 async function _msgLoadTemplates() {
