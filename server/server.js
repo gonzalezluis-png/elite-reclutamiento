@@ -1337,6 +1337,17 @@ app.post('/webinar/track/:leadId', async (req, res) => {
     if (req.body[key] !== undefined) fields[key] = req.body[key];
   }
   if (!Object.keys(fields).length) return res.json({ ok: true });
+  // Auto-mark as seen when 80%+ watched
+  const pct = Number(fields.webinar_visto_pct ?? 0);
+  if (pct >= 80 || fields.webinar_completado === true) {
+    fields.vio_webinar = true;
+    try {
+      const lead = await db.sbGetLead(leadId);
+      if (lead && lead.webinar_accion !== 'en-entrevista') {
+        fields.webinar_accion = 'visto';
+      }
+    } catch (_) {}
+  }
   try {
     await db.sbUpdateLead(leadId, fields);
     res.json({ ok: true });
