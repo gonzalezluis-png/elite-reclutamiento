@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Oportunidad Laboral — Webinar</title>
-<link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
+<script src="https://cdn.jsdelivr.net/npm/@mux/mux-player@3" defer></script>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -130,9 +130,8 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
   box-shadow: 0 0 0 1px var(--border), 0 32px 80px rgba(0,0,0,.8);
   background: #000;
 }
-.plyr--video { border-radius: 12px; }
-.plyr__control--overlaid { background: var(--accent) !important; }
-.plyr--full-ui input[type=range] { color: var(--accent); }
+mux-player { border-radius: 12px; width: 100%; display: block; }
+mux-player { --media-primary-color: var(--accent); --media-secondary-color: #fff; }
 
 /* viewer pill */
 .viewer-pill {
@@ -288,9 +287,14 @@ footer {
 <div class="player-section">
   <div class="player-label">▶ Reproducir webinar</div>
   <div class="player-wrap">
-    <video id="player" playsinline webkit-playsinline controls preload="auto" autoplay muted>
-      <source src="https://elite-webinar.b-cdn.net/file/elite-webinar/Webinar+mayo+2026.mp4" type="video/mp4" />
-    </video>
+    <mux-player
+      id="player"
+      playback-id="V6OAQXkCZM9dMKqoSr2qeQUgiyThINpZV00ocWoZASKU"
+      metadata-video-title="Webinar Grupo Elite — Mayo 2026"
+      autoplay="muted"
+      playsinline
+      preload="auto"
+    ></mux-player>
     <!-- End-of-video overlay -->
     <div id="end-overlay" style="display:none;position:absolute;inset:0;background:rgba(8,10,15,.88);z-index:20;display:none;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:20px;border-radius:12px;text-align:center">
       <div style="font-size:15px;font-weight:700;color:#f0f2ff;margin-bottom:2px">¿Te interesa esta oportunidad?</div>
@@ -497,7 +501,6 @@ footer {
 
 <footer>© 2026 · All rights reserved · Developed by <a href="https://www.m2base.com" target="_blank" rel="noopener" style="color:#4f7fff;text-decoration:none;">M2Base Developers</a></footer>
 
-<script src="https://cdn.plyr.io/3.7.8/plyr.polyfilled.js"></script>
 <script>
 // Sponsor tooltip
 function toggleTip(chip) {
@@ -582,24 +585,14 @@ async function saveProgress(final = false) {
   } catch(e) {}
 }
 
-const player = new Plyr('#player', {
-  controls: ['play-large','play','rewind','fast-forward','progress','current-time','duration','mute','volume','captions','settings','fullscreen'],
-  settings: ['captions','speed','quality'],
-  speed: { selected: 1, options: [0.5, 0.75, 1, 1.25, 1.5, 2] },
-  playsinline: true,
-  autoplay: true,
-  muted: true,
-  resetOnEnd: false,
-  invertTime: false,
-  tooltips: { controls: true, seek: true },
-});
-player.on('ready', () => {
+const player = document.getElementById('player');
+player.addEventListener('canplay', () => {
   player.muted = true;
   player.play().catch(() => {});
 });
-player.on('play',  () => { playing = true; });
-player.on('pause', () => { if (playing) pauseCount++; playing = false; saveProgress(); });
-player.on('timeupdate', () => {
+player.addEventListener('play',  () => { playing = true; });
+player.addEventListener('pause', () => { if (playing) pauseCount++; playing = false; saveProgress(); });
+player.addEventListener('timeupdate', () => {
   const pct = player.duration ? (player.currentTime / player.duration) * 100 : 0;
   if (pct > maxPct) maxPct = pct;
   if (playing) watchedSecs += 0.25;
@@ -611,7 +604,7 @@ player.on('timeupdate', () => {
     if (ov && ov.style.display !== 'flex') ov.style.display = 'flex';
   }
 });
-player.on('ended', () => {
+player.addEventListener('ended', () => {
   playing = false; completed = true; updateBar(100); saveProgress(true);
   const ov = document.getElementById('end-overlay');
   if (ov) { ov.style.display = 'flex'; }
