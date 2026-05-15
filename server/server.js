@@ -1101,6 +1101,43 @@ app.patch('/interviews/:id', async (req, res) => {
   res.json({ ok });
 });
 
+app.post('/interviews/:id/reschedule', async (req, res) => {
+  try {
+    const { slotIso } = req.body;
+    if (!slotIso) return res.status(400).json({ ok: false, error: 'slotIso requerido' });
+
+    const interview = await (async () => {
+      const list = await listInterviews();
+      return list.find(i => i.id === req.params.id);
+    })();
+    if (!interview) return res.status(404).json({ ok: false, error: 'Entrevista no encontrada' });
+
+    // Clear fired reminders so they re-fire for new slot
+    const updates = {
+      slotIso,
+      status: 'scheduled',
+      reminders: {},
+    };
+    await updateInterview(req.params.id, updates);
+
+    // Update GHL appointment if one exists
+    if (interview.ghlAppointmentId) {
+      const { ghlUpdateAppointment } = require('./ghl');
+      const start = new Date(slotIso);
+      const end   = new Date(start.getTime() + 30 * 60_000);
+      ghlUpdateAppointment(interview.ghlAppointmentId, {
+        startTime: start.toISOString(),
+        endTime:   end.toISOString(),
+        selectedTimezone: 'America/New_York',
+      }).catch(e => console.error('[GHL] reschedule error:', e.message));
+    }
+
+    res.json({ ok: true, interview: { ...interview, ...updates } });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
 // Reminder cron — every minute (both candidates and interviewers via Meta)
 const { sendWhatsApp: _ivSendWA } = require('./meta');
 const _ivSendInternal = async (to, text) => {

@@ -643,8 +643,60 @@ function _ivShowBookedInfo(interview) {
 
   const d = new Date(interview.slot);
   const fmt = d.toLocaleString('es-MX', { weekday:'long', year:'numeric', month:'long', day:'numeric', hour:'2-digit', minute:'2-digit' });
-  detail.innerHTML = `<div>${fmt}</div>${interview.zoom_link ? `<div style="margin-top:4px;"><a href="${esc(interview.zoom_link)}" target="_blank" style="color:#a5b4fc;font-size:11px;">🔗 Enlace Zoom</a></div>` : ''}`;
+  detail.innerHTML = `
+    <div>${fmt}</div>
+    ${interview.zoom_link ? `<div style="margin-top:4px;"><a href="${esc(interview.zoom_link)}" target="_blank" style="color:#a5b4fc;font-size:11px;">🔗 Enlace Zoom</a></div>` : ''}
+    <div style="margin-top:8px;display:flex;gap:6px;">
+      <button onclick="ivReschedule()" style="background:rgba(99,102,241,.15);border:1px solid rgba(99,102,241,.4);color:#a5b4fc;border-radius:6px;padding:5px 12px;cursor:pointer;font-size:11px;">🔄 Reprogramar</button>
+    </div>`;
   list.innerHTML = '';
+}
+
+async function ivReschedule() {
+  if (!_ivCurrentInterview) return;
+  const status = document.getElementById('iv-slots-status');
+  const list   = document.getElementById('iv-slots-list');
+  document.getElementById('iv-booked-info').style.display = 'none';
+  status.textContent = 'Selecciona el nuevo horario:';
+  list.innerHTML = '<div style="font-size:12px;color:var(--text2);">Cargando horarios...</div>';
+  try {
+    const res   = await fetch(`${SERVER_URL}/interviews/slots`);
+    const data  = await res.json();
+    const slots = data.slots || [];
+    if (!slots.length) { list.innerHTML = '<div style="font-size:12px;color:var(--text2);">No hay horarios disponibles.</div>'; return; }
+    list.innerHTML = slots.map(s => {
+      const iso = s.iso || s;
+      const lbl = s.label || new Date(iso).toLocaleString('es-MX', { weekday:'short', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
+      return `<button onclick="ivConfirmReschedule('${iso}')" style="text-align:left;background:rgba(99,102,241,.12);border:1px solid rgba(99,102,241,.3);color:var(--text);border-radius:6px;padding:6px 10px;cursor:pointer;font-size:12px;">📅 ${lbl}</button>`;
+    }).join('');
+  } catch(e) {
+    list.innerHTML = `<div style="font-size:12px;color:var(--red);">Error: ${e.message}</div>`;
+  }
+}
+
+async function ivConfirmReschedule(slot) {
+  if (!_ivCurrentInterview) return;
+  const d   = new Date(slot);
+  const lbl = d.toLocaleString('es-MX', { weekday:'long', month:'long', day:'numeric', hour:'2-digit', minute:'2-digit' });
+  if (!confirm(`¿Reprogramar entrevista para el ${lbl}?`)) return;
+  const status = document.getElementById('iv-slots-status');
+  status.textContent = 'Reprogramando...';
+  document.getElementById('iv-slots-list').innerHTML = '';
+  try {
+    const res  = await fetch(`${SERVER_URL}/interviews/${_ivCurrentInterview.id}/reschedule`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ slotIso: slot }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Error');
+    _ivCurrentInterview = { ..._ivCurrentInterview, slot, slotIso: slot };
+    _ivShowBookedInfo(_ivCurrentInterview);
+    status.textContent = '';
+    showToast('✅ Entrevista reprogramada');
+  } catch(e) {
+    status.textContent = `Error: ${e.message}`;
+  }
 }
 
 async function ivLoadSlots() {
@@ -740,19 +792,44 @@ function _fmtSlotInTZ(iso, tz) {
   return d.toLocaleString('es-MX', { timeZone: tz || 'America/New_York', weekday:'long', day:'numeric', month:'long', hour:'2-digit', minute:'2-digit', hour12:true });
 }
 
+let _acExistingInterview = null;
+
 async function openAgendarCitaModal(leadId) {
   document.querySelectorAll('.lt-accion-menu.open').forEach(m => m.classList.remove('open'));
   _acLead = leads.find(l => l.id === leadId);
   if (!_acLead) return;
+  _acExistingInterview = null;
 
   const candidateTZ   = _detectCandidateTZ(_acLead.ubicacion);
   const tzWarnEl      = document.getElementById('agendar-cita-tz-warn');
   const tzNames       = { 'America/New_York':'Eastern (Miami/FL)', 'America/Chicago':'Central (Dallas/TX)', 'America/Denver':'Mountain', 'America/Los_Angeles':'Pacific (California)', 'America/Caracas':'Venezuela' };
 
   document.getElementById('agendar-cita-nombre').textContent = _acLead.nombre || _acLead.telefono || '';
-  document.getElementById('agendar-cita-status').textContent = 'Cargando horarios disponibles...';
+  document.getElementById('agendar-cita-status').textContent = 'Cargando...';
   document.getElementById('agendar-cita-slots').innerHTML = '';
   document.getElementById('agendar-cita-modal').classList.remove('hidden');
+
+  // Check for existing interview
+  try {
+    const phone = (_acLead.telefono || '').replace(/^\+/, '');
+    const res   = await fetch(`/interviews?phone=${encodeURIComponent(phone)}`);
+    const data  = await res.json();
+    const existing = (data.interviews || []).find(i => i.status === 'scheduled' || i.status === 'booked');
+    if (existing) {
+      _acExistingInterview = existing;
+      const d   = new Date(existing.slotIso || existing.slot);
+      const fmt = d.toLocaleString('es-MX', { weekday:'long', day:'numeric', month:'long', hour:'2-digit', minute:'2-digit' });
+      document.getElementById('agendar-cita-status').innerHTML = `
+        <div style="background:rgba(99,102,241,.1);border:1px solid rgba(99,102,241,.3);border-radius:8px;padding:10px 12px;margin-bottom:8px;">
+          <div style="font-size:12px;color:var(--text2);margin-bottom:4px;">📅 Cita ya agendada:</div>
+          <div style="font-weight:600;color:var(--text);font-size:13px;">${fmt}</div>
+          <button onclick="_acStartReschedule()" style="margin-top:8px;background:rgba(99,102,241,.2);border:1px solid rgba(99,102,241,.5);color:#a5b4fc;border-radius:6px;padding:5px 14px;cursor:pointer;font-size:12px;">🔄 Reprogramar</button>
+        </div>`;
+      return;
+    }
+  } catch(_) {}
+
+  document.getElementById('agendar-cita-status').textContent = 'Cargando horarios disponibles...';
 
   if (candidateTZ) {
     const tzLabel = tzNames[candidateTZ] || candidateTZ;
@@ -785,9 +862,52 @@ async function openAgendarCitaModal(leadId) {
   }
 }
 
+async function _acStartReschedule() {
+  document.getElementById('agendar-cita-status').textContent = 'Selecciona el nuevo horario:';
+  document.getElementById('agendar-cita-slots').innerHTML = '<div style="font-size:12px;color:var(--text2);">Cargando horarios...</div>';
+  const candidateTZ  = _detectCandidateTZ(_acLead?.ubicacion);
+  const displayTZ    = candidateTZ || 'America/New_York';
+  try {
+    const res   = await fetch(`${SERVER_URL}/interviews/slots`);
+    const data  = await res.json();
+    const slots = data.slots || [];
+    if (!slots.length) { document.getElementById('agendar-cita-slots').innerHTML = '<div style="font-size:12px;color:var(--text2);">No hay horarios disponibles.</div>'; return; }
+    document.getElementById('agendar-cita-slots').innerHTML = slots.map(s => {
+      const iso = s.iso || s;
+      const lbl = _fmtSlotInTZ(iso, displayTZ);
+      return `<button onclick="_acConfirmReschedule('${iso}')" style="text-align:left;background:rgba(99,102,241,.12);border:1px solid rgba(99,102,241,.3);color:var(--text);border-radius:8px;padding:9px 14px;cursor:pointer;font-size:12.5px;font-family:var(--font);" onmouseover="this.style.background='rgba(99,102,241,.25)'" onmouseout="this.style.background='rgba(99,102,241,.12)'">📅 ${lbl}</button>`;
+    }).join('');
+  } catch(e) {
+    document.getElementById('agendar-cita-slots').innerHTML = `<div style="font-size:12px;color:var(--red);">Error: ${e.message}</div>`;
+  }
+}
+
+async function _acConfirmReschedule(slot) {
+  if (!_acExistingInterview) return;
+  const d   = new Date(slot);
+  const lbl = d.toLocaleString('es-MX', { weekday:'long', month:'long', day:'numeric', hour:'2-digit', minute:'2-digit' });
+  if (!confirm(`¿Reprogramar entrevista para el ${lbl}?`)) return;
+  document.getElementById('agendar-cita-status').textContent = 'Reprogramando...';
+  document.getElementById('agendar-cita-slots').innerHTML = '';
+  try {
+    const res  = await fetch(`${SERVER_URL}/interviews/${_acExistingInterview.id}/reschedule`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ slotIso: slot }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Error');
+    closeAgendarCitaModal();
+    showToast(`✅ Entrevista reprogramada — ${lbl}`);
+  } catch(e) {
+    document.getElementById('agendar-cita-status').textContent = `Error: ${e.message}`;
+  }
+}
+
 function closeAgendarCitaModal() {
   document.getElementById('agendar-cita-modal').classList.add('hidden');
   _acLead = null;
+  _acExistingInterview = null;
   _acManualOpen = false;
 }
 
