@@ -441,6 +441,7 @@ function registerMetaRoutes(app) {
                 video: { link: 'https://elite-webinar.b-cdn.net/file/elite-webinar/Video-Intro-Globe-Life-WA.mp4', caption: closedMsg },
               }),
             });
+            _logWAMessage(cleanFrom, 'out', `🎥 [Video] ${closedMsg}`).catch(() => {});
           } catch (_ve) {
             console.warn('[Meta WA] Off-hours video send failed, falling back to text:', _ve.message);
             await sendWhatsApp(from, closedMsg);
