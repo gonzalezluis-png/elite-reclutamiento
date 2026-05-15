@@ -569,6 +569,18 @@ function renderCard(l) {
     <div style="height:4px;background:var(--border);border-radius:2px;overflow:hidden;margin:4px 0 6px;">
       <div style="height:100%;width:${prog}%;background:${progColor};border-radius:2px;transition:width .4s;"></div>
     </div>
+    ${l.webinar_visto_pct != null ? (() => {
+      const wp = Math.min(100, Math.round(l.webinar_visto_pct));
+      const wc = wp >= 80 ? '#00c875' : wp >= 40 ? '#4f7fff' : '#8890a4';
+      const wlabel = wp >= 80 ? '✅' : wp > 0 ? '▶' : '⭕';
+      return `<div style="display:flex;align-items:center;gap:5px;margin-bottom:5px;" title="Webinar: ${wp}% visto">
+        <span style="font-size:10px">${wlabel}</span>
+        <div style="flex:1;height:3px;background:var(--border);border-radius:2px;overflow:hidden;">
+          <div style="height:100%;width:${wp}%;background:${wc};border-radius:2px;"></div>
+        </div>
+        <span style="font-size:9px;font-weight:700;color:${wc};min-width:26px;text-align:right">${wp}%</span>
+      </div>`;
+    })() : ''}
     <div class="kc-mid">
       <span class="kc-badge ${sourceBadgeClass}">${esc(l.fuente||'')}</span>
       ${l.wa_inbox_number ? `<span style="font-size:9px;color:rgba(99,214,141,.7);background:rgba(99,214,141,.08);border:1px solid rgba(99,214,141,.2);border-radius:4px;padding:1px 5px;font-weight:600;">📲 +${esc(l.wa_inbox_number)}</span>` : ''}

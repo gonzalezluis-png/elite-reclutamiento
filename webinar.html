@@ -291,6 +291,7 @@ footer {
       id="player"
       playback-id="V6OAQXkCZM9dMKqoSr2qeQUgiyThINpZV00ocWoZASKU"
       metadata-video-title="Webinar Grupo Elite — Mayo 2026"
+      metadata-video-id="webinar-mayo-2026"
       autoplay="muted"
       playsinline
       preload="auto"
@@ -556,6 +557,12 @@ if (nombre) {
   document.getElementById('viewer-bar').style.display = 'block';
   document.getElementById('viewer-avatar').textContent = nombre[0].toUpperCase();
   document.getElementById('viewer-name').innerHTML = `Hola <strong>${nombre}</strong> — este video fue preparado especialmente para ti ✨`;
+}
+// Pass viewer identity to Mux for analytics dashboard
+if (leadId || nombre) {
+  const p = document.getElementById('player');
+  if (leadId) p.setAttribute('metadata-viewer-user-id', leadId);
+  if (nombre)  p.setAttribute('metadata-custom-1', nombre);
 }
 
 let pauseCount = 0, watchedSecs = 0, maxPct = 0;
