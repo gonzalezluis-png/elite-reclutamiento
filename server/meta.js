@@ -1114,7 +1114,7 @@ function registerMetaRoutes(app) {
         .map(m => ({
           sid:        m.id || `meta_${m.ts}`,
           body:       m.text,
-          direction:  m.direction === 'out' ? 'outbound' : 'inbound',
+          direction:  (m.direction === 'out' || m.direction === 'outbound') ? 'outbound' : 'inbound',
           dateSent:   new Date(m.ts).toISOString(),
           status:     m.status     || undefined,
           error_code: m.error_code || undefined,
