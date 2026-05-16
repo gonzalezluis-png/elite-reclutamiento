@@ -627,7 +627,7 @@ function registerMetaRoutes(app) {
       const _leadId  = leadData?.id;
 
       if (_leadId) {
-        fsUpdateLeadFields(_leadId, { unread_msg: true, last_msg_ts: Date.now() }).catch(() => {});
+        fsUpdateLeadFields(_leadId, { unread_msg: true }).catch(() => {});
       }
 
       const _wasEmptyOnRestart = !conversationHistory.has(convKey) || conversationHistory.get(convKey).length === 0;
@@ -832,7 +832,7 @@ function registerMetaRoutes(app) {
       await sendWhatsApp(from, reply);
 
       if (_leadId) {
-        fsUpdateLeadFields(_leadId, { unread_msg: false, last_msg_ts: Date.now() }).catch(() => {});
+        fsUpdateLeadFields(_leadId, { unread_msg: false }).catch(() => {});
       }
 
       if (webinar) {
@@ -1257,7 +1257,7 @@ function registerMetaRoutes(app) {
       const msgId = await _logWAMessage(cleanTo, 'out', body);
       await sendWhatsApp(cleanTo, body, { noLog: true });
       if (leadId) {
-        fsUpdateLeadFields(leadId, { unread_msg: false, last_msg_ts: ts }).catch(() => {});
+        fsUpdateLeadFields(leadId, { unread_msg: false }).catch(() => {});
       }
       res.json({ ok: true, via: 'meta', to: cleanTo, ts, msgId });
     } catch (e) {
@@ -1286,7 +1286,7 @@ function registerMetaRoutes(app) {
       if (json.error) throw new Error(json.error.message || JSON.stringify(json.error));
       const ts = Date.now();
       await _logWAMessage(cleanTo, 'out', `[VIDEO] ${videoUrl}${caption ? ' — ' + caption : ''}`);
-      if (leadId) fsUpdateLeadFields(leadId, { unread_msg: false, last_msg_ts: ts }).catch(() => {});
+      if (leadId) fsUpdateLeadFields(leadId, { unread_msg: false }).catch(() => {});
       res.json({ ok: true, messageId: json.messages?.[0]?.id, ts });
     } catch (e) {
       res.status(500).json({ ok: false, error: e.message });
@@ -1332,7 +1332,11 @@ function registerMetaRoutes(app) {
         const bodyText = tplData?.components?.find(c => c.type === 'BODY')?.text || '';
         tplBodyVarCount = (bodyText.match(/\{\{[0-9]+\}\}/g) || []).length;
       } catch(e) { console.warn('[WA-Template] Could not verify template vars:', e.message); }
-      const cleanParams = (params || []).filter(p => p && p.trim() !== '').slice(0, tplBodyVarCount || 0);
+      let cleanParams = (params || []).filter(p => p && p.trim() !== '').slice(0, tplBodyVarCount || 0);
+      // If template needs params but none provided, use fallback so Meta doesn't reject with 132000
+      if (tplBodyVarCount > 0 && cleanParams.length < tplBodyVarCount) {
+        while (cleanParams.length < tplBodyVarCount) cleanParams.push('Candidato');
+      }
       if (cleanParams.length) {
         components.push({ type: 'body', parameters: cleanParams.map(p => ({ type: 'text', text: p })) });
       }
@@ -1354,7 +1358,7 @@ function registerMetaRoutes(app) {
       const ts = Date.now();
       const logBody = renderedBody || `📋 Plantilla: ${templateName}${params?.[0] ? ' — ' + params[0] : ''}`;
       await _logWAMessage(cleanTo, 'out', logBody);
-      if (leadId) fsUpdateLeadFields(leadId, { unread_msg: false, last_msg_ts: ts }).catch(() => {});
+      if (leadId) fsUpdateLeadFields(leadId, { unread_msg: false }).catch(() => {});
       res.json({ ok: true, messageId: json.messages?.[0]?.id, ts });
     } catch (e) {
       console.error(`[WA-Template] Error:`, e.message);

@@ -963,13 +963,15 @@ async function _msgSendTemplate() {
   const tpl  = _msgTemplates.find(t => t.name === key);
   const lead = leads.find(l => l.id === _msgLeadId);
   if (!key || !tpl || !lead?.telefono) { showToast('⚠️ Selecciona una plantilla'); return; }
-  const param1 = document.getElementById('msg-var-0')?.value?.trim() || '';
+  const _rawParam = document.getElementById('msg-var-0')?.value?.trim();
+  const param1 = _rawParam || (lead.nombre||'').split(' ')[0] || 'Candidato';
   const btn    = document.querySelector('[onclick="_msgSendTemplate()"]');
   if (btn) { btn.disabled = true; btn.textContent = 'Enviando…'; }
   try {
+    const hasVar = tpl.body.includes('{{1}}');
     const res  = await fetch(`${SERVER_URL}/meta/wa-send-template`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ to: lead.telefono, templateName: key, language: tpl.language || 'es', params: param1 ? [param1] : [], leadId: lead.id, renderedBody: tpl.body.replace(/\{\{1\}\}/g, param1 || '') }),
+      body: JSON.stringify({ to: lead.telefono, templateName: key, language: tpl.language || 'es', params: hasVar ? [param1] : [], leadId: lead.id, renderedBody: tpl.body.replace(/\{\{1\}\}/g, param1) }),
     });
     const data = await res.json();
     if (!data.ok) throw new Error(data.error);
@@ -1249,13 +1251,15 @@ async function lcSendTemplate() {
   const tpl  = _msgTemplates.find(t => t.name === key);
   const lead = leads.find(l => l.id === currentLeadId);
   if (!key || !tpl || !lead?.telefono) { showToast('⚠️ Selecciona una plantilla'); return; }
-  const param1 = document.getElementById('lc-var-0')?.value?.trim() || '';
+  const _rawParam2 = document.getElementById('lc-var-0')?.value?.trim();
+  const param1 = _rawParam2 || (lead.nombre||'').split(' ')[0] || 'Candidato';
   const btn = document.querySelector('[onclick="lcSendTemplate()"]');
   if (btn) { btn.disabled = true; btn.textContent = 'Enviando…'; }
   try {
+    const hasVar2 = tpl.body.includes('{{1}}');
     const res = await fetch(`${SERVER_URL}/meta/wa-send-template`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ to: lead.telefono, templateName: key, language: tpl.language || 'es', params: param1 ? [param1] : [], leadId: lead.id, renderedBody: tpl.body.replace(/\{\{1\}\}/g, param1 || '') }),
+      body: JSON.stringify({ to: lead.telefono, templateName: key, language: tpl.language || 'es', params: hasVar2 ? [param1] : [], leadId: lead.id, renderedBody: tpl.body.replace(/\{\{1\}\}/g, param1) }),
     });
     const data = await res.json();
     if (!data.ok) throw new Error(data.error);
