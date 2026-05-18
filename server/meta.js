@@ -420,9 +420,17 @@ function registerMetaRoutes(app) {
       if (!_inHoursEarly) {
         if (!conversationHistory.has(convKey)) conversationHistory.set(convKey, []);
         conversationHistory.get(convKey).push({ role: 'user', content: combinedText, ts: Date.now() });
-        const _lastClosedTs = [...(conversationHistory.get(convKey))].reverse()
-          .find(m => m.role === 'assistant' && m.content?.includes('oficinas están cerradas'))?.ts || 0;
-        if (Date.now() - _lastClosedTs > 60 * 60 * 1000) {
+        // Check DB for recent off-hours video sent to this number (survives restarts)
+        const _cleanFrom = from.replace(/^\+/, '').replace(/\D/g, '');
+        const _recentMsgs = await db.sbGetWAMessages(_cleanFrom, 50).catch(() => []);
+        const _lastClosedDbTs = [..._recentMsgs].reverse()
+          .find(m => m.direction === 'out' && m.text?.includes('oficinas se encuentran cerradas'))?.ts || 0;
+        const _lastClosedTs = Math.max(
+          _lastClosedDbTs,
+          [...(conversationHistory.get(convKey) || [])].reverse()
+            .find(m => m.role === 'assistant' && m.content?.includes('oficinas se encuentran cerradas'))?.ts || 0
+        );
+        if (Date.now() - _lastClosedTs > 8 * 60 * 60 * 1000) {
           const _closedLead = await fsGetLeadByPhone(from).catch(() => null);
           const _rawClosedName = _closedLead?.nombre?.split(' ')[0] || '';
           const _closedName = (_rawClosedName && !/^WA$/i.test(_rawClosedName) && !/^\d+$/.test(_rawClosedName)) ? _rawClosedName : null;
