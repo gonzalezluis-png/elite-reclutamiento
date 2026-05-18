@@ -303,7 +303,7 @@ async function bookInterview({ leadPhone, leadName, slotIso, convKey }) {
     const _email = _lead2?.correo || null;
     const _tz    = getCandidateTZ(_lead2?.ubicacion) || TEAM_TZ;
     const ghlContactId = await ghlFindOrCreateContact(leadPhone, leadName, _email);
-    const ghlAppointmentId = await ghlBookAppointment({ contactId: ghlContactId, slotIso, leadName, selectedTimezone: _tz });
+    const ghlAppointmentId = await ghlBookAppointment({ contactId: ghlContactId, slotIso, leadName, selectedTimezone: TEAM_TZ });
     if (ghlAppointmentId) {
       doc.ghlAppointmentId = ghlAppointmentId;
       await db.sbSaveInterview(id, interviewToRow(doc));
@@ -325,7 +325,6 @@ async function bookInterview({ leadPhone, leadName, slotIso, convKey }) {
       interview_slot:     slotIso,
       inscrito_webinar:   false,
       historial:          _hist,
-      ...(doc.ghlAppointmentId ? { ghl_appointment_id: doc.ghlAppointmentId } : {}),
     }).catch(() => {});
   }
 

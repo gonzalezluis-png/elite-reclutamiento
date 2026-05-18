@@ -550,6 +550,7 @@ const TRACK_URL = 'https://elite-reclutamiento-production.up.railway.app';
 
 const params = new URLSearchParams(location.search);
 const leadId = params.get('id');
+const cid    = params.get('cid');                                   // GHL contact/lead ID
 const nombre = decodeURIComponent(params.get('nombre') || '');
 const correo = decodeURIComponent(params.get('correo') || '');
 
@@ -559,10 +560,11 @@ if (nombre) {
   document.getElementById('viewer-name').innerHTML = `Hola <strong>${nombre}</strong> — este video fue preparado especialmente para ti ✨`;
 }
 // Pass viewer identity to Mux for analytics dashboard
-if (leadId || nombre) {
+const viewerUserId = cid || leadId;
+if (viewerUserId || nombre) {
   const p = document.getElementById('player');
-  if (leadId) p.setAttribute('metadata-viewer-user-id', leadId);
-  if (nombre)  p.setAttribute('metadata-custom-1', nombre);
+  if (viewerUserId) p.setAttribute('metadata-viewer-user-id', viewerUserId);
+  if (nombre)       p.setAttribute('metadata-custom-1', nombre);
 }
 
 let pauseCount = 0, watchedSecs = 0, maxPct = 0;

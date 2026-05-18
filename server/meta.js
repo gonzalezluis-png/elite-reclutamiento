@@ -424,7 +424,8 @@ function registerMetaRoutes(app) {
           .find(m => m.role === 'assistant' && m.content?.includes('oficinas están cerradas'))?.ts || 0;
         if (Date.now() - _lastClosedTs > 60 * 60 * 1000) {
           const _closedLead = await fsGetLeadByPhone(from).catch(() => null);
-          const _closedName = _closedLead?.nombre ? _closedLead.nombre.split(' ')[0] : null;
+          const _rawClosedName = _closedLead?.nombre?.split(' ')[0] || '';
+          const _closedName = (_rawClosedName && !/^WA$/i.test(_rawClosedName) && !/^\d+$/.test(_rawClosedName)) ? _rawClosedName : null;
           const _greeting   = _closedName ? `Hola ${_closedName} 👋` : `Hola 👋`;
           const closedMsg = `${_greeting} *Es un gusto que te interese la oportunidad de empleo.*\n\nEn este momento nuestras *oficinas se encuentran cerradas* 🕐\n\nSin embargo, puedes ver este *video resumen* 🎥 con información sobre la oferta laboral.\n\nEn horario de oficina te estaremos contactando para darte más detalles, o si prefieres, también puedes *dejarnos tu mejor horario* para llamarte pronto 📞`;
           console.log(`[Meta WA] Fuera de horario — ${from}, enviando video con caption`);

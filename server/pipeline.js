@@ -294,22 +294,81 @@ async function sendWebinarEmail(correo, nombre, webinarUrl) {
       body: JSON.stringify({
         from: `Grupo Elite Work LLC <${FROM_EMAIL}>`,
         to:   [correo],
-        subject: '🎥 Tu acceso al Webinar — Grupo Elite Work LLC',
-        html: `
-        <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px;background:#f9fafb;border-radius:12px;">
-          <div style="background:linear-gradient(135deg,#1a1a2e,#16213e);padding:28px;border-radius:10px;text-align:center;margin-bottom:24px;">
-            <h1 style="color:#fff;margin:0;font-size:22px;">Grupo Elite Work LLC</h1>
-            <p style="color:#94a3b8;margin:8px 0 0;">Oportunidad de Carrera — Globe Life Insurance</p>
-          </div>
-          <h2 style="color:#1e293b;">¡Hola${nombre ? ', ' + nombre : ''}! 👋</h2>
-          <p style="color:#475569;line-height:1.6;">Te compartimos tu acceso personal al <strong>webinar informativo virtual</strong>.</p>
-          <div style="text-align:center;margin:28px 0;">
-            <a href="${webinarUrl}" style="background:linear-gradient(135deg,#0073ea,#0059b3);color:#fff;text-decoration:none;padding:14px 32px;border-radius:8px;font-size:16px;font-weight:700;display:inline-block;">
-              🎥 Ver Webinar Ahora
-            </a>
-          </div>
-          <p style="color:#94a3b8;font-size:11px;text-align:center;">Grupo Elite Work LLC — Globe Life Insurance</p>
-        </div>`,
+        subject: `${nombre ? nombre + ', t' : 'T'}u acceso al Webinar — Grupo Elite Work`,
+        html: `<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f1f5f9;font-family:Arial,Helvetica,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f1f5f9;padding:32px 16px;">
+  <tr><td align="center">
+    <table width="100%" cellpadding="0" cellspacing="0" style="max-width:580px;">
+
+      <!-- HEADER -->
+      <tr><td style="background:linear-gradient(135deg,#0a0e1a,#162040);border-radius:14px 14px 0 0;padding:36px 32px;text-align:center;">
+        <p style="margin:0 0 6px;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#4f7fff;">Grupo Elite Work LLC</p>
+        <h1 style="margin:0;font-size:26px;font-weight:800;color:#ffffff;line-height:1.2;">Tu Oportunidad<br>con Globe Life</h1>
+        <p style="margin:10px 0 0;font-size:13px;color:#7a8aaa;">American Income Life Division · Quintero &amp; Partners</p>
+      </td></tr>
+
+      <!-- GREETING -->
+      <tr><td style="background:#ffffff;padding:32px 32px 8px;">
+        <p style="margin:0;font-size:16px;color:#1e293b;font-weight:600;">Hola${nombre ? ', <strong>' + nombre + '</strong>' : ''} 👋</p>
+        <p style="margin:12px 0 0;font-size:14px;color:#475569;line-height:1.7;">Gracias por tu interés en la oportunidad. Preparamos este webinar especialmente para ti — en él encontrarás todo lo que necesitas saber antes de tu entrevista.</p>
+      </td></tr>
+
+      <!-- WHAT YOU'LL FIND -->
+      <tr><td style="background:#ffffff;padding:20px 32px;">
+        <table width="100%" cellpadding="0" cellspacing="0" style="background:#f8faff;border:1px solid #e2e8f0;border-radius:10px;padding:20px;">
+          <tr><td>
+            <p style="margin:0 0 14px;font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#4f7fff;">En el webinar verás</p>
+            <table width="100%" cellpadding="0" cellspacing="6">
+              <tr>
+                <td width="24" valign="top" style="font-size:15px;padding-top:1px;">✅</td>
+                <td style="font-size:13.5px;color:#334155;padding-bottom:6px;">Cómo funciona el modelo de trabajo con Globe Life</td>
+              </tr>
+              <tr>
+                <td width="24" valign="top" style="font-size:15px;padding-top:1px;">✅</td>
+                <td style="font-size:13.5px;color:#334155;padding-bottom:6px;">Plan de compensación y potencial de ingresos</td>
+              </tr>
+              <tr>
+                <td width="24" valign="top" style="font-size:15px;padding-top:1px;">✅</td>
+                <td style="font-size:13.5px;color:#334155;padding-bottom:6px;">Posiciones disponibles: ventas, marketing y finanzas</td>
+              </tr>
+              <tr>
+                <td width="24" valign="top" style="font-size:15px;padding-top:1px;">✅</td>
+                <td style="font-size:13.5px;color:#334155;">Próximos pasos para continuar el proceso</td>
+              </tr>
+            </table>
+          </td></tr>
+        </table>
+      </td></tr>
+
+      <!-- CTA -->
+      <tr><td style="background:#ffffff;padding:8px 32px 28px;text-align:center;">
+        <p style="margin:0 0 20px;font-size:13px;color:#64748b;">⏱ Duración aproximada: <strong>15–20 minutos</strong>. Ve el video completo para aprovechar al máximo tu entrevista.</p>
+        <a href="${webinarUrl}" style="display:inline-block;background:linear-gradient(135deg,#0073ea,#0059b3);color:#ffffff;text-decoration:none;padding:15px 36px;border-radius:9px;font-size:16px;font-weight:700;letter-spacing:.3px;">
+          🎥 &nbsp;Ver mi Webinar ahora
+        </a>
+        <p style="margin:16px 0 0;font-size:11px;color:#94a3b8;">Este link es personal — fue generado exclusivamente para ti.</p>
+      </td></tr>
+
+      <!-- NEXT STEP -->
+      <tr><td style="background:#f0f7ff;border-top:1px solid #dbeafe;border-bottom:1px solid #dbeafe;padding:20px 32px;">
+        <p style="margin:0 0 6px;font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#1d4ed8;">¿Qué sigue después?</p>
+        <p style="margin:0;font-size:13.5px;color:#334155;line-height:1.6;">Cuando termines de ver el video, escríbenos por WhatsApp y uno de nuestros coordinadores te ayudará a agendar tu entrevista personal.</p>
+      </td></tr>
+
+      <!-- FOOTER -->
+      <tr><td style="background:#0a0e1a;border-radius:0 0 14px 14px;padding:24px 32px;text-align:center;">
+        <p style="margin:0 0 4px;font-size:12px;color:#7a8aaa;">Grupo Elite Work LLC · administracion@grupoelite.com</p>
+        <p style="margin:0;font-size:11px;color:#3d4a60;">© 2026 · Globe Life Insurance · American Income Life Division</p>
+      </td></tr>
+
+    </table>
+  </td></tr>
+</table>
+</body>
+</html>`,
       }),
     });
     const data = await res.json().catch(() => ({}));
