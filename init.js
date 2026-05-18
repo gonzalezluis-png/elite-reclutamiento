@@ -67,6 +67,15 @@ function postLoginInit() {
       if (fsLeads.length > 0) {
         // Detectar leads nuevos
         const newLeads = fsLeads.filter(l => !_knownLeadIds.has(l.id));
+        // Preservar metaWa local si tiene más mensajes que Supabase (evita borrar mensajes recién llegados)
+        const _oldById = Object.fromEntries(leads.map(l => [l.id, l]));
+        fsLeads.forEach(nl => {
+          const ol = _oldById[nl.id];
+          if (!ol) return;
+          const oldCount = (ol.metaWa || []).length;
+          const newCount = (nl.metaWa || []).length;
+          if (oldCount > newCount) nl.metaWa = ol.metaWa;
+        });
         leads = fsLeads;
         _knownLeadIds = new Set(leads.map(l => l.id));
         localStorage.setItem('er_leads', JSON.stringify(leads));
