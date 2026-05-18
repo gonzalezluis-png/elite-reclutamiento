@@ -432,30 +432,67 @@ function registerMetaRoutes(app) {
         );
         if (Date.now() - _lastClosedTs > 8 * 60 * 60 * 1000) {
           const _closedLead = await fsGetLeadByPhone(from).catch(() => null);
-          const _rawClosedName = _closedLead?.nombre?.split(' ')[0] || '';
-          const _closedName = (_rawClosedName && !/^WA$/i.test(_rawClosedName) && !/^\d+$/.test(_rawClosedName)) ? _rawClosedName : null;
-          const _greeting   = _closedName ? `Hola ${_closedName} 👋` : `Hola 👋`;
-          const closedMsg = `${_greeting} *Es un gusto que te interese la oportunidad de empleo.*\n\nEn este momento nuestras *oficinas se encuentran cerradas* 🕐\n\nSin embargo, puedes ver este *video resumen* 🎥 con información sobre la oferta laboral.\n\nEn horario de oficina te estaremos contactando para darte más detalles, o si prefieres, también puedes *dejarnos tu mejor horario* para llamarte pronto 📞`;
-          console.log(`[Meta WA] Fuera de horario — ${from}, enviando video con caption`);
-          await humanDelay(closedMsg);
-          try {
-            const cleanFrom = from.replace(/^\+/, '').replace(/\D/g, '');
-            await fetch(`${GRAPH_URL}/${META_WA_PHONE_ID}/messages`, {
-              method: 'POST',
-              headers: { 'Authorization': `Bearer ${_waToken}`, 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                messaging_product: 'whatsapp',
-                to: cleanFrom,
-                type: 'video',
-                video: { link: 'https://elite-webinar.b-cdn.net/file/elite-webinar/Video-Intro-Globe-Life-WA.mp4', caption: closedMsg },
-              }),
-            });
-            _logWAMessage(cleanFrom, 'out', `🎥 [Video] ${closedMsg}`).catch(() => {});
-          } catch (_ve) {
-            console.warn('[Meta WA] Off-hours video send failed, falling back to text:', _ve.message);
-            await sendWhatsApp(from, closedMsg);
+          let _sentClosedTpl = false;
+
+          // First message for postulados-whatsapp-meta → send closed-hours template
+          if (_closedLead?.pipeline_id === 'postulados-whatsapp-meta' && !_recentMsgs.some(m => m.direction === 'out')) {
+            const _rawFnC = _closedLead?.nombre?.split(' ')[0] || '';
+            const _fnC = (_rawFnC && !/^WA$/i.test(_rawFnC) && !/^\d+$/.test(_rawFnC) && !/^Lead$/i.test(_rawFnC)) ? _rawFnC : 'Candidato';
+            const _cleanToC = from.replace(/^\+/, '').replace(/\D/g, '');
+            try {
+              const _tplRc = await fetch(`${GRAPH_URL}/${META_WA_PHONE_ID}/messages`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${_waToken}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  messaging_product: 'whatsapp',
+                  to: _cleanToC,
+                  type: 'template',
+                  template: {
+                    name: '1_1_grupo_elite_cerrado_sin_video',
+                    language: { code: 'es_MX' },
+                    components: [{ type: 'body', parameters: [{ type: 'text', text: _fnC }] }],
+                  },
+                }),
+              });
+              if (_tplRc.ok) {
+                _logWAMessage(_cleanToC, 'out', `[Plantilla: 1_1_grupo_elite_cerrado_sin_video]`).catch(() => {});
+                conversationHistory.get(convKey).push({ role: 'assistant', content: `[Plantilla: 1_1_grupo_elite_cerrado_sin_video]`, ts: Date.now() });
+                console.log(`[Meta WA] Primera msg → plantilla cerrado: ${from}`);
+                _sentClosedTpl = true;
+              } else {
+                console.warn('[Meta WA] Plantilla cerrado rechazada:', await _tplRc.text());
+              }
+            } catch (_tplErr) {
+              console.warn('[Meta WA] Error plantilla cerrado, fallback a video:', _tplErr.message);
+            }
           }
-          conversationHistory.get(convKey).push({ role: 'assistant', content: closedMsg, ts: Date.now() });
+
+          if (!_sentClosedTpl) {
+            const _rawClosedName = _closedLead?.nombre?.split(' ')[0] || '';
+            const _closedName = (_rawClosedName && !/^WA$/i.test(_rawClosedName) && !/^\d+$/.test(_rawClosedName)) ? _rawClosedName : null;
+            const _greeting   = _closedName ? `Hola ${_closedName} 👋` : `Hola 👋`;
+            const closedMsg = `${_greeting} *Es un gusto que te interese la oportunidad de empleo.*\n\nEn este momento nuestras *oficinas se encuentran cerradas* 🕐\n\nSin embargo, puedes ver este *video resumen* 🎥 con información sobre la oferta laboral.\n\nEn horario de oficina te estaremos contactando para darte más detalles, o si prefieres, también puedes *dejarnos tu mejor horario* para llamarte pronto 📞`;
+            console.log(`[Meta WA] Fuera de horario — ${from}, enviando video con caption`);
+            await humanDelay(closedMsg);
+            try {
+              const cleanFrom = from.replace(/^\+/, '').replace(/\D/g, '');
+              await fetch(`${GRAPH_URL}/${META_WA_PHONE_ID}/messages`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${_waToken}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  messaging_product: 'whatsapp',
+                  to: cleanFrom,
+                  type: 'video',
+                  video: { link: 'https://elite-webinar.b-cdn.net/file/elite-webinar/Video-Intro-Globe-Life-WA.mp4', caption: closedMsg },
+                }),
+              });
+              _logWAMessage(cleanFrom, 'out', `🎥 [Video] ${closedMsg}`).catch(() => {});
+            } catch (_ve) {
+              console.warn('[Meta WA] Off-hours video send failed, falling back to text:', _ve.message);
+              await sendWhatsApp(from, closedMsg);
+            }
+            conversationHistory.get(convKey).push({ role: 'assistant', content: closedMsg, ts: Date.now() });
+          }
         } else {
           console.log(`[Meta WA] Fuera de horario — ${from}, cierre ya enviado recientemente, ignorando`);
         }
@@ -819,6 +856,44 @@ function registerMetaRoutes(app) {
           }
           conversationHistory.set(convKey, _waitHist);
         } catch (_we) {}
+      }
+
+      // ── First-message template for postulados-whatsapp-meta (office open) ──
+      if (leadData?.pipeline_id === 'postulados-whatsapp-meta') {
+        const _priorOut = await db.sbGetWAMessages(from, 10).catch(() => []);
+        if (!_priorOut.some(m => m.direction === 'out')) {
+          const _rawFnO = (leadData?.nombre || '').split(' ')[0] || '';
+          const _fnO = (_rawFnO && !/^WA$/i.test(_rawFnO) && !/^\d+$/.test(_rawFnO) && !/^Lead$/i.test(_rawFnO)) ? _rawFnO : 'Candidato';
+          const _cleanToO = from.replace(/^\+/, '').replace(/\D/g, '');
+          let _openTplSent = false;
+          try {
+            const _tplRo = await fetch(`${GRAPH_URL}/${META_WA_PHONE_ID}/messages`, {
+              method: 'POST',
+              headers: { 'Authorization': `Bearer ${_waToken}`, 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                messaging_product: 'whatsapp',
+                to: _cleanToO,
+                type: 'template',
+                template: {
+                  name: '1_3_soliciutd_recibida_por_cuestionario__oficina_abierta',
+                  language: { code: 'es_MX' },
+                  components: [{ type: 'body', parameters: [{ type: 'text', text: _fnO }] }],
+                },
+              }),
+            });
+            if (_tplRo.ok) {
+              _logWAMessage(_cleanToO, 'out', `[Plantilla: 1_3_soliciutd_recibida_por_cuestionario__oficina_abierta]`).catch(() => {});
+              if (_leadId) fsUpdateLeadFields(_leadId, { unread_msg: false }).catch(() => {});
+              console.log(`[Meta WA] Primera msg → plantilla abierta: ${from}`);
+              _openTplSent = true;
+            } else {
+              console.warn('[Meta WA] Plantilla abierta rechazada:', await _tplRo.text());
+            }
+          } catch (_tplErr) {
+            console.warn('[Meta WA] Error plantilla abierta, fallback a Ana:', _tplErr.message);
+          }
+          if (_openTplSent) return;
+        }
       }
 
       const rawReply = await askClaude(convKey, combinedText, 'wa');
