@@ -899,8 +899,12 @@ async function _msgLoadTemplates() {
     const res  = await fetch(`${SERVER_URL}/meta/wa-templates`);
     const data = await res.json();
     _msgTemplates = data.templates || [];
+    if (!_msgTemplates.length) showToast('⚠️ No se encontraron plantillas aprobadas en Meta');
     _msgRebuildTplDropdown();
-  } catch(e) { console.warn('No se pudieron cargar plantillas:', e.message); }
+  } catch(e) {
+    console.warn('No se pudieron cargar plantillas:', e.message);
+    showToast('⚠️ Error cargando plantillas — revisa la conexión con Meta');
+  }
 
   // Check 24h window
   const lead = leads.find(l => l.id === _msgLeadId);
