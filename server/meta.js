@@ -1306,10 +1306,14 @@ function registerMetaRoutes(app) {
   app.get('/meta/wa-templates', async (req, res) => {
     try {
       const wabaId = process.env.META_WA_WABA_ID || '1503820438112497';
-      const r = await fetch(`${GRAPH_URL}/${wabaId}/message_templates?fields=name,status,category,language,components&limit=50`, {
-        headers: { 'Authorization': `Bearer ${_waToken}` },
-      }).then(r => r.json());
-      const active = (r.data || [])
+      let allTemplates = [];
+      let nextUrl = `${GRAPH_URL}/${wabaId}/message_templates?fields=name,status,category,language,components&limit=200`;
+      while (nextUrl) {
+        const r = await fetch(nextUrl, { headers: { 'Authorization': `Bearer ${_waToken}` } }).then(r => r.json());
+        allTemplates = allTemplates.concat(r.data || []);
+        nextUrl = r.paging?.next || null;
+      }
+      const active = allTemplates
         .filter(t => t.status === 'APPROVED')
         .map(t => {
           const body = t.components?.find(c => c.type === 'BODY')?.text || '';
