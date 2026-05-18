@@ -933,6 +933,9 @@ tr.lead-resuelto td:last-child { pointer-events:auto;opacity:1; }
   }
   .msg-thread-hdr .mob-hide { display: none; }
 
+  /* Panel Lead — oculto en móvil (ocupa todo el ancho en escritorio) */
+  #msg-lead-col { display: none !important; }
+
   /* Compose area */
   .msg-textarea  { font-size: 14px; min-height: 44px; }
   .msg-send-btn  { width: 44px; height: 44px; }
