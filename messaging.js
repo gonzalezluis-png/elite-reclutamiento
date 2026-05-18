@@ -962,7 +962,9 @@ async function _msgSendTemplate() {
   const key  = sel?.value;
   const tpl  = _msgTemplates.find(t => t.name === key);
   const lead = leads.find(l => l.id === _msgLeadId);
-  if (!key || !tpl || !lead?.telefono) { showToast('⚠️ Selecciona una plantilla'); return; }
+  if (!key) { showToast('⚠️ Selecciona una plantilla'); return; }
+  if (!tpl) { showToast('⚠️ Plantilla no encontrada — recarga la página'); return; }
+  if (!lead?.telefono) { showToast('⚠️ Este lead no tiene número de teléfono'); return; }
   const _rawParam = document.getElementById('msg-var-0')?.value?.trim();
   const param1 = _rawParam || (lead.nombre||'').split(' ')[0] || 'Candidato';
   const btn    = document.querySelector('[onclick="_msgSendTemplate()"]');
@@ -1250,7 +1252,9 @@ async function lcSendTemplate() {
   const key  = document.getElementById('lc-tpl-select')?.value;
   const tpl  = _msgTemplates.find(t => t.name === key);
   const lead = leads.find(l => l.id === currentLeadId);
-  if (!key || !tpl || !lead?.telefono) { showToast('⚠️ Selecciona una plantilla'); return; }
+  if (!key) { showToast('⚠️ Selecciona una plantilla'); return; }
+  if (!tpl) { showToast('⚠️ Plantilla no encontrada — recarga la página'); return; }
+  if (!lead?.telefono) { showToast('⚠️ Este lead no tiene número de teléfono'); return; }
   const _rawParam2 = document.getElementById('lc-var-0')?.value?.trim();
   const param1 = _rawParam2 || (lead.nombre||'').split(' ')[0] || 'Candidato';
   const btn = document.querySelector('[onclick="lcSendTemplate()"]');
