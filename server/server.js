@@ -1362,6 +1362,46 @@ app.post('/webinar/register', async (req, res) => {
   }
 });
 
+// ── GHL contact update helper ─────────────────────────────────────────────────
+const GHL_API_URL  = 'https://services.leadconnectorhq.com';
+const GHL_CF = {
+  link:       'wSU9lnAerych9tfLZ2M5',
+  pct:        'fZZpZnQS4uo3DIPYuNVH',
+  minutos:    'UG3dPJ4dZOyM0jW1T0u0',
+  estado:     'QwzxA3jpbAw3Jbehunwr',
+  fecha:      'qFL6UzRoQLDcWaOJx2CA',
+};
+async function ghlUpdateContact(contactId, fields) {
+  const token = process.env.GHL_API_KEY;
+  if (!token || !contactId) return;
+  const customFields = Object.entries(fields)
+    .filter(([k]) => GHL_CF[k])
+    .map(([k, v]) => ({ id: GHL_CF[k], field_value: v }));
+  if (!customFields.length) return;
+  try {
+    await fetch(`${GHL_API_URL}/contacts/${contactId}`, {
+      method: 'PUT',
+      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', 'Version': '2021-07-28' },
+      body: JSON.stringify({ customFields }),
+    });
+  } catch (e) {
+    console.warn('[GHL] Error actualizando contacto:', e.message);
+  }
+}
+
+// ── GHL: search contact by phone ──────────────────────────────────────────────
+async function ghlFindContactByPhone(phone) {
+  const token = process.env.GHL_API_KEY;
+  if (!token) return null;
+  try {
+    const r = await fetch(`${GHL_API_URL}/contacts/?locationId=rbnQBpmrGocbJydEYrl7&phone=${encodeURIComponent(phone)}&limit=1`, {
+      headers: { 'Authorization': `Bearer ${token}`, 'Version': '2021-07-28' },
+    });
+    const d = await r.json();
+    return d?.contacts?.[0]?.id || null;
+  } catch { return null; }
+}
+
 // ── GHL webhook: register lead in webinar when moved to En Webinar ───────────
 app.post('/ghl/webinar-register', async (req, res) => {
   const { nombre, phone, email, ghl_contact_id } = req.body;
@@ -1382,25 +1422,34 @@ app.post('/ghl/webinar-register', async (req, res) => {
     if (telefono) lead = await db.sbGetLeadByPhone(telefono).catch(() => null);
     if (!lead && correo) lead = await db.sbGetLeadByEmail(correo).catch(() => null);
 
+    const ghlId = ghl_contact_id || null;
+
     if (!lead) {
-      // Create new lead
-      const newId  = require('crypto').randomUUID();
-      const now    = new Date().toISOString();
+      const newId = require('crypto').randomUUID();
+      const now   = new Date().toISOString();
       await db.sbSaveLead({
         id: newId, nombre: name, telefono: telefono ? `+${telefono}` : '', correo,
         fuente: 'GHL', etapa: 'En Webinar sin actividad', pipeline_id: 'en-webinar',
         estado: 'abierto', valor: 0, propietario: 'Ana (IA)',
         notas: [], tareas: [], pagos: [], etiquetas: [],
         historial: [{ icono: '🎥', accion: 'Lead creado desde GHL — inscrito en webinar', fecha: now, usuario: 'GHL' }],
-        ...(ghl_contact_id ? { ghl_contact_id } : {}),
+        ...(ghlId ? { ghl_contact_id: ghlId } : {}),
         created_at: now,
       });
-      lead = { id: newId, nombre: name, telefono, correo };
-    } else if (ghl_contact_id && !lead.ghl_contact_id) {
-      await db.sbPatch('leads', `id=eq.${lead.id}`, { ghl_contact_id }).catch(() => {});
+      lead = { id: newId, nombre: name, telefono, correo, ghl_contact_id: ghlId };
+    } else if (ghlId && !lead.ghl_contact_id) {
+      await db.sbPatch('leads', `id=eq.${lead.id}`, { ghl_contact_id: ghlId }).catch(() => {});
+      lead.ghl_contact_id = ghlId;
     }
 
     const webinarUrl = await moveLeadToWebinar(lead.id, lead.nombre || name, lead.correo || correo, WEBINAR_URL);
+
+    // Push webinar link back to GHL contact
+    const resolvedGhlId = lead.ghl_contact_id || ghlId;
+    if (resolvedGhlId) {
+      ghlUpdateContact(resolvedGhlId, { link: webinarUrl, estado: 'Inscrito' }).catch(() => {});
+    }
+
     console.log(`[GHL Webinar] Lead ${lead.id} registrado → ${webinarUrl}`);
     res.json({ ok: true, leadId: lead.id, webinarUrl });
   } catch (e) {
@@ -1433,6 +1482,25 @@ app.post('/webinar/track/:leadId', async (req, res) => {
   }
   try {
     await db.sbUpdateLead(leadId, fields);
+
+    // Sync webinar data to GHL contact if linked
+    ;(async () => {
+      try {
+        const lead = await db.sbGetLead(leadId);
+        if (!lead) return;
+        let ghlId = lead.ghl_contact_id;
+        if (!ghlId && lead.telefono) ghlId = await ghlFindContactByPhone(lead.telefono);
+        if (!ghlId) return;
+        const ghlFields = {};
+        if (fields.webinar_visto_pct   !== undefined) ghlFields.pct     = fields.webinar_visto_pct;
+        if (fields.webinar_tiempo_visto !== undefined) ghlFields.minutos = Math.round(fields.webinar_tiempo_visto / 60);
+        if (fields.webinar_completado || (fields.webinar_visto_pct ?? 0) >= 80) ghlFields.estado = 'Visto';
+        else if (fields.webinar_visto_pct > 0) ghlFields.estado = 'En Progreso';
+        if (fields.webinar_ultima_sesion) ghlFields.fecha = fields.webinar_ultima_sesion.slice(0, 10);
+        if (Object.keys(ghlFields).length) await ghlUpdateContact(ghlId, ghlFields);
+      } catch (_) {}
+    })();
+
     res.json({ ok: true });
   } catch (e) {
     res.status(500).json({ ok: false, error: e.message });
