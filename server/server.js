@@ -1510,6 +1510,179 @@ app.post('/webinar/track/:leadId', async (req, res) => {
   }
 });
 
+// ── Webinar dashboard data (used by dashboard page) ──────────────────────────
+app.get('/webinar/dashboard-data', async (req, res) => {
+  try {
+    const leads = await db.sbGet('leads', 'pipeline_id=eq.en-webinar&order=created_at.desc&limit=500');
+    const data = leads.map(l => ({
+      id:        l.id,
+      nombre:    l.nombre || '',
+      correo:    l.correo || '',
+      telefono:  l.telefono || '',
+      pct:       l.webinar_visto_pct || 0,
+      minutos:   l.webinar_tiempo_visto ? Math.round(l.webinar_tiempo_visto / 60) : 0,
+      estado:    l.etapa || '',
+      inscrito:  l.fecha_inscripcion_webinar || l.created_at || '',
+      visto:     l.webinar_ultima_sesion || '',
+      link:      l.link_webinar || '',
+    }));
+    res.json({ ok: true, total: data.length, leads: data });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// ── Webinar registration form page ───────────────────────────────────────────
+app.get('/webinar/registro', (req, res) => {
+  res.setHeader('Content-Type', 'text/html');
+  res.send(`<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Inscripción Webinar — Grupo Elite</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Inter',system-ui,sans-serif;background:#0f1117;color:#e2e8f0;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
+  .card{background:#1a1d27;border:1px solid #2d3148;border-radius:16px;padding:36px;width:100%;max-width:420px;box-shadow:0 20px 60px rgba(0,0,0,.4)}
+  .logo{text-align:center;margin-bottom:24px}
+  .logo img{height:48px}
+  h1{font-size:20px;font-weight:700;color:#fff;margin-bottom:6px;text-align:center}
+  .sub{font-size:13px;color:#8892b0;text-align:center;margin-bottom:28px}
+  label{display:block;font-size:11px;font-weight:600;color:#8892b0;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+  input{width:100%;background:#0f1117;border:1px solid #2d3148;border-radius:10px;padding:11px 14px;color:#e2e8f0;font-size:14px;outline:none;transition:border .2s;margin-bottom:16px}
+  input:focus{border-color:#6366f1}
+  .btn{width:100%;padding:13px;background:linear-gradient(135deg,#4f7fff,#7c5cff);border:none;border-radius:10px;color:#fff;font-size:15px;font-weight:700;cursor:pointer;transition:opacity .2s;margin-top:4px}
+  .btn:hover{opacity:.9}
+  .btn:disabled{opacity:.5;cursor:not-allowed}
+  .msg{display:none;border-radius:10px;padding:12px 14px;font-size:13px;margin-top:16px;text-align:center}
+  .msg.ok{background:rgba(52,211,153,.1);border:1px solid rgba(52,211,153,.3);color:#34d399}
+  .msg.err{background:rgba(248,113,113,.1);border:1px solid rgba(248,113,113,.3);color:#f87171}
+</style></head><body>
+<div class="card">
+  <div class="logo"><img src="https://crm.grupoelitework.com/logo.png" onerror="this.style.display='none'"></div>
+  <h1>🎥 Inscripción al Webinar</h1>
+  <p class="sub">Completa los datos para inscribir a la persona y enviarle el link del webinar</p>
+  <form id="f">
+    <label>Nombre completo</label>
+    <input id="nombre" type="text" placeholder="Nombre completo" required>
+    <label>Teléfono</label>
+    <input id="phone" type="tel" placeholder="+1 (786) 000-0000" required>
+    <label>Correo electrónico</label>
+    <input id="email" type="email" placeholder="correo@ejemplo.com">
+    <button class="btn" id="btn" type="submit">Inscribir y enviar correo</button>
+  </form>
+  <div class="msg" id="msg"></div>
+</div>
+<script>
+document.getElementById('f').addEventListener('submit', async e => {
+  e.preventDefault();
+  const btn = document.getElementById('btn');
+  const msg = document.getElementById('msg');
+  btn.disabled = true; btn.textContent = 'Enviando...';
+  msg.style.display = 'none';
+  try {
+    const r = await fetch('/ghl/webinar-register', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        nombre: document.getElementById('nombre').value,
+        phone:  document.getElementById('phone').value,
+        email:  document.getElementById('email').value,
+      })
+    });
+    const d = await r.json();
+    if (d.ok) {
+      msg.className='msg ok'; msg.style.display='block';
+      msg.textContent='✅ ¡Inscrito! Se envió el correo con el link del webinar.';
+      document.getElementById('f').reset();
+    } else {
+      throw new Error(d.error || 'Error desconocido');
+    }
+  } catch(err) {
+    msg.className='msg err'; msg.style.display='block';
+    msg.textContent='⚠️ ' + err.message;
+  }
+  btn.disabled = false; btn.textContent = 'Inscribir y enviar correo';
+});
+</script></body></html>`);
+});
+
+// ── Webinar progress dashboard page ─────────────────────────────────────────
+app.get('/webinar/dashboard', (req, res) => {
+  res.setHeader('Content-Type', 'text/html');
+  res.send(`<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Dashboard Webinar — Grupo Elite</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Inter',system-ui,sans-serif;background:#0f1117;color:#e2e8f0;padding:24px;min-height:100vh}
+  h1{font-size:20px;font-weight:700;color:#fff;margin-bottom:4px}
+  .sub{font-size:13px;color:#8892b0;margin-bottom:24px}
+  .stats{display:flex;gap:12px;margin-bottom:24px;flex-wrap:wrap}
+  .stat{background:#1a1d27;border:1px solid #2d3148;border-radius:12px;padding:16px 20px;flex:1;min-width:120px}
+  .stat .n{font-size:28px;font-weight:700;color:#fff}
+  .stat .l{font-size:11px;color:#8892b0;text-transform:uppercase;letter-spacing:.5px;margin-top:2px}
+  .search{width:100%;background:#1a1d27;border:1px solid #2d3148;border-radius:10px;padding:10px 14px;color:#e2e8f0;font-size:14px;outline:none;margin-bottom:16px}
+  .search:focus{border-color:#6366f1}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th{background:#1a1d27;color:#8892b0;font-weight:600;text-transform:uppercase;font-size:10px;letter-spacing:.5px;padding:10px 12px;text-align:left;border-bottom:1px solid #2d3148;position:sticky;top:0}
+  td{padding:10px 12px;border-bottom:1px solid #1e2235;vertical-align:middle}
+  tr:hover td{background:#1a1d27}
+  .bar-wrap{background:#0f1117;border-radius:99px;height:6px;width:80px;overflow:hidden}
+  .bar{height:100%;border-radius:99px;background:linear-gradient(90deg,#4f7fff,#7c5cff)}
+  .badge{display:inline-block;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:600}
+  .badge.visto{background:rgba(52,211,153,.15);color:#34d399}
+  .badge.progreso{background:rgba(251,191,36,.15);color:#fbbf24}
+  .badge.inscrito{background:rgba(99,102,241,.15);color:#818cf8}
+  .badge.sin{background:rgba(107,114,128,.15);color:#9ca3af}
+  .refresh{background:linear-gradient(135deg,#4f7fff,#7c5cff);border:none;border-radius:8px;color:#fff;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer;float:right;margin-bottom:16px}
+  #wrap{overflow-x:auto}
+</style></head><body>
+<h1>📊 Dashboard Webinar</h1>
+<p class="sub" id="updated">Cargando...</p>
+<div class="stats" id="stats"></div>
+<input class="search" id="q" placeholder="🔍 Buscar por nombre, correo o teléfono..." oninput="filter()">
+<button class="refresh" onclick="load()">↻ Actualizar</button>
+<div id="wrap"><table><thead><tr>
+  <th>Nombre</th><th>Contacto</th><th>% Visto</th><th>Minutos</th><th>Estado</th><th>Inscrito</th><th>Última sesión</th>
+</tr></thead><tbody id="tbody"></tbody></table></div>
+<script>
+let all = [];
+function badge(etapa, pct){
+  if(pct>=80||etapa.includes('Asistente')&&!etapa.includes('No')) return '<span class="badge visto">✅ Visto</span>';
+  if(pct>0) return '<span class="badge progreso">▶️ En progreso</span>';
+  if(etapa.includes('Inscrito')) return '<span class="badge inscrito">📧 Inscrito</span>';
+  return '<span class="badge sin">⏳ Sin actividad</span>';
+}
+function fmt(iso){if(!iso)return'—';const d=new Date(iso);return d.toLocaleDateString('es-MX',{day:'2-digit',month:'short',year:'numeric'});}
+function render(leads){
+  document.getElementById('tbody').innerHTML = leads.map(l=>\`<tr>
+    <td style="font-weight:600;color:#fff">\${l.nombre||'—'}</td>
+    <td style="color:#8892b0">\${l.correo||l.telefono||'—'}</td>
+    <td><div style="display:flex;align-items:center;gap:8px"><div class="bar-wrap"><div class="bar" style="width:\${l.pct}%"></div></div><span style="font-size:12px;color:#fff;min-width:30px">\${l.pct}%</span></div></td>
+    <td>\${l.minutos?l.minutos+'m':'—'}</td>
+    <td>\${badge(l.estado,l.pct)}</td>
+    <td style="color:#8892b0;font-size:12px">\${fmt(l.inscrito)}</td>
+    <td style="color:#8892b0;font-size:12px">\${fmt(l.visto)}</td>
+  </tr>\`).join('');
+}
+function filter(){const q=document.getElementById('q').value.toLowerCase();render(q?all.filter(l=>(l.nombre+l.correo+l.telefono).toLowerCase().includes(q)):all);}
+async function load(){
+  try{
+    const r=await fetch('/webinar/dashboard-data');
+    const d=await r.json();
+    all=d.leads||[];
+    const visto=all.filter(l=>l.pct>=80).length;
+    const prog=all.filter(l=>l.pct>0&&l.pct<80).length;
+    const sin=all.filter(l=>l.pct===0).length;
+    document.getElementById('stats').innerHTML=\`
+      <div class="stat"><div class="n">\${all.length}</div><div class="l">Total inscritos</div></div>
+      <div class="stat"><div class="n" style="color:#34d399">\${visto}</div><div class="l">Vieron el webinar</div></div>
+      <div class="stat"><div class="n" style="color:#fbbf24">\${prog}</div><div class="l">En progreso</div></div>
+      <div class="stat"><div class="n" style="color:#9ca3af">\${sin}</div><div class="l">Sin actividad</div></div>\`;
+    document.getElementById('updated').textContent='Actualizado: '+new Date().toLocaleTimeString('es-MX');
+    filter();
+  }catch(e){document.getElementById('updated').textContent='Error cargando datos';}
+}
+load();
+</script></body></html>`);
+});
+
 // ── Health check ──────────────────────────────────────────────────────────────
 app.get('/',        (req, res) => res.json({ status: 'ok', service: 'Elite Webinar Bot' }));
 app.get('/health',  (req, res) => res.json({ status: 'ok' }));
