@@ -1420,7 +1420,10 @@ app.post('/ghl/webinar-register', async (req, res) => {
     // Look up existing lead by phone or email
     let lead = null;
     if (telefono) lead = await db.sbGetLeadByPhone(telefono).catch(() => null);
-    if (!lead && correo) lead = await db.sbGetLeadByEmail(correo).catch(() => null);
+    if (!lead && correo) {
+      const _byEmail = await db.sbGet('leads', `correo=eq.${encodeURIComponent(correo)}&limit=1`).catch(() => []);
+      lead = _byEmail[0] || null;
+    }
 
     const ghlId = ghl_contact_id || null;
 
