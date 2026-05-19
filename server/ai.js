@@ -343,6 +343,7 @@ Si hay un mensaje [SISTEMA] con datos del candidato, esos datos son reales y act
 
 // ── Claude ────────────────────────────────────────────────────────────────────
 async function askClaude(phone, userMessage, channel = 'text') {
+  if (process.env.ANA_ENABLED === 'false') return '';
   const key = phone || 'unknown';
   if (!conversationHistory.has(key)) conversationHistory.set(key, []);
   const history = conversationHistory.get(key);
@@ -376,6 +377,7 @@ async function askClaude(phone, userMessage, channel = 'text') {
 
 // Respond from existing history without adding a new user message (used on IA resume)
 async function askClaudeResume(phone, channel = 'wa') {
+  if (process.env.ANA_ENABLED === 'false') return null;
   const key     = phone || 'unknown';
   const history = conversationHistory.get(key) || [];
   if (!history.length) return null;
