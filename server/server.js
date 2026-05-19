@@ -1362,6 +1362,53 @@ app.post('/webinar/register', async (req, res) => {
   }
 });
 
+// ── GHL webhook: register lead in webinar when moved to En Webinar ───────────
+app.post('/ghl/webinar-register', async (req, res) => {
+  const { nombre, phone, email, ghl_contact_id } = req.body;
+  const telefono = (phone || '').replace(/\D/g, '');
+  const correo   = (email || '').trim().toLowerCase();
+  const name     = (nombre || '').trim();
+
+  if (!telefono && !correo) {
+    return res.status(400).json({ ok: false, error: 'Se requiere phone o email' });
+  }
+
+  try {
+    const { moveLeadToWebinar } = require('./pipeline');
+    const WEBINAR_URL = process.env.WEBINAR_URL || 'https://crm.grupoelitework.com/webinar.html';
+
+    // Look up existing lead by phone or email
+    let lead = null;
+    if (telefono) lead = await db.sbGetLeadByPhone(telefono).catch(() => null);
+    if (!lead && correo) lead = await db.sbGetLeadByEmail(correo).catch(() => null);
+
+    if (!lead) {
+      // Create new lead
+      const newId  = require('crypto').randomUUID();
+      const now    = new Date().toISOString();
+      await db.sbSaveLead({
+        id: newId, nombre: name, telefono: telefono ? `+${telefono}` : '', correo,
+        fuente: 'GHL', etapa: 'En Webinar sin actividad', pipeline_id: 'en-webinar',
+        estado: 'abierto', valor: 0, propietario: 'Ana (IA)',
+        notas: [], tareas: [], pagos: [], etiquetas: [],
+        historial: [{ icono: '🎥', accion: 'Lead creado desde GHL — inscrito en webinar', fecha: now, usuario: 'GHL' }],
+        ...(ghl_contact_id ? { ghl_contact_id } : {}),
+        created_at: now,
+      });
+      lead = { id: newId, nombre: name, telefono, correo };
+    } else if (ghl_contact_id && !lead.ghl_contact_id) {
+      await db.sbPatch('leads', `id=eq.${lead.id}`, { ghl_contact_id }).catch(() => {});
+    }
+
+    const webinarUrl = await moveLeadToWebinar(lead.id, lead.nombre || name, lead.correo || correo, WEBINAR_URL);
+    console.log(`[GHL Webinar] Lead ${lead.id} registrado → ${webinarUrl}`);
+    res.json({ ok: true, leadId: lead.id, webinarUrl });
+  } catch (e) {
+    console.error('[GHL Webinar] Error:', e.message);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
 // ── Public webinar tracking (no auth — candidates use this) ──────────────────
 app.post('/webinar/track/:leadId', async (req, res) => {
   const { leadId } = req.params;
