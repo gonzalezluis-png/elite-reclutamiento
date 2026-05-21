@@ -1404,7 +1404,7 @@ async function ghlFindContactByPhone(phone) {
 
 // ── GHL webhook: register lead in webinar when moved to En Webinar ───────────
 app.post('/ghl/webinar-register', async (req, res) => {
-  const { nombre, phone, email, ghl_contact_id } = req.body;
+  const { nombre, phone, email, ghl_contact_id, webinar_url } = req.body;
   const telefono = (phone || '').replace(/\D/g, '');
   const correo   = (email || '').trim().toLowerCase();
   const name     = (nombre || '').trim();
@@ -1415,7 +1415,7 @@ app.post('/ghl/webinar-register', async (req, res) => {
 
   try {
     const { moveLeadToWebinar } = require('./pipeline');
-    const WEBINAR_URL = process.env.WEBINAR_URL || 'https://crm.grupoelitework.com/webinar.html';
+    const WEBINAR_URL = webinar_url || process.env.WEBINAR_URL || 'https://crm.grupoelitework.com/webinar.html';
 
     // Look up existing lead by phone or email
     let lead = null;
