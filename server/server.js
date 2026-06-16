@@ -328,7 +328,13 @@ app.post('/send-webinar-email', async (req, res) => {
 // Webhook de GHL: registrar lead en webinar y guardar ghl_contact_id
 app.post('/ghl/webinar-register', async (req, res) => {
   try {
-    const { nombre, phone, email, ghl_contact_id } = req.body;
+    console.log('[GHL Register] body:', JSON.stringify(req.body));
+    const b = req.body;
+    const nombre = b.nombre || b.full_name || b.name ||
+      ((b.first_name || '') + (b.last_name ? ' ' + b.last_name : '')).trim() || '';
+    const phone = b.phone || b.phone_number || b.telefono || '';
+    const email = b.email || b.correo || '';
+    const ghl_contact_id = b.ghl_contact_id || b.contact_id || b.id || '';
     const now      = new Date().toISOString();
     const leadId   = 'lead-ghl-' + Date.now();
     const webUrl   = process.env.WEBINAR_URL || WEBINAR_URL;
