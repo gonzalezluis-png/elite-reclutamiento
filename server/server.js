@@ -53,7 +53,11 @@ function fromFsDoc(doc) {
 }
 
 function docUrl(id) { return `${FS_BASE}/${COLLECTION}/${id}?key=${FS_KEY}`; }
-function listUrl()  { return `${FS_BASE}/${COLLECTION}?key=${FS_KEY}&pageSize=500`; }
+function listUrl(pageToken)  {
+  let u = `${FS_BASE}/${COLLECTION}?key=${FS_KEY}&pageSize=300`;
+  if (pageToken) u += `&pageToken=${encodeURIComponent(pageToken)}`;
+  return u;
+}
 
 async function fsGet(id) {
   const r = await fetch(docUrl(id));
@@ -63,10 +67,16 @@ async function fsGet(id) {
 }
 
 async function fsList() {
-  const r = await fetch(listUrl());
-  if (!r.ok) throw new Error(`fsList: ${r.status}`);
-  const data = await r.json();
-  return (data.documents || []).map(fromFsDoc);
+  const all = [];
+  let pageToken = null;
+  do {
+    const r = await fetch(listUrl(pageToken));
+    if (!r.ok) throw new Error(`fsList: ${r.status}`);
+    const data = await r.json();
+    (data.documents || []).forEach(d => { const o = fromFsDoc(d); if (o) all.push(o); });
+    pageToken = data.nextPageToken || null;
+  } while (pageToken);
+  return all;
 }
 
 async function fsSet(id, obj) {
