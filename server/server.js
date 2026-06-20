@@ -10,6 +10,42 @@ app.use((req, res, next) => {
   next();
 });
 
+// ── Supabase config (m2base-sistemas / hiring.m2base.com) ─────────────────────
+const SB_URL  = process.env.SUPABASE_URL  || 'https://esfjwnzigmapacbotzgh.supabase.co';
+const SB_KEY  = process.env.SUPABASE_KEY  || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVzZmp3bnppZ21hcGFjYm90emdoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2NTYzMjUsImV4cCI6MjA5NzIzMjMyNX0.sAfXtl2ASjzEGBaN0L52giDpqjrS3BdB2WcmdjBJgA4';
+
+async function sbInsert(table, record) {
+  const r = await fetch(`${SB_URL}/rest/v1/${table}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'apikey': SB_KEY,
+      'Authorization': `Bearer ${SB_KEY}`,
+      'Prefer': 'return=representation',
+    },
+    body: JSON.stringify(record),
+  });
+  const data = await r.json();
+  if (!r.ok) throw new Error(JSON.stringify(data));
+  return data;
+}
+
+async function sbUpsert(table, record, onConflict = 'id') {
+  const r = await fetch(`${SB_URL}/rest/v1/${table}?on_conflict=${onConflict}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'apikey': SB_KEY,
+      'Authorization': `Bearer ${SB_KEY}`,
+      'Prefer': 'return=representation,resolution=merge-duplicates',
+    },
+    body: JSON.stringify(record),
+  });
+  const data = await r.json();
+  if (!r.ok) throw new Error(JSON.stringify(data));
+  return data;
+}
+
 // ── Firestore config ──────────────────────────────────────────────────────────
 const FS_PROJECT  = process.env.FS_PROJECT  || 'elite-reclutamiento-crm';
 const FS_KEY      = process.env.FS_KEY      || 'AIzaSyCW2t1oHb7xc2Vi6vJROGRM7E7nu-CbU3s';
@@ -356,6 +392,82 @@ app.post('/ghl/webinar-register', async (req, res) => {
     res.json({ ok: true, leadId, webinarUrl: personalUrl });
   } catch (e) {
     console.error('[GHL Register]', e.message);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// ── Webhook GHL → Supabase (hiring.m2base.com) ───────────────────────────────
+// GHL dispara este webhook cuando se agenda una entrevista/cita.
+// Guarda el registro en Supabase para que hiring.m2base.com lo muestre.
+//
+// Campos que GHL puede enviar (todos opcionales excepto nombre o phone):
+//   contact.firstName, contact.lastName, contact.email, contact.phone
+//   contact.city, contact.state, contact.source
+//   appointment.startTime  → fecha/hora de la cita (ISO string)
+//   appointment.title      → descripción
+//   appointment.status     → "confirmed", "pending", etc.
+//   assignedTo.name        → nombre del agente asignado
+//   customField.*          → campos personalizados de GHL
+//
+app.post('/ghl/cita', async (req, res) => {
+  try {
+    console.log('[GHL Cita] body:', JSON.stringify(req.body));
+    const b = req.body;
+
+    // ── Extraer campos del contacto ──────────────────────────────────────────
+    const contact     = b.contact || b;
+    const appointment = b.appointment || b.appoinment || {};
+    const assigned    = b.assignedTo || b.assigned_to || {};
+
+    const firstName = contact.firstName || contact.first_name || b.firstName || b.first_name || '';
+    const lastName  = contact.lastName  || contact.last_name  || b.lastName  || b.last_name  || '';
+    const applicant = b.full_name || b.nombre || b.name ||
+      `${firstName}${lastName ? ' ' + lastName : ''}`.trim() || 'Sin nombre';
+
+    const phone  = contact.phone || contact.phoneNumber || b.phone || b.telefono || '';
+    const email  = contact.email || b.email  || b.correo  || '';
+    const city   = contact.city  || b.city   || b.ciudad  || '';
+    const state  = contact.state || b.state  || b.estado  || '';
+    const source = contact.source || b.source || b.fuente || 'GHL';
+
+    // ── Fecha/hora de la cita ─────────────────────────────────────────────────
+    const rawDate   = appointment.startTime || appointment.start_time ||
+                      b.startTime || b.start_time || b.appointment || b.fecha || '';
+    const appointmentStr = rawDate
+      ? new Date(rawDate).toLocaleString('es-MX', { timeZone: 'America/Chicago',
+          weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+          hour: '2-digit', minute: '2-digit', hour12: true })
+      : '';
+
+    // ── Asignado ──────────────────────────────────────────────────────────────
+    const assigneeName = assigned.name || assigned.full_name ||
+                         b.assignee || b.asignado || 'Sin asiganacion';
+
+    // ── Construir registro para Supabase ──────────────────────────────────────
+    const id     = 'ghl-' + Date.now();
+    const record = {
+      id,
+      workspace_id: 'sistemas',      // Lista de entrevistas
+      applicant,
+      phone,
+      email,
+      city,
+      state,
+      appointment:  appointmentStr,
+      source,
+      platform:     'Sin Necesidad',
+      status:       'Sin clasificar',
+      assignee:     assigneeName,
+      comments:     appointment.title || b.notes || b.notas || '',
+      lead_group:   null,
+    };
+
+    await sbUpsert('m2base_records', record, 'id');
+    console.log(`[GHL Cita] Guardado en Supabase: ${id} — ${applicant}`);
+
+    res.json({ ok: true, id, applicant });
+  } catch (e) {
+    console.error('[GHL Cita] Error:', e.message);
     res.status(500).json({ ok: false, error: e.message });
   }
 });
