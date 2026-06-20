@@ -467,8 +467,9 @@ app.post('/ghl/cita', async (req, res) => {
 
     res.json({ ok: true, id, applicant });
   } catch (e) {
-    console.error('[GHL Cita] Error:', e.message);
-    res.status(500).json({ ok: false, error: e.message });
+    const detail = e.cause?.message || e.cause?.code || '';
+    console.error('[GHL Cita] Error:', e.message, detail);
+    res.status(500).json({ ok: false, error: e.message, detail });
   }
 });
 
