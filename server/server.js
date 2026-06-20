@@ -474,6 +474,42 @@ app.post('/ghl/cita', async (req, res) => {
   }
 });
 
+// ── Monday.com proxy (evita CORS desde el browser) ───────────────────────────
+app.post('/monday/create-item', async (req, res) => {
+  const MONDAY_TOKEN = process.env.MONDAY_TOKEN || 'eyJhbGciOiJIUzI1NiJ9.eyJ0aWQiOjUzODI3MzkxNywiYWFpIjoxMSwidWlkIjo3NDQyMTcxMiwiaWFkIjoiMjAyNS0wNy0xMlQwMzozNTo0NS4wMDBaIiwicGVyIjoibWU6d3JpdGUiLCJhY3RpZCI6Mjg5MTk5NTEsInJnbiI6InVzZTEifQ.d5JNziReZS3ZUqEEPofaqsQWUE2-Vz72FuaryyDC-KQ';
+  try {
+    const { boardId, lead } = req.body;
+    if (!boardId || !lead) return res.status(400).json({ ok: false, error: 'boardId y lead requeridos' });
+
+    const colVals = {};
+    if (lead.telefono)    colVals['phone_mm011kem'] = { phone: lead.telefono.replace(/\D/g,'').replace(/^1/,''), countryShortName: 'US' };
+    if (lead.email)       colVals['email_mm01kdgd'] = { email: lead.email, text: lead.email };
+    if (lead.direccion)   colVals['text_mm01m2tm']  = lead.direccion;
+    if (lead.solicitudes) colVals['text_mm01ryey']  = lead.solicitudes;
+    if (lead.ubicacion)   colVals['color_mm01canv'] = { label: lead.ubicacion };
+
+    const query = `mutation {
+      create_item(
+        board_id: ${Number(boardId)},
+        item_name: ${JSON.stringify(lead.nombre || 'Sin nombre')},
+        column_values: ${JSON.stringify(JSON.stringify(colVals))}
+      ) { id }
+    }`;
+
+    const r = await fetch('https://api.monday.com/v2', {
+      method: 'POST',
+      headers: { 'Authorization': MONDAY_TOKEN, 'Content-Type': 'application/json', 'API-Version': '2024-01' },
+      body: JSON.stringify({ query }),
+    });
+    const d = await r.json();
+    if (d.errors?.length) return res.status(400).json({ ok: false, error: d.errors[0].message });
+    res.json({ ok: true, id: d.data?.create_item?.id });
+  } catch (e) {
+    console.error('[Monday]', e.message);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
 // Health check
 app.get('/', (req, res) => res.json({ ok: true, service: 'webinar', ts: Date.now() }));
 
