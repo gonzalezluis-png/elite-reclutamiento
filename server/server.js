@@ -228,6 +228,23 @@ async function ghlUpdateContact(contactId, fields) {
   }
 }
 
+async function ghlNextAppointment(contactId) {
+  const token = process.env.GHL_API_KEY;
+  if (!token || !contactId) return null;
+  try {
+    const r = await fetch(`${GHL_API}/contacts/${contactId}/appointments`, {
+      headers: { Authorization: `Bearer ${token}`, Version: '2021-07-28' },
+    });
+    const d = await r.json();
+    const now = Date.now();
+    const upcoming = (d?.appointments || d?.events || [])
+      .map(a => ({ ...a, _ts: new Date(a.startTime || a.start_time || '').getTime() }))
+      .filter(a => a._ts && a._ts >= now - 3600000) // hasta 1h en el pasado (tolerancia)
+      .sort((a, b) => a._ts - b._ts);
+    return upcoming[0]?.startTime || upcoming[0]?.start_time || null;
+  } catch { return null; }
+}
+
 async function ghlFindContactByPhone(phone) {
   const token = process.env.GHL_API_KEY;
   if (!token || !phone) return null;
@@ -419,6 +436,7 @@ app.post('/ghl/cita', async (req, res) => {
     const contact     = b.contact || b;
     const appointment = b.appointment || b.appoinment || {};
     const assigned    = b.assignedTo || b.assigned_to || {};
+    const contactId   = contact.id || b.contactId || b.contact_id || '';
 
     const firstName = contact.firstName || contact.first_name || b.firstName || b.first_name || '';
     const lastName  = contact.lastName  || contact.last_name  || b.lastName  || b.last_name  || '';
@@ -432,8 +450,9 @@ app.post('/ghl/cita', async (req, res) => {
     const source = contact.source || b.source || b.fuente || 'GHL';
 
     // ── Fecha/hora de la cita ─────────────────────────────────────────────────
-    const rawDate   = appointment.startTime || appointment.start_time ||
-                      b.startTime || b.start_time || b.appointment || b.fecha || '';
+    let rawDate = appointment.startTime || appointment.start_time ||
+                  b.startTime || b.start_time || b.appointment || b.fecha || '';
+    if (!rawDate && contactId) rawDate = await ghlNextAppointment(contactId) || '';
     const appointmentStr = rawDate
       ? new Date(rawDate).toLocaleString('es-MX', { timeZone: 'America/Chicago',
           weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
