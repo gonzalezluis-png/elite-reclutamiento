@@ -13,7 +13,7 @@ app.use((req, res, next) => {
 // ── Supabase config (m2base-sistemas / hiring.m2base.com) ─────────────────────
 // M2BASE_* para evitar conflicto con SUPABASE_URL del proyecto GEW en Railway
 const SB_URL  = process.env.M2BASE_SUPABASE_URL || 'https://esfjwnzigmapacbotzgh.supabase.co';
-const SB_KEY  = process.env.M2BASE_SUPABASE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVzZmp3bnppZ21hcGFjYm90emdoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2NTYzMjUsImV4cCI6MjA5NzIzMjMyNX0.sAfXtl2ASjzEGBaN0L52giDpqjrS3BdB2WcmdjBJgA4';
+const SB_KEY  = process.env.M2BASE_SUPABASE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVzZmp3bnppZ21hcGFjYm90emdoIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MTY1NjMyNSwiZXhwIjoyMDk3MjMyMzI1fQ.ftYrR6o19lsAdXfctrHIJPPOZlC71tUm12NMm_8d8o8';
 
 async function sbInsert(table, record) {
   const r = await fetch(`${SB_URL}/rest/v1/${table}`, {
