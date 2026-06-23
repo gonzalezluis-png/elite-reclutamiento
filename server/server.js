@@ -618,12 +618,13 @@ app.post('/admin/fix-missing-dates', async (req, res) => {
     const results = [];
     for (const lead of leads) {
       try {
-        // 2. Buscar contacto en GHL por teléfono
+        // 2. Buscar contacto en GHL por teléfono o email (usa query param)
         const phone = (lead.phone || '').replace(/\D/g, '');
         let contactId = null;
 
         if (phone) {
-          const sr = await fetch(`${GHL_API}/contacts/?locationId=${GHL_LOC}&phone=${encodeURIComponent('+' + phone)}&limit=1`, {
+          const query = '+' + phone;
+          const sr = await fetch(`${GHL_API}/contacts/?locationId=${GHL_LOC}&query=${encodeURIComponent(query)}&limit=5`, {
             headers: { Authorization: `Bearer ${token}`, Version: '2021-07-28' },
           });
           const sd = await sr.json();
@@ -631,7 +632,15 @@ app.post('/admin/fix-missing-dates', async (req, res) => {
         }
 
         if (!contactId && lead.email) {
-          const sr = await fetch(`${GHL_API}/contacts/?locationId=${GHL_LOC}&email=${encodeURIComponent(lead.email)}&limit=1`, {
+          const sr = await fetch(`${GHL_API}/contacts/?locationId=${GHL_LOC}&query=${encodeURIComponent(lead.email)}&limit=5`, {
+            headers: { Authorization: `Bearer ${token}`, Version: '2021-07-28' },
+          });
+          const sd = await sr.json();
+          contactId = sd?.contacts?.[0]?.id || null;
+        }
+
+        if (!contactId && lead.applicant) {
+          const sr = await fetch(`${GHL_API}/contacts/?locationId=${GHL_LOC}&query=${encodeURIComponent(lead.applicant)}&limit=5`, {
             headers: { Authorization: `Bearer ${token}`, Version: '2021-07-28' },
           });
           const sd = await sr.json();
