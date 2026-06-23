@@ -236,13 +236,18 @@ async function ghlNextAppointment(contactId) {
       headers: { Authorization: `Bearer ${token}`, Version: '2021-07-28' },
     });
     const d = await r.json();
+    console.log(`[GHL Appointments] contactId=${contactId} response:`, JSON.stringify(d).slice(0, 500));
+    const list = d?.appointments || d?.events || (Array.isArray(d) ? d : []);
     const now = Date.now();
-    const upcoming = (d?.appointments || d?.events || [])
-      .map(a => ({ ...a, _ts: new Date(a.startTime || a.start_time || '').getTime() }))
-      .filter(a => a._ts && a._ts >= now - 3600000) // hasta 1h en el pasado (tolerancia)
+    const upcoming = list
+      .map(a => ({ ...a, _ts: new Date(a.startTime || a.start_time || a.startAt || a.start || '').getTime() }))
+      .filter(a => a._ts && a._ts >= now - 86400000 * 7) // hasta 7 días en el pasado
       .sort((a, b) => a._ts - b._ts);
-    return upcoming[0]?.startTime || upcoming[0]?.start_time || null;
-  } catch { return null; }
+    return upcoming[0]?.startTime || upcoming[0]?.start_time || upcoming[0]?.startAt || upcoming[0]?.start || null;
+  } catch (e) {
+    console.warn('[GHL Appointments] Error:', e.message);
+    return null;
+  }
 }
 
 async function ghlFindContactByPhone(phone) {
@@ -429,7 +434,7 @@ app.post('/ghl/webinar-register', async (req, res) => {
 //
 app.post('/ghl/cita', async (req, res) => {
   try {
-    console.log('[GHL Cita] body:', JSON.stringify(req.body));
+    console.log('[GHL Cita] body:', JSON.stringify(req.body, null, 2));
     const b = req.body;
 
     // ── Extraer campos del contacto ──────────────────────────────────────────
@@ -447,7 +452,7 @@ app.post('/ghl/cita', async (req, res) => {
     const email  = contact.email || b.email  || b.correo  || '';
     const city   = contact.city  || b.city   || b.ciudad  || '';
     const state  = contact.state || b.state  || b.estado  || '';
-    const source = contact.source || b.source || b.fuente || 'GHL';
+    const source = contact.source || contact.attributionSource || b.source || b.fuente || b.lead_source || '';
 
     // ── Fecha/hora de la cita ─────────────────────────────────────────────────
     let rawDate = appointment.startTime || appointment.start_time ||
