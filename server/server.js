@@ -211,7 +211,7 @@ const GHL_CF      = {
 };
 
 async function ghlUpdateContact(contactId, fields) {
-  const token = process.env.GHL_API_KEY;
+  const token = process.env.GHL_TOKEN || 'pit-69006f34-c4ff-461e-bd6d-0f8446c3bcb4';
   if (!token || !contactId) return;
   const customFields = Object.entries(fields)
     .filter(([k]) => GHL_CF[k])
@@ -230,7 +230,7 @@ async function ghlUpdateContact(contactId, fields) {
 }
 
 async function ghlNextAppointment(contactId) {
-  const token = process.env.GHL_API_KEY;
+  const token = process.env.GHL_TOKEN || 'pit-69006f34-c4ff-461e-bd6d-0f8446c3bcb4';
   if (!token || !contactId) return null;
   try {
     const r = await fetch(`${GHL_API}/contacts/${contactId}/appointments`, {
@@ -252,7 +252,7 @@ async function ghlNextAppointment(contactId) {
 }
 
 async function ghlFindContactByPhone(phone) {
-  const token = process.env.GHL_API_KEY;
+  const token = process.env.GHL_TOKEN || 'pit-69006f34-c4ff-461e-bd6d-0f8446c3bcb4';
   if (!token || !phone) return null;
   try {
     const r = await fetch(`${GHL_API}/contacts/?locationId=${GHL_LOC}&phone=${encodeURIComponent(phone)}&limit=1`, {
@@ -604,8 +604,8 @@ app.get('/debug/last-appointment', (req, res) => res.json(lastAppointmentWebhook
 
 // Batch: buscar fechas en GHL para leads sin fecha de esta semana
 app.post('/admin/fix-missing-dates', async (req, res) => {
-  const token = process.env.GHL_API_KEY;
-  if (!token) return res.status(500).json({ ok: false, error: 'GHL_API_KEY no configurado' });
+  const token = process.env.GHL_TOKEN || 'pit-69006f34-c4ff-461e-bd6d-0f8446c3bcb4';
+  if (!token) return res.status(500).json({ ok: false, error: 'GHL_TOKEN no configurado' });
 
   try {
     // 1. Traer leads sin fecha de Supabase
