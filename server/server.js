@@ -439,36 +439,36 @@ app.post('/ghl/cita', async (req, res) => {
     const b = req.body;
 
     // ── Extraer campos del contacto ──────────────────────────────────────────
-    const contact     = b.contact || b;
-    const appointment = b.appointment || b.appoinment || {};
-    const assigned    = b.assignedTo || b.assigned_to || {};
-    const contactId   = contact.id || b.contactId || b.contact_id || '';
+    const contact     = b.contact || {};
+    const calendar    = b.calendar || b.appointment || b.appoinment || {};
+    const assigned    = b.assignedTo || b.assigned_to || b.user || {};
+    const contactId   = b.contact_id || b.contactId || contact.id || '';
 
-    const firstName = contact.firstName || contact.first_name || b.firstName || b.first_name || '';
-    const lastName  = contact.lastName  || contact.last_name  || b.lastName  || b.last_name  || '';
+    const firstName = b.first_name || contact.firstName || contact.first_name || '';
+    const lastName  = b.last_name  || contact.lastName  || contact.last_name  || '';
     const applicant = b.full_name || b.nombre || b.name ||
       `${firstName}${lastName ? ' ' + lastName : ''}`.trim() || 'Sin nombre';
 
-    const phone  = contact.phone || contact.phoneNumber || b.phone || b.telefono || '';
-    const email  = contact.email || b.email  || b.correo  || '';
-    const city   = contact.city  || b.city   || b.ciudad  || '';
-    const state  = contact.state || b.state  || b.estado  || '';
-    const rawSource = contact.source || b.source || b.fuente || b.lead_source || '';
+    const phone  = b.phone || contact.phone || contact.phoneNumber || b.telefono || '';
+    const email  = b.email || contact.email || b.correo || '';
+    const city   = b.city  || contact.city  || b.ciudad || '';
+    const state  = b.state || contact.state || b.estado || '';
+
+    const rawSource = b.contact_source || b.source || contact.source || b.fuente || b.lead_source || '';
     let source = rawSource;
-    if (!source && contact.attributionSource) {
-      try {
-        const attr = typeof contact.attributionSource === 'object' ? contact.attributionSource : JSON.parse(contact.attributionSource);
-        const s = (attr.utmSource || attr.source || attr.medium || attr.sessionSource || '').toLowerCase();
-        if (s.includes('facebook') || s.includes('paid social') || s.includes('instagram')) source = 'Facebook';
-        else if (s.includes('indeed')) source = 'Indeed';
-        else if (s.includes('google')) source = 'Google';
-        else source = attr.utmSource || attr.source || '';
-      } catch {}
+    const attrObj = contact.attributionSource || b.attributionSource || {};
+    if (!source && attrObj && typeof attrObj === 'object') {
+      const s = (attrObj.utmSource || attrObj.source || attrObj.medium || attrObj.sessionSource || '').toLowerCase();
+      if (s.includes('facebook') || s.includes('paid social') || s.includes('instagram')) source = 'Facebook';
+      else if (s.includes('indeed')) source = 'Indeed';
+      else if (s.includes('google')) source = 'Google';
+      else source = attrObj.utmSource || attrObj.source || '';
     }
 
     // ── Fecha/hora de la cita ─────────────────────────────────────────────────
-    let rawDate = appointment.startTime || appointment.start_time ||
-                  b.startTime || b.start_time || b.appointment || b.fecha || '';
+    // GHL manda la cita en b.calendar.startTime
+    let rawDate = calendar.startTime || calendar.start_time ||
+                  b.startTime || b.start_time || b.fecha || '';
     if (!rawDate && contactId) rawDate = await ghlNextAppointment(contactId) || '';
     const defaultDate = !rawDate;
     if (!rawDate) rawDate = new Date().toISOString();
@@ -477,8 +477,11 @@ app.post('/ghl/cita', async (req, res) => {
         hour: '2-digit', minute: '2-digit', hour12: true });
 
     // ── Asignado ──────────────────────────────────────────────────────────────
-    const assigneeName = assigned.name || assigned.full_name ||
-                         b.assignee || b.asignado || 'Sin asiganacion';
+    const assigneeFirst = assigned.firstName || assigned.first_name || '';
+    const assigneeLast  = assigned.lastName  || assigned.last_name  || '';
+    const assigneeName  = assigned.name || assigned.full_name ||
+      `${assigneeFirst}${assigneeLast ? ' ' + assigneeLast : ''}`.trim() ||
+      b.assignee || b.asignado || 'Sin asignacion';
 
     // ── Construir registro para Supabase ──────────────────────────────────────
     const id     = 'ghl-' + Date.now();
