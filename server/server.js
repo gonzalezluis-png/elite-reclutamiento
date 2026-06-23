@@ -2,6 +2,7 @@
 const express = require('express');
 const app = express();
 app.use(express.json());
+let lastAppointmentWebhook = null;
 app.use((req, res, next) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PATCH,OPTIONS');
@@ -550,6 +551,7 @@ app.post('/monday/create-item', async (req, res) => {
 // Busca el registro existente por teléfono o email y actualiza la fecha.
 app.post('/ghl/appointment', async (req, res) => {
   try {
+    lastAppointmentWebhook = { ts: new Date().toISOString(), body: req.body };
     console.log('[GHL Appointment] body:', JSON.stringify(req.body, null, 2));
     const b = req.body;
     const appt = b.appointment || b.appoinment || b;
@@ -596,6 +598,9 @@ app.post('/ghl/appointment', async (req, res) => {
     res.status(500).json({ ok: false, error: e.message });
   }
 });
+
+// Debug: ver último webhook de appointment recibido
+app.get('/debug/last-appointment', (req, res) => res.json(lastAppointmentWebhook || { msg: 'Ningún webhook recibido aún' }));
 
 // Health check
 app.get('/', (req, res) => res.json({ ok: true, service: 'webinar', ts: Date.now() }));
