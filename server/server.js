@@ -452,7 +452,18 @@ app.post('/ghl/cita', async (req, res) => {
     const email  = contact.email || b.email  || b.correo  || '';
     const city   = contact.city  || b.city   || b.ciudad  || '';
     const state  = contact.state || b.state  || b.estado  || '';
-    const source = contact.source || contact.attributionSource || b.source || b.fuente || b.lead_source || '';
+    const rawSource = contact.source || b.source || b.fuente || b.lead_source || '';
+    let source = rawSource;
+    if (!source && contact.attributionSource) {
+      try {
+        const attr = typeof contact.attributionSource === 'object' ? contact.attributionSource : JSON.parse(contact.attributionSource);
+        const s = (attr.utmSource || attr.source || attr.medium || attr.sessionSource || '').toLowerCase();
+        if (s.includes('facebook') || s.includes('paid social') || s.includes('instagram')) source = 'Facebook';
+        else if (s.includes('indeed')) source = 'Indeed';
+        else if (s.includes('google')) source = 'Google';
+        else source = attr.utmSource || attr.source || '';
+      } catch {}
+    }
 
     // ── Fecha/hora de la cita ─────────────────────────────────────────────────
     let rawDate = appointment.startTime || appointment.start_time ||
@@ -530,6 +541,58 @@ app.post('/monday/create-item', async (req, res) => {
     res.json({ ok: true, id: d.data?.create_item?.id });
   } catch (e) {
     console.error('[Monday]', e.message);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// ── Webhook GHL → Supabase: appointment creado/confirmado ────────────────────
+// GHL dispara este webhook cuando se agenda o confirma una cita de entrevista.
+// Busca el registro existente por teléfono o email y actualiza la fecha.
+app.post('/ghl/appointment', async (req, res) => {
+  try {
+    console.log('[GHL Appointment] body:', JSON.stringify(req.body, null, 2));
+    const b = req.body;
+    const appt = b.appointment || b.appoinment || b;
+    const contact = b.contact || b;
+
+    const startTime = appt.startTime || appt.start_time || appt.startAt || b.startTime || '';
+    if (!startTime) return res.json({ ok: true, skipped: 'no startTime' });
+
+    const appointmentStr = new Date(startTime).toLocaleString('es-MX', {
+      timeZone: 'America/Chicago', weekday: 'long', year: 'numeric',
+      month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true,
+    });
+
+    const phone = (contact.phone || contact.phoneNumber || b.phone || '').replace(/\D/g, '');
+    const email = contact.email || b.email || '';
+    const contactId = contact.id || b.contactId || b.contact_id || '';
+
+    // Buscar registro en Supabase por phone, email o contactId
+    let existing = null;
+    for (const [field, value] of [['phone', phone], ['email', email]]) {
+      if (!value) continue;
+      const r = await fetch(`${SB_URL}/rest/v1/m2base_records?workspace_id=eq.sistemas&${field}=ilike.*${encodeURIComponent(value.slice(-10))}*&order=created_at.desc&limit=1`, {
+        headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` },
+      });
+      const rows = await r.json();
+      if (rows[0]) { existing = rows[0]; break; }
+    }
+
+    if (!existing) {
+      console.log(`[GHL Appointment] No record found for phone=${phone} email=${email}`);
+      return res.json({ ok: true, skipped: 'no matching record' });
+    }
+
+    await fetch(`${SB_URL}/rest/v1/m2base_records?id=eq.${existing.id}`, {
+      method: 'PATCH',
+      headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+      body: JSON.stringify({ appointment: appointmentStr, updated_at: new Date().toISOString() }),
+    });
+
+    console.log(`[GHL Appointment] Actualizado ${existing.id} (${existing.applicant}) → ${appointmentStr}`);
+    res.json({ ok: true, id: existing.id, appointment: appointmentStr });
+  } catch (e) {
+    console.error('[GHL Appointment] Error:', e.message);
     res.status(500).json({ ok: false, error: e.message });
   }
 });
