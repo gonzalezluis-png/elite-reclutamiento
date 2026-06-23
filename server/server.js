@@ -602,6 +602,73 @@ app.post('/ghl/appointment', async (req, res) => {
 // Debug: ver último webhook de appointment recibido
 app.get('/debug/last-appointment', (req, res) => res.json(lastAppointmentWebhook || { msg: 'Ningún webhook recibido aún' }));
 
+// Batch: buscar fechas en GHL para leads sin fecha de esta semana
+app.post('/admin/fix-missing-dates', async (req, res) => {
+  const token = process.env.GHL_API_KEY;
+  if (!token) return res.status(500).json({ ok: false, error: 'GHL_API_KEY no configurado' });
+
+  try {
+    // 1. Traer leads sin fecha de Supabase
+    const r = await fetch(`${SB_URL}/rest/v1/m2base_records?workspace_id=eq.sistemas&appointment=eq.&select=id,applicant,phone,email`, {
+      headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` },
+    });
+    const leads = await r.json();
+    console.log(`[FixDates] ${leads.length} leads sin fecha`);
+
+    const results = [];
+    for (const lead of leads) {
+      try {
+        // 2. Buscar contacto en GHL por teléfono
+        const phone = (lead.phone || '').replace(/\D/g, '');
+        let contactId = null;
+
+        if (phone) {
+          const sr = await fetch(`${GHL_API}/contacts/?locationId=${GHL_LOC}&phone=${encodeURIComponent('+' + phone)}&limit=1`, {
+            headers: { Authorization: `Bearer ${token}`, Version: '2021-07-28' },
+          });
+          const sd = await sr.json();
+          contactId = sd?.contacts?.[0]?.id || null;
+        }
+
+        if (!contactId && lead.email) {
+          const sr = await fetch(`${GHL_API}/contacts/?locationId=${GHL_LOC}&email=${encodeURIComponent(lead.email)}&limit=1`, {
+            headers: { Authorization: `Bearer ${token}`, Version: '2021-07-28' },
+          });
+          const sd = await sr.json();
+          contactId = sd?.contacts?.[0]?.id || null;
+        }
+
+        if (!contactId) { results.push({ id: lead.id, applicant: lead.applicant, status: 'no contact found' }); continue; }
+
+        // 3. Buscar citas del contacto
+        const apptDate = await ghlNextAppointment(contactId);
+        if (!apptDate) { results.push({ id: lead.id, applicant: lead.applicant, status: 'no appointment found', contactId }); continue; }
+
+        const appointmentStr = new Date(apptDate).toLocaleString('es-MX', {
+          timeZone: 'America/Chicago', weekday: 'long', year: 'numeric',
+          month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true,
+        });
+
+        // 4. Actualizar en Supabase
+        await fetch(`${SB_URL}/rest/v1/m2base_records?id=eq.${lead.id}`, {
+          method: 'PATCH',
+          headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+          body: JSON.stringify({ appointment: appointmentStr, updated_at: new Date().toISOString() }),
+        });
+
+        results.push({ id: lead.id, applicant: lead.applicant, status: 'updated', appointment: appointmentStr });
+        console.log(`[FixDates] ✓ ${lead.applicant} → ${appointmentStr}`);
+        await new Promise(resolve => setTimeout(resolve, 300)); // rate limit
+      } catch (e) {
+        results.push({ id: lead.id, applicant: lead.applicant, status: 'error', error: e.message });
+      }
+    }
+    res.json({ ok: true, total: leads.length, results });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
 // Health check
 app.get('/', (req, res) => res.json({ ok: true, service: 'webinar', ts: Date.now() }));
 
