@@ -470,11 +470,11 @@ app.post('/ghl/cita', async (req, res) => {
     let rawDate = appointment.startTime || appointment.start_time ||
                   b.startTime || b.start_time || b.appointment || b.fecha || '';
     if (!rawDate && contactId) rawDate = await ghlNextAppointment(contactId) || '';
-    const appointmentStr = rawDate
-      ? new Date(rawDate).toLocaleString('es-MX', { timeZone: 'America/Chicago',
-          weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
-          hour: '2-digit', minute: '2-digit', hour12: true })
-      : '';
+    const defaultDate = !rawDate;
+    if (!rawDate) rawDate = new Date().toISOString();
+    const appointmentStr = new Date(rawDate).toLocaleString('es-MX', { timeZone: 'America/Chicago',
+        weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+        hour: '2-digit', minute: '2-digit', hour12: true });
 
     // ── Asignado ──────────────────────────────────────────────────────────────
     const assigneeName = assigned.name || assigned.full_name ||
@@ -495,7 +495,7 @@ app.post('/ghl/cita', async (req, res) => {
       platform:     'Sin Necesidad',
       status:       'Sin clasificar',
       assignee:     assigneeName,
-      comments:     appointment.title || b.notes || b.notas || '',
+      comments:     defaultDate ? 'Fecha por defecto' : (appointment.title || b.notes || b.notas || ''),
       lead_group:   null,
     };
 
