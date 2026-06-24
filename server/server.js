@@ -498,7 +498,7 @@ app.post('/ghl/cita', async (req, res) => {
       platform:     'Sin Necesidad',
       status:       'Sin clasificar',
       assignee:     assigneeName,
-      comments:     defaultDate ? 'Fecha por defecto' : (appointment.title || b.notes || b.notas || ''),
+      comments:     defaultDate ? 'Fecha por defecto' : (calendar.title || b.notes || b.notas || ''),
       lead_group:   null,
     };
 
