@@ -476,12 +476,8 @@ app.post('/ghl/cita', async (req, res) => {
         weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
         hour: '2-digit', minute: '2-digit', hour12: true });
 
-    // ── Asignado ──────────────────────────────────────────────────────────────
-    const assigneeFirst = assigned.firstName || assigned.first_name || '';
-    const assigneeLast  = assigned.lastName  || assigned.last_name  || '';
-    const assigneeName  = assigned.name || assigned.full_name ||
-      `${assigneeFirst}${assigneeLast ? ' ' + assigneeLast : ''}`.trim() ||
-      b.assignee || b.asignado || 'Sin asignacion';
+    // ── Asignado: siempre vacío, se asigna manualmente en el sistema ─────────
+    const assigneeName = 'Sin asignacion';
 
     // ── Construir registro para Supabase ──────────────────────────────────────
     const id     = 'ghl-' + Date.now();
