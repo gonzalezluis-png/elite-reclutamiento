@@ -682,7 +682,7 @@ app.post('/admin/fix-missing-dates', async (req, res) => {
 });
 
 // Health check
-app.get('/', (req, res) => res.json({ ok: true, service: 'webinar', ts: Date.now() }));
+app.get('/', (req, res) => res.json({ ok: true, service: 'webinar', v: 'e696c53', ts: Date.now() }));
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Webinar server → port ${PORT}`));
