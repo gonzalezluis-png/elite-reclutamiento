@@ -442,7 +442,20 @@ app.post('/ghl/cita', async (req, res) => {
     const contact     = b.contact || {};
     const calendar    = b.calendar || b.appointment || b.appoinment || {};
     const assigned    = b.assignedTo || b.assigned_to || b.user || {};
-    const contactId   = b.contact_id || b.contactId || contact.id || '';
+    const campaign    = b.campaign || contact.campaign || {};
+    const custom      = b.customFields || b.custom_fields || b.customField || b.custom_field ||
+                        contact.customFields || contact.custom_fields || contact.customField || contact.custom_field || {};
+    const customValue = (...keys) => {
+      for (const key of keys) {
+        const direct = custom?.[key];
+        if (direct && typeof direct === 'object' && 'value' in direct) return String(direct.value || '').trim();
+        if (direct !== undefined && direct !== null && direct !== '') return String(direct).trim();
+        const listItem = Array.isArray(custom) ? custom.find(item => [item?.key, item?.id, item?.name, item?.fieldKey].includes(key)) : null;
+        if (listItem?.value !== undefined && listItem.value !== null && listItem.value !== '') return String(listItem.value).trim();
+      }
+      return '';
+    };
+    const contactId   = b.ghl_contact_id || b.contact_id || b.contactId || contact.id || '';
 
     const firstName = b.first_name || contact.firstName || contact.first_name || '';
     const lastName  = b.last_name  || contact.lastName  || contact.last_name  || '';
@@ -464,6 +477,11 @@ app.post('/ghl/cita', async (req, res) => {
       else if (s.includes('google')) source = 'Google';
       else source = attrObj.utmSource || attrObj.source || '';
     }
+
+    const campaignId = b.campaign_id || b.campaignId || campaign.id || campaign.campaign_id || attrObj.campaignId || customValue('campaign_id', 'Campaign ID');
+    const campaignName = b.campaign_name || b.campaignName || campaign.name || campaign.campaign_name || attrObj.campaignName || attrObj.utmCampaign || customValue('campaign_name', 'Campaign Name');
+    const gclid = b.gclid || contact.gclid || attrObj.gclid || customValue('gclid', 'GCLID', 'Google Click ID');
+    const fbclid = b.fbclid || contact.fbclid || attrObj.fbclid || customValue('fbclid', 'FBCLID', 'Facebook Click ID');
 
     // ── Fecha/hora de la cita ─────────────────────────────────────────────────
     // GHL manda la cita en b.calendar.startTime
@@ -496,6 +514,11 @@ app.post('/ghl/cita', async (req, res) => {
       assignee:     assigneeName,
       comments:     defaultDate ? 'Fecha por defecto' : (calendar.title || b.notes || b.notas || ''),
       lead_group:   null,
+      ghl_contact_id: contactId || null,
+      campaign_id:   campaignId || null,
+      campaign_name: campaignName || null,
+      gclid:         gclid || null,
+      fbclid:        fbclid || null,
     };
 
     await sbUpsert('m2base_records', record, 'id');
