@@ -92,6 +92,14 @@ async function hostingerPatch(id, patch) {
   return r.json();
 }
 
+async function hostingerIngestHealth() {
+  const r = await fetch(`${HOSTINGER_M2BASE_URL}?action=ingest-health`, {
+    headers: { 'X-M2Base-GHL-Secret': HOSTINGER_GHL_SECRET },
+  });
+  const body = await r.json();
+  return { ok: r.ok, status: r.status, service: body.service || null };
+}
+
 // ── Firestore config ──────────────────────────────────────────────────────────
 const FS_PROJECT  = process.env.FS_PROJECT  || 'elite-reclutamiento-crm';
 const FS_KEY      = process.env.FS_KEY      || 'AIzaSyCW2t1oHb7xc2Vi6vJROGRM7E7nu-CbU3s';
@@ -773,6 +781,15 @@ app.post('/admin/fix-missing-dates', async (req, res) => {
 
 // Health check
 app.get('/', (req, res) => res.json({ ok: true, service: 'webinar', v: 'e696c53', ts: Date.now() }));
+
+app.get('/health/m2base', async (req, res) => {
+  try {
+    const health = await hostingerIngestHealth();
+    res.status(health.ok ? 200 : 502).json({ ok: health.ok, hostinger: health });
+  } catch (e) {
+    res.status(502).json({ ok: false, hostinger: { ok: false, error: e.message } });
+  }
+});
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Webinar server → port ${PORT}`));
