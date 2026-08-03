@@ -1,5 +1,6 @@
 'use strict';
 const express = require('express');
+const crypto = require('crypto');
 const app = express();
 app.use(express.json());
 let lastAppointmentWebhook = null;
@@ -46,6 +47,27 @@ async function sbUpsert(table, record, onConflict = 'id') {
   const data = await r.json();
   if (!r.ok) throw new Error(JSON.stringify(data));
   return data;
+}
+
+function stableAppointmentKey(value) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (!Number.isNaN(date.getTime())) return date.toISOString().slice(0, 16);
+  return String(value).trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+async function findExistingGhlRecord({ contactId, phone, email, appointment }) {
+  const filters = [`workspace_id=eq.sistemas`, `appointment=eq.${encodeURIComponent(appointment)}`];
+  if (contactId) filters.push(`ghl_contact_id=eq.${encodeURIComponent(contactId)}`);
+  else if (phone) filters.push(`phone=eq.${encodeURIComponent(phone)}`);
+  else if (email) filters.push(`email=eq.${encodeURIComponent(email)}`);
+  else return null;
+
+  const query = `${SB_URL}/rest/v1/m2base_records?${filters.join('&')}&select=id,status,assignee,comments,lead_group&limit=1`;
+  const r = await fetch(query, { headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` } });
+  const data = await r.json();
+  if (!r.ok) throw new Error(JSON.stringify(data));
+  return data[0] || null;
 }
 
 // ── Firestore config ──────────────────────────────────────────────────────────
@@ -494,11 +516,16 @@ app.post('/ghl/cita', async (req, res) => {
         weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
         hour: '2-digit', minute: '2-digit', hour12: true });
 
+    const appointmentId = calendar.id || calendar.appointmentId || calendar.appointment_id ||
+      b.appointmentId || b.appointment_id || b.eventId || b.event_id || '';
+    const existing = await findExistingGhlRecord({ contactId, phone, email, appointment: appointmentStr });
+
     // ── Asignado: siempre vacío, se asigna manualmente en el sistema ─────────
     const assigneeName = 'Sin asignacion';
 
     // ── Construir registro para Supabase ──────────────────────────────────────
-    const id     = 'ghl-' + Date.now();
+    const identity = appointmentId || [contactId || phone || email || applicant, stableAppointmentKey(rawDate)].join('|');
+    const id = existing?.id || `ghl-${crypto.createHash('sha256').update(identity).digest('hex').slice(0, 24)}`;
     const record = {
       id,
       workspace_id: 'sistemas',      // Lista de entrevistas
@@ -521,10 +548,18 @@ app.post('/ghl/cita', async (req, res) => {
       fbclid:        fbclid || null,
     };
 
-    await sbUpsert('m2base_records', record, 'id');
-    console.log(`[GHL Cita] Guardado en Supabase: ${id} — ${applicant}`);
+    // Un webhook repetido no debe reiniciar cambios manuales del equipo.
+    if (existing) {
+      record.status = existing.status || record.status;
+      record.assignee = existing.assignee || record.assignee;
+      record.comments = existing.comments || record.comments;
+      record.lead_group = existing.lead_group || null;
+    }
 
-    res.json({ ok: true, id, applicant });
+    await sbUpsert('m2base_records', record, 'id');
+    console.log(`[GHL Cita] ${existing ? 'Actualizado' : 'Creado'} en Supabase: ${id} — ${applicant}`);
+
+    res.json({ ok: true, id, applicant, deduplicated: Boolean(existing) });
   } catch (e) {
     const detail = e.cause?.message || e.cause?.code || '';
     console.error('[GHL Cita] Error:', e.message, detail);
