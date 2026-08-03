@@ -97,7 +97,7 @@ async function hostingerIngestHealth() {
     headers: { 'X-M2Base-GHL-Secret': HOSTINGER_GHL_SECRET },
   });
   const body = await r.json();
-  return { ok: r.ok, status: r.status, service: body.service || null };
+  return { ok: r.ok, status: r.status, service: body.service || null, fingerprint: crypto.createHash('sha256').update(HOSTINGER_GHL_SECRET).digest('hex') };
 }
 
 // ── Firestore config ──────────────────────────────────────────────────────────
