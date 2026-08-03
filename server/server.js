@@ -16,6 +16,8 @@ app.use((req, res, next) => {
 // M2BASE_* para evitar conflicto con SUPABASE_URL del proyecto GEW en Railway
 const SB_URL  = process.env.M2BASE_SUPABASE_URL || 'https://esfjwnzigmapacbotzgh.supabase.co';
 const SB_KEY  = process.env.M2BASE_SUPABASE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVzZmp3bnppZ21hcGFjYm90emdoIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MTY1NjMyNSwiZXhwIjoyMDk3MjMyMzI1fQ.ftYrR6o19lsAdXfctrHIJPPOZlC71tUm12NMm_8d8o8';
+const HOSTINGER_M2BASE_URL = process.env.M2BASE_HOSTINGER_URL || 'https://hiring.m2base.com/m2base.php';
+const HOSTINGER_GHL_SECRET = process.env.M2BASE_HOSTINGER_GHL_SECRET || crypto.createHash('sha256').update(`${SB_KEY}:m2base-hostinger-ingest-v1`).digest('hex');
 
 async function sbInsert(table, record) {
   const r = await fetch(`${SB_URL}/rest/v1/${table}`, {
@@ -68,6 +70,26 @@ async function findExistingGhlRecord({ contactId, phone, email, appointment }) {
   const data = await r.json();
   if (!r.ok) throw new Error(JSON.stringify(data));
   return data[0] || null;
+}
+
+async function hostingerIngest(record) {
+  const r = await fetch(`${HOSTINGER_M2BASE_URL}?action=ingest`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-M2Base-GHL-Secret': HOSTINGER_GHL_SECRET },
+    body: JSON.stringify(record),
+  });
+  if (!r.ok) throw new Error(`Hostinger ingest HTTP ${r.status}`);
+  return r.json();
+}
+
+async function hostingerPatch(id, patch) {
+  const r = await fetch(`${HOSTINGER_M2BASE_URL}?action=patch`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-M2Base-GHL-Secret': HOSTINGER_GHL_SECRET },
+    body: JSON.stringify({ id, ...patch }),
+  });
+  if (!r.ok) throw new Error(`Hostinger patch HTTP ${r.status}`);
+  return r.json();
 }
 
 // ── Firestore config ──────────────────────────────────────────────────────────
@@ -557,9 +579,16 @@ app.post('/ghl/cita', async (req, res) => {
     }
 
     await sbUpsert('m2base_records', record, 'id');
+    let hostingerSynced = false;
+    try {
+      await hostingerIngest(record);
+      hostingerSynced = true;
+    } catch (syncError) {
+      console.warn('[GHL Cita] Hostinger sync pendiente:', syncError.message);
+    }
     console.log(`[GHL Cita] ${existing ? 'Actualizado' : 'Creado'} en Supabase: ${id} — ${applicant}`);
 
-    res.json({ ok: true, id, applicant, deduplicated: Boolean(existing) });
+    res.json({ ok: true, id, applicant, deduplicated: Boolean(existing), hostingerSynced });
   } catch (e) {
     const detail = e.cause?.message || e.cause?.code || '';
     console.error('[GHL Cita] Error:', e.message, detail);
@@ -648,8 +677,15 @@ app.post('/ghl/appointment', async (req, res) => {
       body: JSON.stringify({ appointment: appointmentStr, updated_at: new Date().toISOString() }),
     });
 
+    let hostingerSynced = false;
+    try {
+      await hostingerPatch(existing.id, { appointment: appointmentStr, updated_at: new Date().toISOString() });
+      hostingerSynced = true;
+    } catch (syncError) {
+      console.warn('[GHL Appointment] Hostinger sync pendiente:', syncError.message);
+    }
     console.log(`[GHL Appointment] Actualizado ${existing.id} (${existing.applicant}) → ${appointmentStr}`);
-    res.json({ ok: true, id: existing.id, appointment: appointmentStr });
+    res.json({ ok: true, id: existing.id, appointment: appointmentStr, hostingerSynced });
   } catch (e) {
     console.error('[GHL Appointment] Error:', e.message);
     res.status(500).json({ ok: false, error: e.message });
