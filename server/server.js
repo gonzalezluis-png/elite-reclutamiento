@@ -35,22 +35,6 @@ async function sbInsert(table, record) {
   return data;
 }
 
-async function sbUpsert(table, record, onConflict = 'id') {
-  const r = await fetch(`${SB_URL}/rest/v1/${table}?on_conflict=${onConflict}`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'apikey': SB_KEY,
-      'Authorization': `Bearer ${SB_KEY}`,
-      'Prefer': 'return=representation,resolution=merge-duplicates',
-    },
-    body: JSON.stringify(record),
-  });
-  const data = await r.json();
-  if (!r.ok) throw new Error(JSON.stringify(data));
-  return data;
-}
-
 function stableAppointmentKey(value) {
   if (!value) return '';
   const date = new Date(value);
@@ -58,18 +42,20 @@ function stableAppointmentKey(value) {
   return String(value).trim().toLowerCase().replace(/\s+/g, ' ');
 }
 
-async function findExistingGhlRecord({ contactId, phone, email, appointment }) {
-  const filters = [`workspace_id=eq.sistemas`, `appointment=eq.${encodeURIComponent(appointment)}`];
-  if (contactId) filters.push(`ghl_contact_id=eq.${encodeURIComponent(contactId)}`);
-  else if (phone) filters.push(`phone=eq.${encodeURIComponent(phone)}`);
-  else if (email) filters.push(`email=eq.${encodeURIComponent(email)}`);
+async function hostingerFindExisting({ contactId, phone, email, appointment }) {
+  const query = new URLSearchParams({ action: 'ingest-find' });
+  if (contactId) query.set('contact_id', contactId);
+  else if (phone) query.set('phone', phone);
+  else if (email) query.set('email', email);
   else return null;
+  if (appointment) query.set('appointment', appointment);
 
-  const query = `${SB_URL}/rest/v1/m2base_records?${filters.join('&')}&select=id,status,assignee,comments,lead_group&limit=1`;
-  const r = await fetch(query, { headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` } });
+  const r = await fetch(`${HOSTINGER_M2BASE_URL}?${query.toString()}`, {
+    headers: { 'X-M2Base-GHL-Secret': HOSTINGER_GHL_SECRET },
+  });
   const data = await r.json();
-  if (!r.ok) throw new Error(JSON.stringify(data));
-  return data[0] || null;
+  if (!r.ok) throw new Error(`Hostinger find HTTP ${r.status}`);
+  return data.record || null;
 }
 
 async function hostingerIngest(record) {
@@ -472,9 +458,9 @@ app.post('/ghl/webinar-register', async (req, res) => {
   }
 });
 
-// ── Webhook GHL → Supabase (hiring.m2base.com) ───────────────────────────────
+// ── Webhook GHL → Hostinger MySQL (hiring.m2base.com) ─────────────────────────
 // GHL dispara este webhook cuando se agenda una entrevista/cita.
-// Guarda el registro en Supabase para que hiring.m2base.com lo muestre.
+// Guarda el registro directamente en Hostinger para que hiring.m2base.com lo muestre.
 //
 // Campos que GHL puede enviar (todos opcionales excepto nombre o phone):
 //   contact.firstName, contact.lastName, contact.email, contact.phone
@@ -548,12 +534,12 @@ app.post('/ghl/cita', async (req, res) => {
 
     const appointmentId = calendar.id || calendar.appointmentId || calendar.appointment_id ||
       b.appointmentId || b.appointment_id || b.eventId || b.event_id || '';
-    const existing = await findExistingGhlRecord({ contactId, phone, email, appointment: appointmentStr });
+    const existing = await hostingerFindExisting({ contactId, phone, email, appointment: appointmentStr });
 
     // ── Asignado: siempre vacío, se asigna manualmente en el sistema ─────────
     const assigneeName = 'Sin asignacion';
 
-    // ── Construir registro para Supabase ──────────────────────────────────────
+    // ── Construir registro para Hostinger MySQL ────────────────────────────────
     const identity = appointmentId || [contactId || phone || email || applicant, stableAppointmentKey(rawDate)].join('|');
     const id = existing?.id || `ghl-${crypto.createHash('sha256').update(identity).digest('hex').slice(0, 24)}`;
     const record = {
@@ -586,17 +572,10 @@ app.post('/ghl/cita', async (req, res) => {
       record.lead_group = existing.lead_group || null;
     }
 
-    await sbUpsert('m2base_records', record, 'id');
-    let hostingerSynced = false;
-    try {
-      await hostingerIngest(record);
-      hostingerSynced = true;
-    } catch (syncError) {
-      console.warn('[GHL Cita] Hostinger sync pendiente:', syncError.message);
-    }
-    console.log(`[GHL Cita] ${existing ? 'Actualizado' : 'Creado'} en Supabase: ${id} — ${applicant}`);
+    await hostingerIngest(record);
+    console.log(`[GHL Cita] ${existing ? 'Actualizado' : 'Creado'} en Hostinger: ${id} — ${applicant}`);
 
-    res.json({ ok: true, id, applicant, deduplicated: Boolean(existing), hostingerSynced });
+    res.json({ ok: true, id, applicant, deduplicated: Boolean(existing), hostingerSynced: true });
   } catch (e) {
     const detail = e.cause?.message || e.cause?.code || '';
     console.error('[GHL Cita] Error:', e.message, detail);
@@ -640,7 +619,7 @@ app.post('/monday/create-item', async (req, res) => {
   }
 });
 
-// ── Webhook GHL → Supabase: appointment creado/confirmado ────────────────────
+// ── Webhook GHL → Hostinger: appointment creado/confirmado ───────────────────
 // GHL dispara este webhook cuando se agenda o confirma una cita de entrevista.
 // Busca el registro existente por teléfono o email y actualiza la fecha.
 app.post('/ghl/appointment', async (req, res) => {
@@ -659,41 +638,21 @@ app.post('/ghl/appointment', async (req, res) => {
       month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true,
     });
 
-    const phone = (contact.phone || contact.phoneNumber || b.phone || '').replace(/\D/g, '');
+    const phone = contact.phone || contact.phoneNumber || b.phone || '';
     const email = contact.email || b.email || '';
     const contactId = contact.id || b.contactId || b.contact_id || '';
 
-    // Buscar registro en Supabase por phone, email o contactId
-    let existing = null;
-    for (const [field, value] of [['phone', phone], ['email', email]]) {
-      if (!value) continue;
-      const r = await fetch(`${SB_URL}/rest/v1/m2base_records?workspace_id=eq.sistemas&${field}=ilike.*${encodeURIComponent(value.slice(-10))}*&order=created_at.desc&limit=1`, {
-        headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` },
-      });
-      const rows = await r.json();
-      if (rows[0]) { existing = rows[0]; break; }
-    }
+    // Buscar el registro directamente en Hostinger por contactId, teléfono o email.
+    const existing = await hostingerFindExisting({ contactId, phone, email, appointment: '' });
 
     if (!existing) {
       console.log(`[GHL Appointment] No record found for phone=${phone} email=${email}`);
       return res.json({ ok: true, skipped: 'no matching record' });
     }
 
-    await fetch(`${SB_URL}/rest/v1/m2base_records?id=eq.${existing.id}`, {
-      method: 'PATCH',
-      headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
-      body: JSON.stringify({ appointment: appointmentStr, updated_at: new Date().toISOString() }),
-    });
-
-    let hostingerSynced = false;
-    try {
-      await hostingerPatch(existing.id, { appointment: appointmentStr, updated_at: new Date().toISOString() });
-      hostingerSynced = true;
-    } catch (syncError) {
-      console.warn('[GHL Appointment] Hostinger sync pendiente:', syncError.message);
-    }
+    await hostingerPatch(existing.id, { appointment: appointmentStr, updated_at: new Date().toISOString() });
     console.log(`[GHL Appointment] Actualizado ${existing.id} (${existing.applicant}) → ${appointmentStr}`);
-    res.json({ ok: true, id: existing.id, appointment: appointmentStr, hostingerSynced });
+    res.json({ ok: true, id: existing.id, appointment: appointmentStr, hostingerSynced: true });
   } catch (e) {
     console.error('[GHL Appointment] Error:', e.message);
     res.status(500).json({ ok: false, error: e.message });
