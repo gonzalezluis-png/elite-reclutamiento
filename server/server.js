@@ -595,6 +595,7 @@ app.post('/monday/create-item', async (req, res) => {
     if (lead.email)       colVals['email_mm01kdgd'] = { email: lead.email, text: lead.email };
     if (lead.direccion)   colVals['text_mm01m2tm']  = lead.direccion;
     if (lead.solicitudes) colVals['text_mm01ryey']  = lead.solicitudes;
+    if (lead.lead)        colVals['color_mm01d78z'] = { label: lead.lead };
     if (lead.ubicacion)   colVals['color_mm01canv'] = { label: lead.ubicacion };
 
     const query = `mutation {
