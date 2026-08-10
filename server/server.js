@@ -279,14 +279,53 @@ async function ghlNextAppointment(contactId) {
     const list = d?.appointments || d?.events || (Array.isArray(d) ? d : []);
     const now = Date.now();
     const upcoming = list
-      .map(a => ({ ...a, _ts: new Date(a.startTime || a.start_time || a.startAt || a.start || '').getTime() }))
+      .map(a => {
+        const raw = a.startTime || a.start_time || a.startAt || a.start || '';
+        const parsed = parseGhlAppointmentDate(raw);
+        return { ...a, _ts: parsed?.getTime() || NaN, _startIso: parsed?.toISOString() || null };
+      })
       .filter(a => a._ts && a._ts >= now - 86400000 * 7) // hasta 7 días en el pasado
       .sort((a, b) => a._ts - b._ts);
-    return upcoming[0]?.startTime || upcoming[0]?.start_time || upcoming[0]?.startAt || upcoming[0]?.start || null;
+    return upcoming[0]?._startIso || null;
   } catch (e) {
     console.warn('[GHL Appointments] Error:', e.message);
     return null;
   }
+}
+
+// La API de GHL puede devolver startTime como "YYYY-MM-DD HH:mm:ss" sin zona.
+// Es una hora local de la ubicación (America/Chicago), no UTC ni la zona del
+// servidor Railway. Convertirla aquí evita desplazar la entrevista varias horas.
+function parseGhlAppointmentDate(value) {
+  const text = String(value || '').trim();
+  if (!text) return null;
+
+  const hasExplicitZone = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(text);
+  if (hasExplicitZone) {
+    const direct = new Date(text);
+    return Number.isNaN(direct.getTime()) ? null : direct;
+  }
+
+  const match = text.match(/^(\d{4})[-/](\d{2})[-/](\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?/);
+  if (!match) {
+    const direct = new Date(text);
+    return Number.isNaN(direct.getTime()) ? null : direct;
+  }
+
+  const [, year, month, day, hour, minute, second = '00'] = match;
+  const naiveUtc = Date.UTC(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute), Number(second));
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Chicago',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23',
+  }).formatToParts(new Date(naiveUtc));
+  const localParts = Object.fromEntries(parts.filter(part => part.type !== 'literal').map(part => [part.type, part.value]));
+  const formattedAsUtc = Date.UTC(
+    Number(localParts.year), Number(localParts.month) - 1, Number(localParts.day),
+    Number(localParts.hour), Number(localParts.minute), Number(localParts.second),
+  );
+  const offsetMs = formattedAsUtc - naiveUtc;
+  return new Date(naiveUtc - offsetMs);
 }
 
 async function ghlFindContactByPhone(phone) {
@@ -631,17 +670,21 @@ app.post('/ghl/appointment', async (req, res) => {
     const appt = b.appointment || b.appoinment || b;
     const contact = b.contact || b;
 
-    const startTime = appt.startTime || appt.start_time || appt.startAt || b.startTime || '';
+    const phone = contact.phone || contact.phoneNumber || b.phone || '';
+    const email = contact.email || b.email || '';
+    const contactId = contact.id || b.contactId || b.contact_id || '';
+
+    let startTime = appt.startTime || appt.start_time || appt.startAt || b.startTime || '';
+    // Algunos workflows de GHL envían solo los datos del contacto y el cambio
+    // de etapa. En ese formato la cita sigue existiendo en GHL, así que la
+    // recuperamos por contact_id antes de descartar el webhook.
+    if (!startTime && contactId) startTime = await ghlNextAppointment(contactId) || '';
     if (!startTime) return res.json({ ok: true, skipped: 'no startTime' });
 
     const appointmentStr = new Date(startTime).toLocaleString('es-MX', {
       timeZone: 'America/Chicago', weekday: 'long', year: 'numeric',
       month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true,
     });
-
-    const phone = contact.phone || contact.phoneNumber || b.phone || '';
-    const email = contact.email || b.email || '';
-    const contactId = contact.id || b.contactId || b.contact_id || '';
 
     // Buscar el registro directamente en Hostinger por contactId, teléfono o email.
     const existing = await hostingerFindExisting({ contactId, phone, email, appointment: '' });
