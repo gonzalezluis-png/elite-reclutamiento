@@ -68,6 +68,55 @@ function appointmentCandidates(rawDate, formattedDate) {
   return [...new Set(values.filter(Boolean))];
 }
 
+function appointmentVariants(value) {
+  const text = String(value || '').trim();
+  if (!text) return { wallKey: '', epochs: [] };
+  const epochs = [];
+  const direct = new Date(text);
+  if (!Number.isNaN(direct.getTime())) epochs.push(direct.getTime());
+
+  let wallKey = '';
+  const isoMatch = text.match(/^(\d{4})[-/](\d{2})[-/](\d{2})[ T](\d{2}):(\d{2})/);
+  if (isoMatch) wallKey = `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}T${isoMatch[4]}:${isoMatch[5]}`;
+
+  const normalized = text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const months = { enero: 0, febrero: 1, marzo: 2, abril: 3, mayo: 4, junio: 5, julio: 6, agosto: 7, septiembre: 8, octubre: 9, noviembre: 10, diciembre: 11 };
+  const spanishMatch = normalized.match(/(\d{1,2})\s+de\s+([a-z]+)\s+de\s+(\d{4}).*?(\d{1,2}):(\d{2})\s*([ap])\.?m\.?/);
+  if (!wallKey && spanishMatch && months[spanishMatch[2]] !== undefined) {
+    let hour = Number(spanishMatch[4]);
+    if (spanishMatch[6] === 'p' && hour < 12) hour += 12;
+    if (spanishMatch[6] === 'a' && hour === 12) hour = 0;
+    const year = Number(spanishMatch[3]);
+    const month = months[spanishMatch[2]];
+    const day = Number(spanishMatch[1]);
+    const minute = Number(spanishMatch[5]);
+    wallKey = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+    // Legacy rows were saved in Central time, while some earlier rows kept
+    // GHL's Eastern wall-clock value. Accept either representation when
+    // comparing the same appointment instant.
+    for (const timeZone of ['America/Chicago', 'America/New_York']) {
+      const naiveUtc = Date.UTC(year, month, day, hour, minute);
+      const parts = new Intl.DateTimeFormat('en-US', {
+        timeZone, year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23',
+      }).formatToParts(new Date(naiveUtc));
+      const local = Object.fromEntries(parts.filter(part => part.type !== 'literal').map(part => [part.type, part.value]));
+      const asUtc = Date.UTC(Number(local.year), Number(local.month) - 1, Number(local.day), Number(local.hour), Number(local.minute), Number(local.second));
+      epochs.push(naiveUtc - (asUtc - naiveUtc));
+    }
+  }
+  return { wallKey, epochs };
+}
+
+function appointmentsEquivalent(storedValue, candidates) {
+  const stored = appointmentVariants(storedValue);
+  return candidates.some(candidate => {
+    const next = appointmentVariants(candidate);
+    if (stored.wallKey && next.wallKey && stored.wallKey === next.wallKey) return true;
+    return stored.epochs.some(a => next.epochs.some(b => Math.abs(a - b) <= 60_000));
+  });
+}
+
 async function hostingerFindGhlExisting({ contactId, phone, email, rawDate, formattedDate }) {
   const identities = [
     contactId ? { contactId } : null,
@@ -91,7 +140,7 @@ async function hostingerFindGhlExisting({ contactId, phone, email, rawDate, form
   // different appointment belonging to the same contact.
   for (const identity of identities) {
     const found = await hostingerFindExisting({ ...identity, appointment: '' });
-    if (found && dates.includes(String(found.appointment || '').trim())) return found;
+    if (found && appointmentsEquivalent(found.appointment, dates)) return found;
   }
   return null;
 }
