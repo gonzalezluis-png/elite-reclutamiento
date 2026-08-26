@@ -58,6 +58,44 @@ async function hostingerFindExisting({ contactId, phone, email, appointment }) {
   return data.record || null;
 }
 
+function appointmentCandidates(rawDate, formattedDate) {
+  const values = [formattedDate, String(rawDate || '').trim()];
+  const text = String(rawDate || '').trim();
+  const localMatch = text.match(/^(\d{4})[-/](\d{2})[-/](\d{2})[ T](\d{2}):(\d{2})/);
+  if (localMatch) values.push(`${localMatch[1]}-${localMatch[2]}-${localMatch[3]}T${localMatch[4]}:${localMatch[5]}`);
+  const parsed = new Date(rawDate);
+  if (!Number.isNaN(parsed.getTime())) values.push(parsed.toISOString().slice(0, 16));
+  return [...new Set(values.filter(Boolean))];
+}
+
+async function hostingerFindGhlExisting({ contactId, phone, email, rawDate, formattedDate }) {
+  const identities = [
+    contactId ? { contactId } : null,
+    phone ? { phone } : null,
+    email ? { email } : null,
+  ].filter(Boolean);
+  const dates = appointmentCandidates(rawDate, formattedDate);
+
+  // Prefer an exact match, trying each identity because older rows may not
+  // have a ghl_contact_id even though GHL sends one now.
+  for (const appointment of dates) {
+    for (const identity of identities) {
+      const found = await hostingerFindExisting({ ...identity, appointment });
+      if (found) return found;
+    }
+  }
+
+  // A repeated event may have the same stable appointment id but a different
+  // date representation. Only use the identity-only match when its stored
+  // appointment is one of the equivalent values above; never merge a clearly
+  // different appointment belonging to the same contact.
+  for (const identity of identities) {
+    const found = await hostingerFindExisting({ ...identity, appointment: '' });
+    if (found && dates.includes(String(found.appointment || '').trim())) return found;
+  }
+  return null;
+}
+
 async function hostingerIngest(record) {
   const r = await fetch(`${HOSTINGER_M2BASE_URL}?action=ingest`, {
     method: 'POST',
@@ -573,7 +611,9 @@ app.post('/ghl/cita', async (req, res) => {
 
     const appointmentId = calendar.id || calendar.appointmentId || calendar.appointment_id ||
       b.appointmentId || b.appointment_id || b.eventId || b.event_id || '';
-    const existing = await hostingerFindExisting({ contactId, phone, email, appointment: appointmentStr });
+    const existing = await hostingerFindGhlExisting({
+      contactId, phone, email, rawDate, formattedDate: appointmentStr,
+    });
 
     // ── Asignado: siempre vacío, se asigna manualmente en el sistema ─────────
     const assigneeName = 'Sin asignacion';
@@ -660,43 +700,77 @@ app.post('/monday/create-item', async (req, res) => {
 });
 
 // ── Webhook GHL → Hostinger: appointment creado/confirmado ───────────────────
-// GHL dispara este webhook cuando se agenda o confirma una cita de entrevista.
-// Busca el registro existente por teléfono o email y actualiza la fecha.
+// Ruta antigua que todavía puede estar configurada en un workflow de GHL.
+// Debe tener el mismo comportamiento que /ghl/cita: crear el lead si no existe
+// y actualizarlo sin perder la clasificación manual si ya existe.
 app.post('/ghl/appointment', async (req, res) => {
   try {
     lastAppointmentWebhook = { ts: new Date().toISOString(), body: req.body };
     console.log('[GHL Appointment] body:', JSON.stringify(req.body, null, 2));
-    const b = req.body;
-    const appt = b.appointment || b.appoinment || b;
-    const contact = b.contact || b;
+    const b = req.body || {};
+    const contact = b.contact || {};
+    const calendar = b.calendar || b.appointment || b.appoinment || {};
+    const contactId = b.ghl_contact_id || b.contact_id || b.contactId || contact.id || '';
 
-    const phone = contact.phone || contact.phoneNumber || b.phone || '';
-    const email = contact.email || b.email || '';
-    const contactId = contact.id || b.contactId || b.contact_id || '';
+    const firstName = b.first_name || contact.firstName || contact.first_name || '';
+    const lastName  = b.last_name || contact.lastName || contact.last_name || '';
+    const applicant = b.full_name || b.nombre || b.name ||
+      `${firstName}${lastName ? ' ' + lastName : ''}`.trim() || 'Sin nombre';
+    const phone = b.phone || contact.phone || contact.phoneNumber || b.telefono || '';
+    const email = b.email || contact.email || b.correo || '';
+    const city  = b.city || contact.city || b.ciudad || '';
+    const state = b.state || contact.state || b.estado || '';
+    const source = b.contact_source || b.source || contact.source || b.fuente || b.lead_source || '';
 
-    let startTime = appt.startTime || appt.start_time || appt.startAt || b.startTime || '';
+    let startTime = calendar.startTime || calendar.start_time || calendar.startAt ||
+      b.startTime || b.start_time || b.fecha || '';
     // Algunos workflows de GHL envían solo los datos del contacto y el cambio
     // de etapa. En ese formato la cita sigue existiendo en GHL, así que la
-    // recuperamos por contact_id antes de descartar el webhook.
+    // recuperamos por contact_id antes de crear el registro.
     if (!startTime && contactId) startTime = await ghlNextAppointment(contactId) || '';
-    if (!startTime) return res.json({ ok: true, skipped: 'no startTime' });
+    const defaultDate = !startTime;
+    if (!startTime) startTime = new Date().toISOString();
 
     const appointmentStr = new Date(startTime).toLocaleString('es-MX', {
       timeZone: 'America/Chicago', weekday: 'long', year: 'numeric',
       month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true,
     });
+    const appointmentId = calendar.id || calendar.appointmentId || calendar.appointment_id ||
+      b.appointmentId || b.appointment_id || b.eventId || b.event_id || '';
+    const existing = await hostingerFindGhlExisting({
+      contactId, phone, email, rawDate: startTime, formattedDate: appointmentStr,
+    });
+    const identity = appointmentId || [contactId || phone || email || applicant, stableAppointmentKey(startTime)].join('|');
+    const id = existing?.id || `ghl-${crypto.createHash('sha256').update(identity).digest('hex').slice(0, 24)}`;
+    const record = {
+      id,
+      workspace_id: 'sistemas',
+      applicant,
+      phone,
+      email,
+      city,
+      state,
+      appointment: appointmentStr,
+      source,
+      platform: 'Sin Necesidad',
+      status: 'Sin clasificar',
+      assignee: 'Sin asignacion',
+      comments: defaultDate ? 'Fecha por defecto' : (calendar.title || b.notes || b.notas || ''),
+      lead_group: null,
+      ghl_contact_id: contactId || null,
+    };
 
-    // Buscar el registro directamente en Hostinger por contactId, teléfono o email.
-    const existing = await hostingerFindExisting({ contactId, phone, email, appointment: '' });
-
-    if (!existing) {
-      console.log(`[GHL Appointment] No record found for phone=${phone} email=${email}`);
-      return res.json({ ok: true, skipped: 'no matching record' });
+    // Los cambios manuales del equipo tienen prioridad sobre un webhook repetido.
+    if (existing) {
+      record.status = existing.status || record.status;
+      record.assignee = existing.assignee || record.assignee;
+      record.comments = existing.comments || record.comments;
+      record.lead_group = existing.lead_group || null;
     }
 
-    await hostingerPatch(existing.id, { appointment: appointmentStr, updated_at: new Date().toISOString() });
-    console.log(`[GHL Appointment] Actualizado ${existing.id} (${existing.applicant}) → ${appointmentStr}`);
-    res.json({ ok: true, id: existing.id, appointment: appointmentStr, hostingerSynced: true });
+    await hostingerIngest(record);
+    console.log(`[GHL Appointment] ${existing ? 'Actualizado' : 'Creado'} en Hostinger: ${id} — ${applicant}`);
+    res.json({ ok: true, id, applicant, appointment: appointmentStr, created: !existing, deduplicated: Boolean(existing), hostingerSynced: true });
   } catch (e) {
     console.error('[GHL Appointment] Error:', e.message);
     res.status(500).json({ ok: false, error: e.message });
